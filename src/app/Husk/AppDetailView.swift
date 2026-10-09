@@ -112,9 +112,9 @@ struct AppDetailView: View {
             }
 
             Section {
-                LabeledContent("Version", value: live.version ?? "—")
-                LabeledContent("Size", value: live.sizeBytes.map(Self.bytes) ?? "—")
-                LabeledContent("Last Used", value: live.lastUsed.map(Self.when) ?? "Never from Husk")
+                HuskLabeledContent("Version", value: live.version ?? "—")
+                HuskLabeledContent("Size", value: live.sizeBytes.map(Self.bytes) ?? "—")
+                HuskLabeledContent("Last Used", value: live.lastUsed.map(Self.when) ?? "Never from Husk")
             }
 
             Section {

@@ -155,74 +155,77 @@ struct HomeView: View {
     }
 
     var body: some View {
-        NavigationStack(path: $router.home) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    HStack(spacing: 10) {
-                        Text("Husk")
-                            .font(.system(size: 34, weight: .heavy, design: .rounded))
-                        ModeMenu(mode: $mode)
-                        Spacer()
-                        HeaderButton(systemImage: "plus") { router.addSomething() }
-                            .accessibilityLabel("Add a Game or App")
+        HuskNavStack(path: $router.home, backTitle: "Husk",
+                     root: { homeContent },
+                     page: { LibraryRouteView(route: $0) })
+    }
+
+    private var homeContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                HStack(spacing: 10) {
+                    Text("Husk")
+                        .font(.system(size: 34, weight: .heavy, design: .rounded))
+                    ModeMenu(mode: $mode)
+                    Spacer()
+                    HeaderButton(systemImage: "plus") { router.addSomething() }
+                        .accessibilityLabel("Add a Game or App")
+                }
+                if !Launcher.jitOn { JITCard(compact: true) }
+                if let busy = incoming.preparing { BusyStrip(text: busy) }
+                if let busy = store.busy { BusyStrip(text: busy) }
+                if let busy = host.busy { BusyStrip(text: busy) }
+                if jit.busy, !jit.showSetup { BusyStrip(text: jit.status ?? "Turning on JIT…") }
+
+                let items = all
+                if items.isEmpty {
+                    WelcomeCard()
+                } else {
+                    let lead = items.first { $0.lastUsed != nil } ?? (mode == .android ? .android : items[0])
+                    HeroCard(item: lead)
+
+                    let games = items.filter { $0.isGame && $0 != lead }
+                    if !games.isEmpty {
+                        ShelfHeader(title: "Games") { router.showLibrary(.games) }
+                        ScrollView(.horizontal) {
+                            LazyHStack(alignment: .top, spacing: 12) {
+                                ForEach(games) { item in
+                                    NavigationLink(destination: libraryDestination(item.route)) { CoverTile(item: item) }
+                                        .buttonStyle(CardButtonStyle())
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                        }
+                        .scrollIndicators(.hidden)
+                        .padding(.horizontal, -20)
                     }
-                    if !Launcher.jitOn { JITCard(compact: true) }
-                    if let busy = incoming.preparing { BusyStrip(text: busy) }
-                    if let busy = store.busy { BusyStrip(text: busy) }
-                    if let busy = host.busy { BusyStrip(text: busy) }
-                    if jit.busy, !jit.showSetup { BusyStrip(text: jit.status ?? "Turning on JIT…") }
 
-                    let items = all
-                    if items.isEmpty {
-                        WelcomeCard()
-                    } else {
-                        let lead = items.first { $0.lastUsed != nil } ?? (mode == .android ? .android : items[0])
-                        HeroCard(item: lead)
-
-                        let games = items.filter { $0.isGame && $0 != lead }
-                        if !games.isEmpty {
-                            ShelfHeader(title: "Games") { router.showLibrary(.games) }
-                            ScrollView(.horizontal) {
-                                LazyHStack(alignment: .top, spacing: 12) {
-                                    ForEach(games) { item in
-                                        NavigationLink(value: item.route) { CoverTile(item: item) }
-                                            .buttonStyle(CardButtonStyle())
-                                    }
+                    let apps = items.filter { !$0.isGame && $0 != lead }
+                    if !apps.isEmpty {
+                        ShelfHeader(title: "Apps") { router.showLibrary(.apps) }
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 64, maximum: 90), spacing: 8, alignment: .top)],
+                                  spacing: 14) {
+                            ForEach(apps.prefix(UIDevice.current.userInterfaceIdiom == .pad ? 16 : 8)) { item in
+                                NavigationLink(destination: libraryDestination(item.route)) {
+                                    LauncherTile(title: item.title, iconPath: item.iconPath, size: 50)
                                 }
-                                .padding(.horizontal, 20)
+                                .buttonStyle(CardButtonStyle())
                             }
-                            .scrollIndicators(.hidden)
-                            .padding(.horizontal, -20)
                         }
-
-                        let apps = items.filter { !$0.isGame && $0 != lead }
-                        if !apps.isEmpty {
-                            ShelfHeader(title: "Apps") { router.showLibrary(.apps) }
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 64, maximum: 90), spacing: 8, alignment: .top)],
-                                      spacing: 14) {
-                                ForEach(apps.prefix(UIDevice.current.userInterfaceIdiom == .pad ? 16 : 8)) { item in
-                                    NavigationLink(value: item.route) {
-                                        LauncherTile(title: item.title, iconPath: item.iconPath, size: 50)
-                                    }
-                                    .buttonStyle(CardButtonStyle())
-                                }
-                            }
-                            .padding(14)
-                            .background(Color(uiColor: .secondarySystemBackground),
-                                        in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                        }
+                        .padding(14)
+                        .background(Color(uiColor: .secondarySystemBackground),
+                                    in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 32)
-                .id(jit.attachGeneration)
             }
-            .scrollIndicators(.hidden)
-            .background(Color(uiColor: .systemBackground).ignoresSafeArea())
-            .toolbar(.hidden, for: .navigationBar)
-            .libraryDestinations()
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, 32)
+            .id(jit.attachGeneration)
         }
+        .scrollIndicators(.hidden)
+        .background(Color(uiColor: .systemBackground).ignoresSafeArea())
+        .navigationBarHidden(true)
     }
 }
 
@@ -349,7 +352,7 @@ private struct HeroCard: View {
     @ObservedObject private var router = Router.shared
 
     var body: some View {
-        NavigationLink(value: item.route) {
+        NavigationLink(destination: libraryDestination(item.route)) {
             ZStack(alignment: .bottomLeading) {
                 ItemBackdrop(item: item)
                 LinearGradient(colors: [.clear, .black.opacity(0.75)], startPoint: .top, endPoint: .bottom)
@@ -467,46 +470,49 @@ struct LibraryScreen: View {
     @State private var query = ""
 
     var body: some View {
-        NavigationStack(path: $router.library) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    HStack {
-                        Text("Library")
-                            .font(.system(size: 34, weight: .heavy, design: .rounded))
-                        Spacer()
-                        HeaderButton(systemImage: "plus") { router.addSomething() }
-                            .accessibilityLabel("Add a Game or App")
-                    }
-                    SearchField(text: $query, prompt: "Search games and apps")
-                    FilterChips(filter: $router.libraryFilter)
-                    if let busy = store.busy { BusyStrip(text: busy) }
-                    if let busy = host.busy { BusyStrip(text: busy) }
+        HuskNavStack(path: $router.library, backTitle: "Library",
+                     root: { libraryContent },
+                     page: { LibraryRouteView(route: $0) })
+    }
 
-                    let items = Launcher.items(store: store, host: host)
-                        .filter { matches(query, $0.title) }
-                        .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
-                    let games = items.filter(\.isGame)
-                    // Android, as an app of its own: pinned first, and found by search like anything else.
-                    let apps = (matches(query, "Android") ? [LibraryItem.android] : []) + items.filter { !$0.isGame }
-
-                    if router.libraryFilter != .apps {
-                        section("Games", games, empty: query.isEmpty ? "Add a game with the + button." : nil)
-                    }
-                    if router.libraryFilter != .games {
-                        section("Apps", apps, empty: nil)
-                    }
-                    if !query.isEmpty, games.isEmpty, apps.isEmpty { NoResults(query: query) }
+    private var libraryContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Text("Library")
+                        .font(.system(size: 34, weight: .heavy, design: .rounded))
+                    Spacer()
+                    HeaderButton(systemImage: "plus") { router.addSomething() }
+                        .accessibilityLabel("Add a Game or App")
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 32)
+                SearchField(text: $query, prompt: "Search games and apps")
+                FilterChips(filter: $router.libraryFilter)
+                if let busy = store.busy { BusyStrip(text: busy) }
+                if let busy = host.busy { BusyStrip(text: busy) }
+
+                let items = Launcher.items(store: store, host: host)
+                    .filter { matches(query, $0.title) }
+                    .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
+                let games = items.filter(\.isGame)
+                // Android, as an app of its own: pinned first, and found by search like anything else.
+                let apps = (matches(query, "Android") ? [LibraryItem.android] : []) + items.filter { !$0.isGame }
+
+                if router.libraryFilter != .apps {
+                    section("Games", games, empty: query.isEmpty ? "Add a game with the + button." : nil)
+                }
+                if router.libraryFilter != .games {
+                    section("Apps", apps, empty: nil)
+                }
+                if !query.isEmpty, games.isEmpty, apps.isEmpty { NoResults(query: query) }
             }
-            .scrollIndicators(.hidden)
-            .scrollDismissesKeyboard(.immediately)
-            .background(Color(uiColor: .systemBackground).ignoresSafeArea())
-            .toolbar(.hidden, for: .navigationBar)
-            .libraryDestinations()
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, 32)
         }
+        .scrollIndicators(.hidden)
+        .scrollDismissesKeyboard(.immediately)
+        .background(Color(uiColor: .systemBackground).ignoresSafeArea())
+        .navigationBarHidden(true)
     }
 
     @ViewBuilder
@@ -522,7 +528,7 @@ struct LibraryScreen: View {
             } else {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 76, maximum: 110), spacing: 12, alignment: .top)], spacing: 20) {
                     ForEach(items) { item in
-                        NavigationLink(value: item.route) {
+                        NavigationLink(destination: libraryDestination(item.route)) {
                             LauncherTile(title: item.title, iconPath: item.iconPath, item: item, caption: caption(item))
                         }
                         .buttonStyle(CardButtonStyle())
@@ -679,7 +685,7 @@ struct SearchField: View {
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
-        .animation(.easeOut(duration: 0.2), value: focused)
+        .huskAnimation(.easeOut(duration: 0.2), value: focused)
     }
 }
 
@@ -704,11 +710,13 @@ func matches(_ query: String, _ names: String...) -> Bool {
 }
 
 extension View {
-    /// The pages an item opens, for whichever stack shows it.
-    func libraryDestinations() -> some View {
-        navigationDestination(for: LibraryRoute.self) { route in
-            LibraryRouteView(route: route).toolbar(.visible, for: .navigationBar)
-        }
+    /// The page an item route opens.
+    ///
+    /// This was a `.navigationDestination(for: LibraryRoute.self)` modifier,
+    /// which is iOS 16 and only resolves on a path-based stack. Call sites now
+    /// hand the route straight to `NavigationLink(destination:)`.
+    func libraryDestination(_ route: LibraryRoute) -> some View {
+        LibraryRouteView(route: route).navigationBarHidden(false)
     }
 }
 

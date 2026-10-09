@@ -142,10 +142,10 @@ struct GamePage: View {
             }
 
             Section {
-                NavigationLink(value: LibraryRoute.gameSettings(app.id)) {
+                NavigationLink(destination: libraryDestination(LibraryRoute.gameSettings(app.id))) {
                     Label("Game Settings", systemImage: "slider.horizontal.3")
                 }
-                NavigationLink(value: LibraryRoute.gameReport(app.id)) {
+                NavigationLink(destination: libraryDestination(LibraryRoute.gameReport(app.id))) {
                     Label("Technical Details", systemImage: "cpu")
                 }
             }
@@ -166,14 +166,14 @@ struct GamePage: View {
             }
 
             Section("About") {
-                LabeledContent("Runs With", value: app.report?.runnerName ?? "Unknown")
+                HuskLabeledContent("Runs With", value: app.report?.runnerName ?? "Unknown")
                 if let st = GameStatusStore.shared.status(app.id) {
-                    LabeledContent("Last Result") {
+                    HuskLabeledContent("Last Result") {
                         Label(st.result.label, systemImage: st.result.symbol).foregroundStyle(st.result.color)
                     }
                 }
-                LabeledContent("Last Played", value: app.lastPlayed.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "Never")
-                LabeledContent("Size", value: fileBytes(app.apks))
+                HuskLabeledContent("Last Played", value: app.lastPlayed.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "Never")
+                HuskLabeledContent("Size", value: fileBytes(app.apks))
             }
 
             Section {
@@ -350,10 +350,10 @@ struct AndroidAppPage: View {
             }
 
             Section("About") {
-                LabeledContent("Version", value: live.version ?? "—")
-                LabeledContent("Size", value: live.sizeBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "—")
-                LabeledContent("Package", value: live.name)
-                if let b = live.bitness { LabeledContent("Architecture", value: b) }
+                HuskLabeledContent("Version", value: live.version ?? "—")
+                HuskLabeledContent("Size", value: live.sizeBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "—")
+                HuskLabeledContent("Package", value: live.name)
+                if let b = live.bitness { HuskLabeledContent("Architecture", value: b) }
             }
 
             Section {
@@ -410,7 +410,7 @@ struct AndroidAppPage: View {
                 router.startAndroid()
             }
         } else {
-            NavigationLink(value: LibraryRoute.androidSystem) {
+            NavigationLink(destination: libraryDestination(LibraryRoute.androidSystem)) {
                 Label("Get Android First", systemImage: "arrow.down.circle")
                     .font(.system(.headline, design: .rounded))
                     .frame(maxWidth: .infinity).frame(height: 50)
@@ -486,7 +486,7 @@ struct AndroidSystemPage: View {
         .listStyle(.insetGrouped)
         .navigationTitle("Android")
         .navigationBarTitleDisplayMode(.inline)
-        .animation(.easeInOut(duration: 0.2), value: status)
+        .huskAnimation(.easeInOut(duration: 0.2), value: status)
     }
 
     private var status: String {

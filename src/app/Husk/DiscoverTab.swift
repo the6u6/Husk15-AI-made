@@ -168,7 +168,7 @@ struct DiscoverView: View {
     // MARK: - Add Source Sheet
 
     private var addSourceSheet: some View {
-        NavigationStack {
+        NavigationView {
             Form {
                 Section {
                     TextField("https://f-droid.org/repo/index-v1.json", text: $newSourceURL)
@@ -224,7 +224,7 @@ struct DiscoverView: View {
     // MARK: - Manage Sources Sheet
 
     private var sourcesSheet: some View {
-        NavigationStack {
+        NavigationView {
             List {
                 Section {
                     ForEach(manager.sourceURLs, id: \.self) { url in

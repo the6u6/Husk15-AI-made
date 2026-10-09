@@ -12,7 +12,7 @@ struct StoreView: View {
     @State private var selectedApp: PlayAPI.PlayApp?
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             Group {
                 if !manager.isSignedIn {
                     signedOutState
@@ -317,7 +317,7 @@ struct PlayAppDetailSheet: View {
     @ObservedObject private var manager = PlayStoreManager.shared
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     // Header: Icon, Title, Developer, Get Button

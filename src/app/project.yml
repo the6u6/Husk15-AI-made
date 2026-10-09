@@ -2,10 +2,15 @@ name: Husk
 options:
   bundleIdPrefix: com.husk
   deploymentTarget:
-    # 16.0: the lowest the app builds at as written (its SwiftUI is iOS 16), so
-    # it installs on the iOS 16 versions TrollStore runs on. QEMU, ANGLE and
-    # rppairing are built for 15.5, below it.
-    iOS: "16.0"
+    # 15.0: the lowest Husk installs on after the iOS 15 port. The SwiftUI that
+    # originally forced 16.0 has been moved onto 15.0-era equivalents -- see
+    # src/app/Husk/Compat15.swift and IOS15-PORT.md. QEMU, ANGLE and rppairing
+    # are built for 15.0 to match; an embedded dylib may never sit above the
+    # app, or dyld refuses to load it and the GL stack dies at qemu_egl_init.
+    #
+    # The two extensions keep their own, higher floors and are simply not
+    # loaded below them: Live Activities are 16.1, Built-in StikJIT is 26.0.
+    iOS: "15.0"
   createIntermediateGroups: true
 
 settings:

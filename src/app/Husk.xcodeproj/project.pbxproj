@@ -56,6 +56,7 @@
 		48E699E0016694F530355275 /* FilesTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40BF573E8CED9B238E762BA6 /* FilesTab.swift */; };
 		4B9909AA3D98168EA99BF2D1 /* HuskJITMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198FA3419B26F852A2B05ED9 /* HuskJITMessages.swift */; };
 		4C11B3EFED23B912383D12E2 /* Protobuf.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96F492FB5CD1D4A0B2D79E12 /* Protobuf.swift */; };
+		C0A7115E15DE000000000002 /* Compat15.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A7115E15DE000000000001 /* Compat15.swift */; };
 		4E1329C07A116B3BE1FDFA7A /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CAD18BA88F03D63EF1F5DF2 /* ContentView.swift */; };
 		4EF06C9496D4D86646EFD631 /* AppIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FCF57D3D74B527852EC0327 /* AppIcon.swift */; };
 		507309F42DC8965C816DC580 /* JITBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5664FE015975D16E7500F3C7 /* JITBootstrap.swift */; };
@@ -284,6 +285,7 @@
 		690B2DA647B7B75C11DDDA9F /* HuskBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = HuskBridge.h; sourceTree = "<group>"; };
 		6990DECA802D2C4493C28A4A /* husk-tl-egl.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = "husk-tl-egl.c"; sourceTree = "<group>"; };
 		6B7990E89ED6098029981E38 /* husk-tl-cocos.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = "husk-tl-cocos.c"; sourceTree = "<group>"; };
+		C0A7115E15DE000000000001 /* Compat15.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Compat15.swift; sourceTree = "<group>"; };
 		6CAD18BA88F03D63EF1F5DF2 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		6D7C478354C0F283365422FD /* husk-tl-dex.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "husk-tl-dex.h"; sourceTree = "<group>"; };
 		6F40192B3EDAD27D2CBFFC2F /* BootScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BootScreen.swift; sourceTree = "<group>"; };
@@ -413,6 +415,7 @@
 				28D3E1CEE343707BE986FA6E /* Assets.xcassets */,
 				6F40192B3EDAD27D2CBFFC2F /* BootScreen.swift */,
 				E37298010F80517A3057579E /* BundleUnpacker.swift */,
+				C0A7115E15DE000000000001 /* Compat15.swift */,
 				6CAD18BA88F03D63EF1F5DF2 /* ContentView.swift */,
 				BD3B1227581E9D6E7C9DCC3E /* CrashReport.swift */,
 				48DA17A30AE793049F358717 /* DiscoverTab.swift */,
@@ -886,6 +889,7 @@
 				F6B3DA43CA16FAF920EF236D /* AppTheme.swift in Sources */,
 				853E83FF7FF5B9A7FDE5E638 /* BootScreen.swift in Sources */,
 				7FA5D73DC2780CACC7399534 /* BundleUnpacker.swift in Sources */,
+				C0A7115E15DE000000000002 /* Compat15.swift in Sources */,
 				4E1329C07A116B3BE1FDFA7A /* ContentView.swift in Sources */,
 				BE7E302D6F02165C04588DA1 /* CrashReport.swift in Sources */,
 				EBDBC46EF4E65E1DA2342F6B /* DiscoverTab.swift in Sources */,
@@ -1217,7 +1221,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				HUSK_BUNDLE_IDENTIFIER = com.husk.app;
 				HUSK_ENTITLEMENTS = Husk/Husk.entitlements;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -1284,7 +1288,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				HUSK_BUNDLE_IDENTIFIER = com.husk.app;
 				HUSK_ENTITLEMENTS = Husk/Husk.entitlements;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

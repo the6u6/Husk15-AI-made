@@ -17,16 +17,24 @@ struct FilesTab: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack(path: $router.files) {
-            DirectoryView(path: Self.root, title: "Files")
-                .navigationDestination(for: String.self) { path in
-                    DirectoryView(path: path,
-                                  title: (path as NSString).lastPathComponent)
-                }
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
-                }
-        }
+        // `router.files` is the path itself, so "Open in Files" from an app's
+        // page lands in that app's folder on the very first frame: the router
+        // writes it before the sheet is presented.
+        HuskNavStack(path: $router.files, backTitle: "Files",
+                     root: { directory(at: Self.root) },
+                     page: { path in directory(at: path) })
+    }
+
+    /// iOS 15's `NavigationView` has no path, so the directory in front is a
+    /// page rather than a push: `DirectoryView` reports the tap back out here,
+    /// which writes the path the stack is reading.
+    private func directory(at path: String) -> some View {
+        DirectoryView(path: path,
+                      title: path == Self.root ? "Files" : (path as NSString).lastPathComponent,
+                      onOpen: { router.files = [$0] })
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
+            }
     }
 }
 
@@ -34,6 +42,10 @@ struct FilesTab: View {
 struct DirectoryView: View {
     let path: String
     let title: String
+    /// The directory that was tapped. There is no `NavigationLink(value:)` to
+    /// push from -- that is iOS 16 -- so the row reports out and `FilesTab`
+    /// swaps the page. Defaults to a no-op so a preview can still be built.
+    var onOpen: (String) -> Void = { _ in }
 
     @ObservedObject private var host = AndroidHost.shared
     @State private var entries: [AndroidHost.GuestEntry] = []
@@ -81,7 +93,7 @@ struct DirectoryView: View {
         }
         .sheet(isPresented: $showImportSheet) {
             ImportSheet(destination: path) { showImportSheet = false; importing = true }
-                .presentationDetents([.height(340)])
+                .huskDetent(.height(340))
         }
         .huskFilePicker(isPresented: $importing) { urls in
             host.sendFiles(urls, to: path)
@@ -104,10 +116,17 @@ struct DirectoryView: View {
 
     @ViewBuilder private func row(_ e: AndroidHost.GuestEntry) -> some View {
         if e.isDirectory {
-            NavigationLink(value: e.path) {
-                fileLabel(icon: "folder.fill", tint: .accentColor, title: e.name,
-                          subtitle: e.modified.map(Self.when))
+            Button { onOpen(e.path) } label: {
+                HStack {
+                    fileLabel(icon: "folder.fill", tint: .accentColor, title: e.name,
+                              subtitle: e.modified.map(Self.when))
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
             }
+            .foregroundStyle(.primary)
         } else {
             Button {
                 if e.name.lowercased().hasSuffix(".apk") { installing = e }
@@ -214,7 +233,7 @@ struct ImportSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
+        NavigationView {
             VStack(spacing: 18) {
                 VStack(spacing: 10) {
                     Image(systemName: "doc.badge.plus")

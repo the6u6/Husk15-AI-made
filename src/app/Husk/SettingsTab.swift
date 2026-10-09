@@ -5,7 +5,7 @@ import SwiftUI
 /// push a page of their own. What belongs to the app, what belongs to the emulator, and what the thing is.
 struct SettingsTab: View {
     var body: some View {
-        NavigationStack {
+        NavigationView {
             List {
                 Section {
                     NavigationLink { AboutSettings() } label: { appCard }
@@ -760,9 +760,9 @@ struct AboutSettings: View {
             }
 
             Section {
-                LabeledContent("Build", value: Bundle.main.commit)
-                LabeledContent("Guest image", value: GuestImage.imageVersion)
-                LabeledContent("Renderer",
+                HuskLabeledContent("Build", value: Bundle.main.commit)
+                HuskLabeledContent("Guest image", value: GuestImage.imageVersion)
+                HuskLabeledContent("Renderer",
                                value: runner.displayKind == .gl ? "GPU"
                                     : runner.displayKind == .software ? "CPU"
                                     : "Not started")

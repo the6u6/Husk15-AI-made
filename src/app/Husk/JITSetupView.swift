@@ -13,26 +13,23 @@ struct JITSetupFlow: View {
 
     @ObservedObject private var jit = JITCoordinator.shared
     @ObservedObject private var pairing = OnDevicePairing.shared
-    @State private var path: [Step] = []
+    /// The step in front of `choose`, or nil for the chooser itself.
+    ///
+    /// This was `[Step]` bound to `NavigationView(path:)`, which is iOS 16.
+    /// No step was ever popped one at a time -- Back returned to `choose` and
+    /// that was the only thing on the stack below -- so a single optional is
+    /// the same flow with a different shape.
+    @State private var step: Step?
     @State private var importing = false
     @Environment(\.dismiss) private var dismiss
 
     private var device: String { OnDevicePairing.deviceKind }
 
     var body: some View {
-        NavigationStack(path: $path) {
-            choose
-                .navigationDestination(for: Step.self) { step in
-                    switch step {
-                    case .pairOnDevice: pairOnDevice
-                    case .importFile: importFile
-                    case .connect: connect
-                    case .enable: enable
-                    case .stikDebug: stikDebug
-                    case .trollStore: trollStore
-                    case .jailbreak: jailbreak
-                    }
-                }
+        NavigationView {
+            Group {
+                if let step = step { stepView(step) } else { choose }
+            }
         }
         .tint(Theme.accent)
         .fileImporter(isPresented: $importing, allowedContentTypes: [.propertyList, .data]) { result in
@@ -47,7 +44,7 @@ struct JITSetupFlow: View {
             pairing.reset()
             // A failed enable from the Library lands on the step that can fix it.
             if jit.error != nil, jit.hasPairing, jit.resolvedMethod == .builtIn {
-                path = [.enable]
+                step = .enable
             }
             HuskLog.log("ui", "JIT walkthrough opened")
         }
@@ -59,6 +56,18 @@ struct JITSetupFlow: View {
     private func close() {
         jit.showSetup = false
         dismiss()
+    }
+
+    @ViewBuilder private func stepView(_ step: Step) -> some View {
+        switch step {
+        case .pairOnDevice: pairOnDevice
+        case .importFile: importFile
+        case .connect: connect
+        case .enable: enable
+        case .stikDebug: stikDebug
+        case .trollStore: trollStore
+        case .jailbreak: jailbreak
+        }
     }
 
     // MARK: Choose
@@ -74,28 +83,28 @@ struct JITSetupFlow: View {
                         : jit.pairingSource == .onDevice ? "Paired on this \(device)."
                         : "No computer needed. Pairs from Settings in a minute."),
                     done: jit.pairingSource == .onDevice,
-                    enabled: builtIn == nil && OnDevicePairing.isSupported) { path.append(.pairOnDevice) }
+                    enabled: builtIn == nil && OnDevicePairing.isSupported) { step = .pairOnDevice }
                 way("Use a pairing file", symbol: "doc.badge.plus",
                     detail: builtIn ?? (jit.pairingSource == .imported ? "Pairing file imported."
                         : "Import a pairing file made on a computer."),
                     done: jit.pairingSource == .imported,
-                    enabled: builtIn == nil) { path.append(.importFile) }
+                    enabled: builtIn == nil) { step = .importFile }
                 way("Use StikDebug", symbol: "ant",
                     detail: JITBootstrap.isStikDebugInstalled ? "StikDebug is installed."
                         : "Enable JIT through the StikDebug app.",
-                    done: jit.method == .stikDebug) { path.append(.stikDebug) }
+                    done: jit.method == .stikDebug) { step = .stikDebug }
                 way("Use TrollStore", symbol: "sparkles",
                     detail: JITBootstrap.isTrollStoreInstalled ? "TrollStore is installed."
                         : "For a Husk installed through TrollStore.",
-                    done: jit.method == .trollStore) { path.append(.trollStore) }
+                    done: jit.method == .trollStore) { step = .trollStore }
                 way("Use a jailbreak", symbol: "lock.open",
                     detail: JITBootstrap.debuggedAtLaunch ? "JIT was already on when Husk opened."
                         : JITBootstrap.isJailbroken ? "A jailbreak was found. Turn on Allow JIT in Apps."
                         : "Dopamine can give every app JIT with one setting.",
-                    done: jit.method == .jailbreak || JITBootstrap.debuggedAtLaunch) { path.append(.jailbreak) }
+                    done: jit.method == .jailbreak || JITBootstrap.debuggedAtLaunch) { step = .jailbreak }
             }
             if jit.hasPairing && HuskBuiltInJIT.isAvailable {
-                Button { path.append(.connect) } label: {
+                Button { step = .connect } label: {
                     Label("Continue with the current pairing", systemImage: "arrow.right")
                         .font(.system(size: 14, weight: .semibold))
                 }
@@ -173,7 +182,7 @@ struct JITSetupFlow: View {
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(Theme.textDim)
             case .paired:
-                Button("Continue") { path.append(.connect) }
+                Button("Continue") { step = .connect }
                     .buttonStyle(PrimaryButtonStyle())
             }
         }
@@ -241,7 +250,7 @@ struct JITSetupFlow: View {
             if let error = jit.error { outcome(error, ok: false) }
         } actions: {
             if jit.pairingSource == .imported {
-                Button("Continue") { path.append(.connect) }.buttonStyle(PrimaryButtonStyle())
+                Button("Continue") { step = .connect }.buttonStyle(PrimaryButtonStyle())
                 Button("Choose another file") { importing = true }
                     .font(.system(size: 15, weight: .medium))
             } else {
@@ -267,7 +276,7 @@ struct JITSetupFlow: View {
         } actions: {
             Button(LocalDevVPN.actionTitle) { LocalDevVPN.open() }
                 .buttonStyle(PrimaryButtonStyle())
-            Button("It's connected") { path.append(.enable) }
+            Button("It's connected") { step = .enable }
                 .font(.system(size: 15, weight: .medium))
         }
     }
@@ -301,7 +310,7 @@ struct JITSetupFlow: View {
                     outcome(error, ok: false)
                     if jit.connectionProblem == .pairing {
                         Button(OnDevicePairing.isSupported ? "Pair again" : "Import a new pairing file") {
-                            path = [OnDevicePairing.isSupported ? .pairOnDevice : .importFile]
+                            step = (OnDevicePairing.isSupported ? .pairOnDevice : .importFile)
                         }
                         .font(.system(size: 14, weight: .semibold))
                     }
@@ -451,6 +460,13 @@ struct JITSetupFlow: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            // `choose` is the root of the stack and has nothing to go back to;
+            // `step != nil` is exactly the case that used to be a push.
+            ToolbarItem(placement: .cancellationAction) {
+                if step != nil {
+                    Button("Back") { step = nil }
+                }
+            }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Close") { close() }
             }

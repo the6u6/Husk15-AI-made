@@ -107,7 +107,7 @@ struct BootScreen: View {
         .onReceive(rotate) { _ in
             withAnimation(.easeInOut(duration: 0.45)) { phrase += 1 }
         }
-        .animation(.easeInOut(duration: 0.3), value: now.timeIntervalSince(began) > 8)
+        .huskAnimation(.easeInOut(duration: 0.3), value: now.timeIntervalSince(began) > 8)
     }
 
     private var progress: some View {
@@ -117,7 +117,7 @@ struct BootScreen: View {
                     Capsule().fill(Theme.surfaceHigh)
                     Capsule().fill(Theme.accent)
                         .frame(width: geo.size.width * fraction)
-                        .animation(.snappy(duration: 0.4), value: fraction)
+                        .huskAnimation(.huskSnappy(duration: 0.4), value: fraction)
                 }
             }
             .frame(height: 5)
