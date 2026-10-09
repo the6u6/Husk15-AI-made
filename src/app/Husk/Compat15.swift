@@ -87,33 +87,50 @@ struct HuskNavStack<T: Hashable, Root: View, Page: View>: View {
 /// across verbatim -- the `StringProtocol`/`LocalizedStringKey` pairing is what
 /// lets `HuskLabeledContent("Size", value: someString)` resolve at all, and
 /// picking the wrong one makes string literals silently ambiguous.
-struct HuskLabeledContent<Label: View, Value: View>: View {
-    private let label: Label
-    private let value: Value
+/// Husk's `LabeledContent`: a label leading, its value trailing.
+///
+/// Deliberately NOT generic, and that is the whole point of the shape. The
+/// obvious version is `struct HuskLabeledContent<Label: View, Value: View>` with
+/// SwiftUI's overloads as constrained extensions, copied over as closely as they
+/// can be. That does not compile:
+///
+///     extension HuskLabeledContent where Value == Text {
+///         init<S>(_ title: S, value: S) ... {
+///             self.init(_value: Text(value), _label: Text(title))   // <- here
+///         }
+///     }
+///     error: cannot convert value of type 'Text' to expected argument type 'Label'
+///
+/// A constrained extension cannot make the solver substitute an unbound generic
+/// parameter. Constraining `Value` leaves `Label` abstract, so `Text` will not
+/// convert to it; constraining `Label` instead leaves `Value` abstract and gives
+/// the mirror-image `cannot convert value of type 'V' to expected argument type
+/// 'Value'`. Constraining both is not possible, because the custom-value
+/// overloads genuinely need `Value` open.
+///
+/// Two `AnyView` boxes and a `String`-free label sidestep the whole problem:
+/// nothing is abstract, so there is nothing to substitute. These rows are a
+/// label and a leaf value, so the erasure costs nothing worth measuring.
+struct HuskLabeledContent: View {
+    private let label: AnyView
+    private let value: AnyView
 
-    /// Designated. Takes views that are already built, deliberately without a
-    /// result builder.
-    ///
-    /// This exists because a `@ViewBuilder` closure cannot be passed to an
-    /// initialiser whose parameter is an *unbound* generic parameter. The
-    /// constrained initialisers below know their label is a `Text`, but `Label`
-    /// is still generic there, so the builder binds it to something else and the
-    /// call fails with:
-    ///
-    ///     cannot convert return expression of type 'Text' to return type 'Label'
-    ///
-    /// Handing over built values sidesteps inference entirely, so it resolves
-    /// whatever the caller's types turn out to be.
-    init(_value: Value, _label: Label) {
-        self.value = _value
-        self.label = _label
+    init<S: StringProtocol, V: StringProtocol>(_ title: S, value: V) {
+        self.label = AnyView(Text(title))
+        self.value = AnyView(Text(value))
+    }
+
+    init<S: StringProtocol, V: View>(_ title: S, @ViewBuilder value: () -> V) {
+        self.label = AnyView(Text(title))
+        self.value = AnyView(value())
     }
 
     // `value` comes first, exactly as SwiftUI declares it: with more than one
     // trailing closure the first binds to the first parameter, and
     // `HuskLabeledContent { value } label: { label }` has to read that way.
-    init(@ViewBuilder value: () -> Value, @ViewBuilder label: () -> Label) {
-        self.init(_value: value(), _label: label())
+    init(@ViewBuilder value: () -> some View, @ViewBuilder label: () -> some View) {
+        self.value = AnyView(value())
+        self.label = AnyView(label())
     }
 
     var body: some View {
@@ -124,31 +141,6 @@ struct HuskLabeledContent<Label: View, Value: View>: View {
                 .multilineTextAlignment(.trailing)
                 .foregroundStyle(.secondary)
         }
-    }
-}
-
-// The overload set is SwiftUI's, copied across including the order and the
-// `where Label == Text` / `where Value == Text` constraints. Resolving
-// `HuskLabeledContent("Size", value: someString)` depends on exactly this
-// shape -- a single-type-parameter `init(_:value:)` alongside the
-// `LocalizedStringKey` one -- so it is not shortened here.
-extension HuskLabeledContent where Value == Text {
-    init<S>(_ title: S, value: S) where S: StringProtocol {
-        self.init(_value: Text(value), _label: Text(title))
-    }
-
-    init<S>(_ titleKey: LocalizedStringKey, value: S) where S: StringProtocol {
-        self.init(_value: Text(value), _label: Text(titleKey))
-    }
-}
-
-extension HuskLabeledContent where Label == Text {
-    init<S, V>(_ title: S, @ViewBuilder value: () -> V) where S: StringProtocol, V: View {
-        self.init(_value: value(), _label: Text(title))
-    }
-
-    init<V>(_ titleKey: LocalizedStringKey, @ViewBuilder value: () -> V) where V: View {
-        self.init(_value: value(), _label: Text(titleKey))
     }
 }
 

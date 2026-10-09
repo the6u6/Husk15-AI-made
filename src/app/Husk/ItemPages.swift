@@ -138,6 +138,19 @@ struct GamePage: View {
         "This APK has no 64-bit code Husk can run, so it will probably not start."
     }
 
+    // The Saves section's footer, for the same reason as the three above. Its
+    // chain also interpolates `app.label` twice, which is enough on its own to
+    // push the type checker over its budget.
+    private var savesFooter: String {
+        if let savesMessage { return savesMessage }
+        if loadedNow {
+            return "\(app.label) has been started in this run of Husk. "
+            + "Close Husk and open it again to restore saves."
+        }
+        return "A backup is a .zip of everything \(app.label) has saved in Husk, "
+        + "to keep in Files or move to another device."
+    }
+
     var body: some View {
         List {
             Section {
@@ -178,9 +191,7 @@ struct GamePage: View {
                 } header: {
                     Text("Saves")
                 } footer: {
-                    if let savesMessage { Text(savesMessage) }
-                    else if loadedNow { Text("\(app.label) has been started in this run of Husk. Close Husk and open it again to restore saves.") }
-                    else { Text("A backup is a .zip of everything \(app.label) has saved in Husk, to keep in Files or move to another device.") }
+                    Text(savesFooter)
                 }
             }
 

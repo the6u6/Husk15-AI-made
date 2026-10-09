@@ -215,8 +215,11 @@ struct DiscoverView: View {
                         Task { await manager.addSource(urlString: url) }
                     }
                     .disabled(newSourceURL.isEmpty)
-                    // .bold() is iOS 16; fontWeight is the same modifier since iOS 13.
-                    .fontWeight(.bold)
+                    // Both `.bold()` and `View.fontWeight(_:)` are iOS 16, so
+                    // neither is usable here. The pre-16 way to make a label
+                    // bold is a font with a bold weight; 17pt is what a toolbar
+                    // button uses by default, so only the weight changes.
+                    .font(.system(size: 17, weight: .semibold))
                 }
             }
         }

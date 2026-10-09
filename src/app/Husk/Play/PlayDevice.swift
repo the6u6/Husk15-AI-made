@@ -37,7 +37,9 @@ enum PlayDevice {
         let id = Locale.current.identifier.replacingOccurrences(of: "-", with: "_")
         return id.contains("_") ? id : "en_US"
     }
-    static var country: String { (Locale.current.region?.identifier ?? "US").lowercased() }
+    // `Locale.region` is iOS 16. `countryCode` off NSLocale is the same two-letter
+    // code and is available everywhere.
+    static var country: String { ((Locale.current as NSLocale).countryCode ?? "US").lowercased() }
 
     static let sharedLibraries = [
         "android.ext.shared", "android.hidl.base-V1.0-java", "android.hidl.manager-V1.0-java", "android.net.ipsec.ike",

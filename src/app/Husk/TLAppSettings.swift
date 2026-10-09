@@ -262,7 +262,7 @@ struct TLAppSettingsView: View {
         case .working(let what):
             HStack(spacing: 10) { ProgressView(); Text(what).foregroundStyle(.secondary) }
         case .ready(let version):
-            LabeledContent("Geode", value: "v\(version), ready")
+            HuskLabeledContent("Geode", value: "v\(version), ready")
         case .failed(let why):
             VStack(alignment: .leading, spacing: 6) {
                 Text(why).font(.footnote).foregroundStyle(.orange)
