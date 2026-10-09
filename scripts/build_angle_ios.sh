@@ -10,6 +10,16 @@
 # ANGLE is taken from WebKit rather than upstream because WebKit carries an
 # Xcode project for it, which avoids needing depot_tools and gn. A blob-filtered
 # sparse checkout keeps that to ~260 MB instead of cloning all of WebKit.
+#
+# That checkout tracks WebKit's main branch, so it moves under you: the tree
+# that built here in March is not the tree that builds next month, and the
+# difference arrives as a Clang diagnostic in a file nobody in this repo has
+# heard of. Once a commit is known good, set WEBKIT_COMMIT to it and this
+# becomes reproducible:
+#
+#     WEBKIT_COMMIT=<sha> ./scripts/build_angle_ios.sh
+#
+# or export it in CI. Leave it empty to track main.
 set -euo pipefail
 
 HUSK_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -17,12 +27,26 @@ GPU="$HUSK_ROOT/third_party/gpu"
 WK="$GPU/webkit"
 PREFIX="$HUSK_ROOT/build/ios-arm64/sysroot"
 LOG="$HUSK_ROOT/build/logs/angle-build.log"
+WEBKIT_COMMIT="${WEBKIT_COMMIT:-}"
 mkdir -p "$GPU" "$(dirname "$LOG")"
 
 if [ ! -d "$WK" ]; then
-    echo "==> sparse-cloning WebKit for its ANGLE tree"
+    echo "==> sparse-cloning WebKit for its ANGLE tree${WEBKIT_COMMIT:+ at $WEBKIT_COMMIT}"
     git clone --depth 1 --filter=blob:none --sparse \
         https://github.com/WebKit/WebKit.git "$WK"
+fi
+
+# A --depth 1 clone has no history to check a commit out of, so fetch it by name
+# and detach onto it. No-op when WEBKIT_COMMIT is empty.
+if [ -n "$WEBKIT_COMMIT" ]; then
+    have="$(git -C "$WK" rev-parse --verify --quiet HEAD || true)"
+    if [ "$have" != "$WEBKIT_COMMIT" ]; then
+        echo "==> pinning WebKit to $WEBKIT_COMMIT"
+        git -C "$WK" fetch --depth 1 origin "$WEBKIT_COMMIT"
+        git -C "$WK" checkout -q FETCH_HEAD
+    fi
+else
+    echo "==> WebKit is tracking main; set WEBKIT_COMMIT to make this reproducible"
 fi
 
 # Configurations and Tools/ccache are not optional: the ANGLE xcconfigs include
@@ -33,7 +57,7 @@ fi
 
 cd "$WK/Source/ThirdParty/ANGLE"
 
-# Two overrides worth explaining.
+# Three overrides worth explaining.
 #
 # WK_AVAILABILITY_OVERLAY_FLAGS points at a clang VFS overlay that WebKit
 # generates to defuse availability annotations. Nothing in this subset of the
@@ -47,7 +71,31 @@ cd "$WK/Source/ThirdParty/ANGLE"
 # minos exceeds the running OS, so an ANGLE left at 15.5 would break the GL stack
 # on 15.0-15.4. If WebKit's ANGLE xcconfigs refuse to go this low, raise both
 # this and src/app/project.yml to 15.5 together -- never one without the other.
+#
+# The -Wno-error=thread-safety-* pair is newer, and is not about the deployment
+# target at all. ANGLE's src/common/SimpleMutex.h annotates its methods
+#     void lock()   ANGLE_ACQUIRE_CAPABILITY(mutex) { mutex.lock(); }
+#     void unlock() ANGLE_RELEASE_CAPABILITY(mutex) { mutex.unlock(); }
+# where `mutex` is a std::mutex. Clang's thread-safety analysis requires an
+# acquire/release capability's argument to have the `capability` attribute, and
+# std::mutex does not carry one. Older Clang accepted it; the one in Xcode 26
+# (LLVM 21) reports four errors and WebKit's ANGLE xcconfig has -Werror on, so
+# the tree does not compile:
+#   'acquire_capability' attribute requires arguments whose type is annotated
+#     with 'capability' attribute; type here is 'std::mutex'
+#   'release_capability' attribute requires arguments whose type is annotated
+#     with 'capability' attribute; type here is 'std::mutex'
+#   expecting mutex 'mutex' to be held at the end of function
+#   mutex 'mutex' is still held at the end of function
+# MutexOnStd is the non-futex path, so this is the code Apple platforms
+# actually compile -- there is no avoiding it short of pinning an old tree.
+# -Wno-error rather than -Wno-: the warnings still print, only the promotion to
+# an error is dropped, so a genuine threading mistake in Husk's own sources is
+# still visible. The flags come after $(inherited), which is what makes them
+# override the -Werror the xcconfig set.
 ALIASES="$GPU/angle-aliases.txt"
+
+ANGLE_WARN_FLAGS='-Wno-unguarded-availability-new -Wno-error=thread-safety-attributes -Wno-error=thread-safety-analysis'
 
 angle_build () {
     # The alias flag has to reach xcodebuild as ONE argument. Written inline as
@@ -63,15 +111,24 @@ angle_build () {
         ldflags=("OTHER_LDFLAGS=\$(inherited) -Wl,-alias_list,$1")
     fi
 
-    env -i PATH="$PATH" HOME="$HOME" xcodebuild archive \
+    # DEVELOPER_DIR has to be handed through explicitly. `env -i` wipes the
+    # environment, which is deliberate here (the ANGLE xcconfigs read a lot of
+    # ambient state), but setup-xcode selects a build machine's Xcode purely by
+    # exporting DEVELOPER_DIR -- so without this, ANGLE silently builds with
+    # whatever the image defaults to while the rest of Husk uses the selected
+    # one. ${VAR:+...} expands to nothing when the variable is unset, which is
+    # the normal local case, and is safe under `set -u`.
+    env -i PATH="$PATH" HOME="$HOME" \
+        ${DEVELOPER_DIR:+DEVELOPER_DIR="$DEVELOPER_DIR"} \
+        xcodebuild archive \
         -archivePath "ANGLE" -scheme "ANGLE" \
         -sdk iphoneos -arch arm64 -configuration Release \
         WEBCORE_LIBRARY_DIR="/usr/local/lib" NORMAL_UMBRELLA_FRAMEWORKS_DIR="" \
         CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
         WK_AVAILABILITY_OVERLAY_FLAGS="" WK_AVAILABILITY_OVERLAY_SWIFT_FLAGS="" \
         IPHONEOS_DEPLOYMENT_TARGET="15.0" \
-        OTHER_CFLAGS='$(inherited) -Wno-unguarded-availability-new' \
-        OTHER_CPLUSPLUSFLAGS='$(inherited) -Wno-unguarded-availability-new' \
+        OTHER_CFLAGS='$(inherited) '"$ANGLE_WARN_FLAGS" \
+        OTHER_CPLUSPLUSFLAGS='$(inherited) '"$ANGLE_WARN_FLAGS" \
         ${ldflags[@]+"${ldflags[@]}"} \
         > "$LOG" 2>&1 \
       || { echo "ANGLE build failed; last errors:" >&2
