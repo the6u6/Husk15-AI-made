@@ -795,8 +795,6 @@ struct TLClassicAttemptView: View {
             }
         }
         .statusBarHidden(true)
-        .persistentSystemOverlays(.hidden)
-        .defersSystemGestures(on: .all)
         .onAppear {
             HuskOrientation.set(portrait ? .portrait : .landscape)
             UIApplication.shared.isIdleTimerDisabled = settings.keepAwake
@@ -823,7 +821,7 @@ struct TLClassicAttemptView: View {
                 .font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.85)).lineLimit(1)
             Spacer()
             if devInfo {
-                Button { withAnimation(.snappy(duration: 0.25)) { showLog.toggle() } } label: {
+                Button { withAnimation(.huskSnappy(duration: 0.25)) { showLog.toggle() } } label: {
                     Text(showLog ? "Hide log" : "Log").font(.system(size: 12, weight: .semibold))
                 }
                 .tint(.white)
@@ -850,7 +848,7 @@ struct TLClassicAttemptView: View {
                     .id("bottom")
             }
             .background(Color(white: 0.06))
-            .onChange(of: runner.logText) { _ in proxy.scrollTo("bottom", anchor: .bottom) }
+            .onChange(of: runner.logText) { _ in proxy.scrollTo("bottom") }
         }
     }
 }

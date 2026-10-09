@@ -116,20 +116,39 @@ struct GamePage: View {
         return runs ? "Ready to play" : "May not run on this iPhone"
     }
 
+    // The three footer sentences are built here rather than inline in the
+    // Section's footer. The type checker cannot fold
+    //   Text("a " + "b " + "\(x)" + " c")
+    // inside an if/else-if chain inside a ViewBuilder in reasonable time, and
+    // gives up with "the compiler is unable to type-check this expression in
+    // reasonable time". Handing it a finished String is trivial for it.
+    private var geodeFooter: String {
+        "This is Geode's Android launcher. On Husk, Geode runs inside Geometry Dash instead: "
+        + "turn it on here (or in Geometry Dash's settings, under Mods), then start Geometry Dash "
+        + "and use Geode's button on its main menu to get mods. This APK supplies a library Geode "
+        + "needs, so keep it."
+    }
+
+    private func loadedFooter(_ other: String) -> String {
+        "\(other) is still loaded, and a game cannot be unloaded once it has started. "
+        + "Close Husk with the button above, then open it again to play \(app.label)."
+    }
+
+    private var noCodeFooter: String {
+        "This APK has no 64-bit code Husk can run, so it will probably not start."
+    }
+
     var body: some View {
         List {
             Section {
                 PageHero(item: .game(app), subtitle: subtitle) { primary }
             } footer: {
                 if isGeodeLauncher {
-                    Text("This is Geode's Android launcher. On Husk, Geode runs inside Geometry Dash instead: turn it on here "
-                       + "(or in Geometry Dash's settings, under Mods), then start Geometry Dash and use Geode's button on its "
-                       + "main menu to get mods. This APK supplies a library Geode needs, so keep it.")
+                    Text(geodeFooter)
                 } else if let other = blockedBy {
-                    Text("\(other) is still loaded, and a game cannot be unloaded once it has started. Close Husk with the "
-                       + "button above, then open it again to play \(app.label).")
+                    Text(loadedFooter(other))
                 } else if !runs {
-                    Text("This APK has no 64-bit code Husk can run, so it will probably not start.")
+                    Text(noCodeFooter)
                 }
             }
             .heroRow()

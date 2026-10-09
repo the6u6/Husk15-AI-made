@@ -196,8 +196,7 @@ struct HomeView: View {
                             }
                             .padding(.horizontal, 20)
                         }
-                        .scrollIndicators(.hidden)
-                        .padding(.horizontal, -20)
+                                    .padding(.horizontal, -20)
                     }
 
                     let apps = items.filter { !$0.isGame && $0 != lead }
@@ -223,7 +222,6 @@ struct HomeView: View {
             .padding(.bottom, 32)
             .id(jit.attachGeneration)
         }
-        .scrollIndicators(.hidden)
         .background(Color(uiColor: .systemBackground).ignoresSafeArea())
         .navigationBarHidden(true)
     }
@@ -443,7 +441,8 @@ struct AndroidMark: View {
             .font(.system(size: size * 0.46, weight: .semibold))
             .foregroundStyle(.white)
             .frame(width: size, height: size)
-            .background(Self.green.gradient, in: RoundedRectangle(cornerRadius: size * 0.225, style: .continuous))
+            // `Color.gradient` is iOS 16; below it the fill is the flat colour.
+        .background(Self.green, in: RoundedRectangle(cornerRadius: size * 0.225, style: .continuous))
     }
 }
 
@@ -509,8 +508,6 @@ struct LibraryScreen: View {
             .padding(.top, 8)
             .padding(.bottom, 32)
         }
-        .scrollIndicators(.hidden)
-        .scrollDismissesKeyboard(.immediately)
         .background(Color(uiColor: .systemBackground).ignoresSafeArea())
         .navigationBarHidden(true)
     }

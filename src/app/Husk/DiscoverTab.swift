@@ -215,7 +215,8 @@ struct DiscoverView: View {
                         Task { await manager.addSource(urlString: url) }
                     }
                     .disabled(newSourceURL.isEmpty)
-                    .bold()
+                    // .bold() is iOS 16; fontWeight is the same modifier since iOS 13.
+                    .fontWeight(.bold)
                 }
             }
         }

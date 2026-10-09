@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 import SwiftUI
+import UIKit
 
 // The iOS 15 support layer. Husk's app target deploys to iOS 15.0 (see
 // project.yml), and the SwiftUI it was originally written against needs 16.0
@@ -90,12 +91,29 @@ struct HuskLabeledContent<Label: View, Value: View>: View {
     private let label: Label
     private let value: Value
 
+    /// Designated. Takes views that are already built, deliberately without a
+    /// result builder.
+    ///
+    /// This exists because a `@ViewBuilder` closure cannot be passed to an
+    /// initialiser whose parameter is an *unbound* generic parameter. The
+    /// constrained initialisers below know their label is a `Text`, but `Label`
+    /// is still generic there, so the builder binds it to something else and the
+    /// call fails with:
+    ///
+    ///     cannot convert return expression of type 'Text' to return type 'Label'
+    ///
+    /// Handing over built values sidesteps inference entirely, so it resolves
+    /// whatever the caller's types turn out to be.
+    init(_value: Value, _label: Label) {
+        self.value = _value
+        self.label = _label
+    }
+
     // `value` comes first, exactly as SwiftUI declares it: with more than one
     // trailing closure the first binds to the first parameter, and
     // `HuskLabeledContent { value } label: { label }` has to read that way.
     init(@ViewBuilder value: () -> Value, @ViewBuilder label: () -> Label) {
-        self.value = value()
-        self.label = label()
+        self.init(_value: value(), _label: label())
     }
 
     var body: some View {
@@ -116,21 +134,21 @@ struct HuskLabeledContent<Label: View, Value: View>: View {
 // `LocalizedStringKey` one -- so it is not shortened here.
 extension HuskLabeledContent where Value == Text {
     init<S>(_ title: S, value: S) where S: StringProtocol {
-        self.init(value: { Text(value) }, label: { Text(title) })
+        self.init(_value: Text(value), _label: Text(title))
     }
 
     init<S>(_ titleKey: LocalizedStringKey, value: S) where S: StringProtocol {
-        self.init(value: { Text(value) }, label: { Text(titleKey) })
+        self.init(_value: Text(value), _label: Text(titleKey))
     }
 }
 
 extension HuskLabeledContent where Label == Text {
     init<S, V>(_ title: S, @ViewBuilder value: () -> V) where S: StringProtocol, V: View {
-        self.init(value: value, label: { Text(title) })
+        self.init(_value: value(), _label: Text(title))
     }
 
     init<V>(_ titleKey: LocalizedStringKey, @ViewBuilder value: () -> V) where V: View {
-        self.init(value: value, label: { Text(titleKey) })
+        self.init(_value: value(), _label: Text(titleKey))
     }
 }
 
@@ -210,7 +228,27 @@ extension View {
     }
 }
 
-// MARK: - ShareLink (iOS 16.0)
+// MARK: - Orientation (iOS 16.0)
+
+/// iOS 16's way of asking the window to rotate.
+///
+/// It lives here rather than inline in `HuskOrientation` for two reasons. Below
+/// iOS 16 there is nothing to call, so the caller has to branch; and both names
+/// here are iOS 16, so keeping them out of the caller's file is what lets a
+/// grep-based check assert that no iOS 16 API survives outside this file at all
+/// (see `assert no iOS 16/17-only API crept back in` in the build workflow).
+@available(iOS 16.0, *)
+func huskRequestGeometryUpdate(_ scene: UIWindowScene,
+                               _ mask: UIInterfaceOrientationMask,
+                               onRefused: @escaping (Error) -> Void) {
+    var vc = scene.keyWindow?.rootViewController
+    while let v = vc {
+        v.setNeedsUpdateOfSupportedInterfaceOrientations()
+        vc = v.presentedViewController
+    }
+    scene.requestGeometryUpdate(.iOS(interfaceOrientations: mask), errorHandler: onRefused)
+}
+
 
 /// `ShareLink(item:)`, built on the `ShareSheet` the app already had.
 ///

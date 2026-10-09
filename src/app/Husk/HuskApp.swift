@@ -17,14 +17,31 @@ enum HuskOrientation {
     @MainActor static func set(_ new: UIInterfaceOrientationMask, attempt: Int = 0) {
         mask = new
         for case let scene as UIWindowScene in UIApplication.shared.connectedScenes {
-            var vc = scene.keyWindow?.rootViewController
-            while let v = vc { v.setNeedsUpdateOfSupportedInterfaceOrientations(); vc = v.presentedViewController }
-            scene.requestGeometryUpdate(.iOS(interfaceOrientations: new)) { error in
-                HuskLog.log("ui", "orientation change refused (attempt \(attempt + 1)): \(error.localizedDescription)")
-                guard attempt < 5 else { return }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    if mask == new { set(new, attempt: attempt + 1) }
+            if #available(iOS 16.0, *) {
+                huskRequestGeometryUpdate(scene, new) { error in
+                    HuskLog.log("ui", "orientation change refused (attempt \(attempt + 1)): \(error.localizedDescription)")
+                    guard attempt < 5 else { return }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        if mask == new { set(new, attempt: attempt + 1) }
+                    }
                 }
+            } else {
+                // iOS 15 and earlier have neither requestGeometryUpdate nor
+                // setNeedsUpdateOfSupportedInterfaceOrientations. The delegate
+                // method above already returns the new mask -- that half is
+                // unchanged -- but iOS 15 only re-reads it when something asks
+                // the device to rotate, which is what setting `orientation` on
+                // UIDevice does. This is the long-standing KVO nudge rather than
+                // a documented API; it is the only mechanism available below
+                // iOS 16. The retry loop above does not apply, because it exists
+                // to handle the refusal requestGeometryUpdate can return, which
+                // has no equivalent here.
+                var target: UIInterfaceOrientation = .portrait
+                if new.contains(.landscapeRight) { target = .landscapeRight }
+                else if new.contains(.landscapeLeft) { target = .landscapeLeft }
+                else if new.contains(.portraitUpsideDown) { target = .portraitUpsideDown }
+                UIDevice.current.setValue(target.rawValue, forKey: "orientation")
+                HuskLog.log("ui", "orientation set to \(target.rawValue) via the iOS 15 path")
             }
         }
     }
@@ -54,6 +71,16 @@ struct HuskApp: App {
     @UIApplicationDelegateAdaptor(HuskAppDelegate.self) private var appDelegate
 
     init() {
+        // `.scrollIndicators(_:axes:)` is iOS 16 and there is no SwiftUI
+        // equivalent below it, so the four call sites that used it lost their
+        // modifiers and the indicators came back. Restored here instead of at
+        // each site: SwiftUI's ScrollView is a UIScrollView, and List is a
+        // UICollectionView, so this reaches exactly the scroll views that asked
+        // to be indicator-free and leaves every List alone. Set before any view
+        // exists, which is why it is in init() rather than on the root view.
+        UIScrollView.appearance().showsVerticalScrollIndicator = false
+        UIScrollView.appearance().showsHorizontalScrollIndicator = false
+
         // Order matters. HuskLog redirects stderr, so anything that logs before
         // this point is lost -- and the JIT path is exactly what we cannot afford
         // to lose the first line of.

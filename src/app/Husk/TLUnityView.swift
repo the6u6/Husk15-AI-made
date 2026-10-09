@@ -588,9 +588,7 @@ struct TLCocosAttemptView: View {
             }
         }
         .statusBarHidden(true)
-        .persistentSystemOverlays(.hidden)
         // Swipes near the edges are the game's.
-        .defersSystemGestures(on: .all)
         .onAppear {
             HuskOrientation.set(portrait ? .portrait : .landscape)
             UIApplication.shared.isIdleTimerDisabled = settings.keepAwake
@@ -679,7 +677,7 @@ struct TLCocosAttemptView: View {
                 Text(stats).font(.technical(11)).foregroundStyle(.white.opacity(0.7)).lineLimit(1)
             }
             if devInfo {
-                Button { withAnimation(.snappy(duration: 0.25)) { showLog.toggle() } } label: {
+                Button { withAnimation(.huskSnappy(duration: 0.25)) { showLog.toggle() } } label: {
                     Text(showLog ? "Hide log" : "Log").font(.system(size: 12, weight: .semibold))
                 }
                 .tint(.white)
@@ -714,7 +712,7 @@ struct TLCocosAttemptView: View {
                         .textSelection(.enabled)
                         .id("bottom")
                 }
-                .onChange(of: model.logText) { _ in proxy.scrollTo("bottom", anchor: .bottom) }
+                .onChange(of: model.logText) { _ in proxy.scrollTo("bottom") }
             }
         }
         .background(Theme.bg.opacity(0.85))

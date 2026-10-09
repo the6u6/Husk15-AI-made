@@ -60,7 +60,8 @@ struct SettingsTab: View {
                 }
             } icon: {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(tint.gradient)
+                    // `Color.gradient` is iOS 16; below it the fill is the flat colour.
+                .fill(tint)
                     .frame(width: 30, height: 30)
                     .overlay {
                         Image(systemName: icon)
