@@ -42,8 +42,11 @@ cd "$WK/Source/ThirdParty/ANGLE"
 # hiding, all of the form "MTLPixelFormatBC1_RGBA is only available on iOS
 # 16.4". Those are enum constants, harmless to compile in; the one call that
 # matters, supportsBCTextureCompression, sits behind @available, so the warning
-# is turned off rather than the target raised. Husk deploys to 15.5 (TrollStore
-# and Dopamine devices), and ANGLE is built to match.
+# is turned off rather than the target raised. Husk deploys to 15.0, and ANGLE
+# must not sit ABOVE that: dyld refuses to load a dylib whose LC_BUILD_VERSION
+# minos exceeds the running OS, so an ANGLE left at 15.5 would break the GL stack
+# on 15.0-15.4. If WebKit's ANGLE xcconfigs refuse to go this low, raise both
+# this and src/app/project.yml to 15.5 together -- never one without the other.
 ALIASES="$GPU/angle-aliases.txt"
 
 angle_build () {
@@ -66,7 +69,7 @@ angle_build () {
         WEBCORE_LIBRARY_DIR="/usr/local/lib" NORMAL_UMBRELLA_FRAMEWORKS_DIR="" \
         CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
         WK_AVAILABILITY_OVERLAY_FLAGS="" WK_AVAILABILITY_OVERLAY_SWIFT_FLAGS="" \
-        IPHONEOS_DEPLOYMENT_TARGET="15.5" \
+        IPHONEOS_DEPLOYMENT_TARGET="15.0" \
         OTHER_CFLAGS='$(inherited) -Wno-unguarded-availability-new' \
         OTHER_CPLUSPLUSFLAGS='$(inherited) -Wno-unguarded-availability-new' \
         ${ldflags[@]+"${ldflags[@]}"} \

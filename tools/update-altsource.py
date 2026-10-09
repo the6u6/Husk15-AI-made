@@ -24,7 +24,7 @@ def project_min_os():
     """The deployment target in project.yml: what the newest release needs."""
     with open(os.path.join(ROOT, "src/app/project.yml")) as f:
         m = re.search(r'deploymentTarget:\s*\n(?:\s*#.*\n)*\s*iOS:\s*"([\d.]+)"', f.read())
-    return m.group(1) if m else "16.0"
+    return m.group(1) if m else "15.0"
 
 
 def min_os(version, newest_min):

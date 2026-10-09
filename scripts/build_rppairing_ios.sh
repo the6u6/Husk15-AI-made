@@ -16,7 +16,7 @@ CRATE="$HUSK_ROOT/src/rppairing-ios"
 OUT="$HUSK_ROOT/build/ios-arm64/lib"
 TARGET=aarch64-apple-ios
 # Match the app's deployment target, or the linker warns on every object.
-export IPHONEOS_DEPLOYMENT_TARGET=15.5
+export IPHONEOS_DEPLOYMENT_TARGET=15.0
 
 cd "$CRATE"
 cargo build --release --locked --target "$TARGET"
