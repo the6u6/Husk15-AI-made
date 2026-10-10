@@ -837,3 +837,165 @@ re-read to confirm it.
 One more of the same shape turned up in `resolutionSection` on the line after
 the footer: `HuskLog.log("ui", v ? "on: " + "\(w)x\(h)" : "off")`, a ternary
 whose branch is a `+` over an *interpolated* literal.
+
+## 4d. Round 9: two uninitialized stored properties
+
+`TLAppSettingsView.nameFocused` was declared `@State private var nameFocused:
+Bool` with no default, and its `init` never set it.
+
+It is mine. The sweep turned `@FocusState private var nameFocused: Bool` into
+`@State`, because `@FocusState` is iOS 15. But **`@FocusState` carries a default
+and `@State` does not**, and the `init` had been written against that default
+-- so dropping the annotation silently made the initializer incomplete. The
+round-2 conversion changed the property's type without checking that anything
+depended on the old one's initialization.
+
+`TLCocosAttemptView.padSelected` is the same shape and **not** mine: it is
+byte-identical in the pre-round-2 snapshot, and that `init` never set it
+either. A latent bug in the original that the 15.0 build must never have
+reached.
+
+Both now carry the default the `init` was already assuming (`false` and `nil`).
+Neither changes behaviour.
+
+Finding the second one took a sweep rather than reading: a script that pairs
+every `init` with the stored properties its struct declares and reports the
+names never assigned. It flags false positives -- `GoogleLoginWebView` has no
+`init` at all and so uses the synthesized memberwise one -- which is why its
+output is read rather than trusted.
+
+### A separate bug, not yet fixed
+
+`.focused($nameFocused)` was replaced with `.onAppear { nameFocused = true }`.
+That is wrong in a way the compiler cannot see: the rename button appears as
+soon as the settings page opens, and `rename()` fires on any focus loss rather
+than on a deliberate commit. `@FocusState` is the right tool and it is iOS 15;
+the honest iOS 14 replacement is a `UITextField` delegate reporting
+`textFieldDidBeginEditing` / `textFieldDidEndEditing`, which is a
+`UIViewRepresentable` of its own. Left for a round of its own.
+
+## 4e. Round 10: one missing include, and a scan that cried wolf
+
+`husk-tl-bionic-net.c` called `if_nametoindex` without including `<net/if.h>`.
+One line, alphabetically placed among the other includes.
+
+Because a build stops at the first failing translation unit, the other 60 C and
+Objective-C files might have had a queue behind it. So they were all scanned:
+every function called, checked against the header that declares it, with the
+file's includes. It reported nine more files.
+
+**All nine were false positives**, and each had a specific reason:
+
+| File | Why the scanner was wrong |
+|---|---|
+| `husk-audio`, `husk-balloon`, `husk-display`, `husk-display-gl`, `husk-snapshot` | include `qemu/osdep.h`, which provides `stdio.h` and `string.h` transitively |
+| `husk-tl-bionic.c` | uses `struct timespec` and `CLOCK_MONOTONIC` on the line above the flagged call -- both from `<time.h>`, so that header is reachable and `clock_gettime` is declared with it |
+| `husk-tl-cocos-text.c` | includes `CoreGraphics` and `CoreText`; `string.h` is direct for `strcasecmp` |
+| `husk-tl-gameactivity.c` | `stdio.h` is direct; the `wait` at 175 is a function *pointer*, not `wait(2)` |
+| `husk-tl-http.m` | `#import <Foundation/Foundation.h>` on line 2 |
+| `husk-tl-jni-http.c`, `husk-tl-jni-security.c` | `stdio.h` is direct in both |
+| `husk-tl-vulkan.m` | `stdio.h` is direct -- the scanner's own include extraction missed it |
+| `husk-tl-dex.c` | `pthread.h` arrives via `husk-tl-internal.h` |
+
+The lesson is about the scanner, not the files. A direct-include check cannot
+see transitive ones, and this codebase gets its headers three different ways:
+QEMU's `osdep.h`, Apple's framework imports, and the project's own
+`husk-tl-*.h` umbrella headers. The `husk-tl-bionic.c` row is the one worth
+keeping -- it is the only hit resolved by *reading the code* rather than by
+finding an include, and it is the pattern to reuse: when a flagged function
+shares a header with a neighbouring declaration that compiles, the header is
+reachable.
+
+## 4f. Round 11: the link step, and what it actually cost
+
+Compilation finally completed and the build failed at **link**. `clang: error:
+linker command failed with exit code 1`, with nothing above it.
+
+**33 undefined symbols, not 3.** `HuskBridge.h` is documented in its own first
+line as "the app's view of libqemu-aarch64-softmmu.dylib", and it is the
+bridging header. Every one of its 33 prototypes was satisfied by that dylib,
+and `docs/00-architecture.md:46` says so explicitly. Removing the dylib in
+round 6 removed the entire bridge, not just the VM:
+
+| Group | Count | Who calls it |
+|---|---|---|
+| `qemu_init` / `qemu_main_loop` / `qemu_cleanup` | 3 | `QemuRunner`, `ContentView`, `JITBootstrap` |
+| `husk_display_*` | 17 | `HuskMetalView`, `HuskGLView`, `HuskKeyboard`, `HuskMetalPresenter` |
+| `husk_audio_*` | 4 | `HuskAudio` |
+| `husk_snapshot_*`, `husk_balloon_*` | 3 | `QemuRunner` |
+| `husk_ios_jit_*`, `husk_ios_available_memory` | 8 | `JITBootstrap`, `SettingsTab`, `HuskLog` |
+
+The build only ever named the first of these because it stops at the first
+failing link. `src/ios-jit/*.c` -- where these are actually implemented -- is
+**not** in the app target at all: `integrate_husk.sh` copies those files into
+the QEMU tree to be compiled into the dylib. With the dylib gone they are not
+compiled at all, which is why nothing in the tree defines these.
+
+### The stubs, and why they behave differently
+
+`src/app/Husk/QemuAbsent.c` defines all 33. It includes `HuskBridge.h` rather
+than repeating the signatures, so they cannot drift from the header. Verified
+against it: 30 matched exactly, and the three `qemu_*` were confirmed by hand
+-- their brace is on the next line, which the checking regex did not match.
+
+Three behaviours, because they are not one kind of thing:
+
+1. **The launch path aborts.** `qemu_init`, `qemu_main_loop`, `qemu_cleanup`.
+   A silent return is worse than a crash: `QemuRunner` would read `qemu_init()`
+   returning as "the machine started", carry on setting up a display, and come
+   straight back out of a loop that returns at once -- so a launch hangs on a
+   guest screen that never appears, with nothing in the log to say why.
+   Aborting names the cause on stderr and in the crash report. The order
+   matters: `QemuRunner.swift:1414` calls `qemu_init` first, and `qemu_cleanup`
+   at `:1538` is only reachable if the loop returns, so the abort always
+   happens in `qemu_init`.
+2. **The display/audio bridge returns safe defaults.** These are per-frame
+   calls from `HuskMetalView` and friends, not per-launch. Aborting here would
+   crash constantly for code that only mattered once a VM was running -- which,
+   given (1), can no longer happen.
+3. **The JIT bridge returns "unavailable".** `husk_ios_jit_*` is the built-in
+   JIT path, already removed as its own target back in round 1, so it was dead
+   before the dylib was. `JITBootstrap`, `SettingsTab` and `HuskLog` want
+   `false` from a missing one.
+
+One default was wrong on first writing and is worth recording:
+`husk_audio_pull` returned `frames` while never touching `dst`, which would
+have had the audio player read uninitialised buffer memory. It returns 0.
+
+This is a link-time stub, not a fallback. The real fix is to delete
+`QemuRunner.swift`, `GuestImage.swift` and `GuestManifest.swift` along with the
+display, audio and JIT-bridge call sites -- measured at 12 files and 234
+references for the VM types alone, and more once the bridge is counted.
+
+## 4g. Round 12: the bundle that was correct
+
+The app linked and the build succeeded. Packaging then refused it:
+
+```
+MISSING  PlugIns/HuskJITHelper.appex/HuskJITHelper
+MISSING  Frameworks/StikJIT.framework/StikJIT
+MISSING  Frameworks/StikJIT.framework/Info.plist
+==> bundle is not installable; refusing to package
+```
+
+`package_ipa.sh` was still validating for three artefacts that round 1 removed.
+The bundle was rejected for being correct. The widget, which is still built,
+stays in the list; the rest of the loop is gone with a comment saying why, since
+a reader finding "StikJIT.framework is no longer validated" is more useful than
+finding no mention at all.
+
+`build.yml` had the same problem in a place that had not bitten yet. It globbed
+`src/app/HuskJITHelper/*.swift` and asserted every match was in the pbxproj,
+but `project.yml` includes only `HuskJITMessages.swift` from that directory.
+The check passes today **only because the checked-in pbxproj is stale** and
+still names `HuskJITHelper.swift` -- it starts failing the moment that pbxproj
+is regenerated and committed, which is exactly what the build does. The glob
+now names the one file `project.yml` actually includes.
+
+`HuskJITHelper.swift` -- 5 KB -- is now dead code sitting in the tree. It is
+not compiled, not linked, and not validated. Left for the same removal pass as
+the VM Swift, since nothing depends on it.
+
+The other `HuskJITHelper` references in `build.yml` (lines 178-186, 425-439)
+are already correct: each guards on `grep -qE '^  HuskJITHelper:$'` and has an
+"is absent" branch, so they assert the 26.0 floor only when the target exists.
