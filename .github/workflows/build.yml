@@ -40,19 +40,19 @@ on:
         # macos-14 is unsupported by GitHub from 2026-11-02.
         description: "Runner image. Must match the Xcode below"
         type: choice
-        default: macos-14
-        options: [macos-14]
+        default: macos-26
+        options: [macos-26, macos-15, macos-14]
       xcode-version:
         description: "Xcode version. Pinned, not latest-stable, so CI stays reproducible. Use 15.4 for the iOS 14 experiment."
         type: string
-        default: "15.4"
+        default: "26.6"
       # The iOS 14 experiment needs three inputs set together: macos-14,
       # xcode-version 15.4, and angle-patch yes. These three are the whole
       # experiment; the defaults are the working 15.0 build.
       angle-patch:
         description: "Patch ANGLE's redundant static_assert for Apple clang 15. Required with Xcode 15.x; see build_angle_ios.sh"
         type: choice
-        default: "yes"
+        default: "no"
         options: ["no", "yes"]
       webkit-commit:
         description: "Pin WebKit to this commit instead of tracking main. Only needed if the ANGLE patch does not get past the build; a 2024-era sha works because the feature does not exist there"
@@ -77,7 +77,7 @@ jobs:
   # touches no iOS SDK.
   validate:
     name: validate project and iOS 15 floor
-    runs-on: macos-14
+    runs-on: macos-15
     if: github.event_name == 'pull_request'
     timeout-minutes: 15
 
@@ -296,6 +296,23 @@ jobs:
       - name: preflight
         run: |
           set -euo pipefail
+
+          # What did this run actually get, and where did it come from? The
+          # dispatch inputs only exist for workflow_dispatch and workflow_call.
+          # On a push or a release, `inputs` is an empty object and
+          # github.event.inputs is empty too, so the expressions fall through to
+          # their defaults and the job quietly builds the 15.0 configuration on
+          # macos-26 with Xcode 26.6 -- no matter what is in the workflow file.
+          # That is the usual reason a hand-edited runner-image looks ignored.
+          event="${{ github.event_name }}"
+          echo "::notice::trigger=$event"
+          echo "::notice::inputs.runner-image='${{ inputs['runner-image'] }}'  github.event.inputs.runner-image='${{ github.event.inputs['runner-image'] }}'"
+          echo "::notice::inputs.xcode-version='${{ inputs['xcode-version'] }}'  github.event.inputs.xcode-version='${{ github.event.inputs['xcode-version'] }}'"
+          echo "::notice::ANGLE_PATCH_RESOURCEMAP=${ANGLE_PATCH_RESOURCEMAP:-unset}  WEBKIT_COMMIT=${WEBKIT_COMMIT:-1da41fe0a9805d4710519d5409492a557fbde951}"
+          if [ "$event" != "workflow_dispatch" ]; then
+            echo "::warning::this is a '$event' run, so the workflow_dispatch inputs are empty and the runner and Xcode fell back to their defaults. Use the 'Run workflow' button to choose a runner image."
+          fi
+
           echo "== runner ==";  uname -m; sw_vers
           echo "== xcode ==";   xcodebuild -version
           echo "== sdks ==";    xcodebuild -showsdks | grep -i iphoneos || true
@@ -439,7 +456,7 @@ jobs:
             build/ios-arm64/sysroot
             build/ios-arm64/lib
             guests/phase0
-          key: husk-macos-arm64-${{ inputs['xcode-version'] || github.event.inputs['xcode-version'] || '15.4' }}-${{ steps.floor.outputs.value }}-angle${{ inputs['angle-patch'] == 'yes' && '-patch' || '' }}${{ inputs['webkit-commit'] || 'main' }}-${{ hashFiles('scripts/sources.sh') }}
+          key: husk-macos-arm64-${{ inputs['xcode-version'] || github.event.inputs['xcode-version'] || '26.6' }}-${{ steps.floor.outputs.value }}-angle${{ inputs['angle-patch'] == 'yes' && '-patch' || '' }}${{ inputs['webkit-commit'] || 'main' }}-${{ hashFiles('scripts/sources.sh') }}
 
       - name: invalidate the QEMU stamp
         run: |
