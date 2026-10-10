@@ -130,10 +130,10 @@ targets:
       # 16.1, which the iOS 17.5 SDK still accepts, so it survives a 14.0 floor
       # and simply never loads below 16.1.
       - target: HuskDownloadsWidget
-      # Built by scripts/build_ios.sh. Embedded and signed into the bundle.
-      - framework: ../../build/ios-arm64/lib/libqemu-aarch64-softmmu.dylib
-        embed: true
-        codeSign: true
+      # REMOVED (VM removal): the libqemu-aarch64-softmmu.dylib dependency.
+      # Husk no longer runs a full Android system; the translation layer is a
+      # separate C runtime and needs no QEMU. The LD_RUNPATH entry above stays:
+      # ANGLE and MoltenVK are also @rpath-loaded from Frameworks/.
       # The file picker's Open button does nothing on certificate-signed installs; this tweak (from issue #60) hooks
       # UIDocumentPickerViewController so the picker hands over copies. Linked so it loads at launch.
       - framework: Frameworks/libFilePickerFix.dylib
@@ -158,58 +158,13 @@ targets:
         embed: true
         codeSign: true
         link: false
-    preBuildScripts:
-      - name: Stage guest image
-        # The Phase 0 guest is far too large for git, so it is fetched rather than
-        # vendored, and copied into the bundle at build time.
-        script: |
-          set -e
-          GUEST="$SRCROOT/../../guests/phase0"
-          if [ ! -f "$GUEST/vmlinuz-virt" ]; then
-            echo "error: guest missing. Run ./scripts/fetch_phase0_guest.sh" >&2
-            exit 1
-          fi
-          mkdir -p "$BUILT_PRODUCTS_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
-          cp "$GUEST/vmlinuz-virt" "$GUEST/initramfs-virt" \
-             "$BUILT_PRODUCTS_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/"
 
-          # QEMU loads option ROMs by name from its data directory (-L). The full
-          # pc-bios tree is 24 MB and almost entirely firmware for architectures
-          # we will never boot (sparc64, riscv, loongarch, x86, ppc), so ship only
-          # the network boot ROMs -- 1.6 MB, and the only ones -M virt asks for.
-          BIOS="$SRCROOT/../../third_party/build/qemu-10.0.12-utm/pc-bios"
-          DEST="$BUILT_PRODUCTS_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/pc-bios"
-          mkdir -p "$DEST"
-          cp "$BIOS"/efi-*.rom "$BIOS"/pxe-*.rom "$DEST/" 2>/dev/null || true
+    # REMOVED (VM removal): the "Stage guest image" preBuildScript. It copied
+    # the Phase 0 kernel and initramfs, the QEMU option ROMs, the UEFI firmware
+    # and two qcow2 seeds into the bundle, and needed qemu-img at build time.
+    # All of it existed to boot the VM. The app is now a SwiftUI shell over the
+    # translation layer, which loads no guest.
 
-          # UEFI firmware for the Phase 1 guest: Debian's cloud image boots through
-          # GRUB under UEFI, so this is required. It is 64 MiB but almost all zeros,
-          # so the IPA's own zip squeezes it to about a megabyte -- cheaper than
-          # carrying a decompressor to unpack it at runtime.
-          FW="$BUILT_PRODUCTS_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/edk2-aarch64-code.fd"
-          if [ ! -f "$FW" ]; then
-            bunzip2 -c "$BIOS/edk2-aarch64-code.fd.bz2" > "$FW"
-          fi
-
-          # These two qcow2 files are tiny sparse seeds (64 MiB and 16 GiB
-          # virtual). The app copies them into Documents on first launch; the
-          # pre-booted snapshot later replaces the userdata seed in place.
-          QEMU_IMG="$(command -v qemu-img || true)"
-          if [ -z "$QEMU_IMG" ]; then
-            echo "error: qemu-img is required to generate the firmware and userdata seeds" >&2
-            exit 1
-          fi
-          VARS_SEED="$BUILT_PRODUCTS_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/lineage-efi-vars-seed.fd"
-          VDB_SEED="$BUILT_PRODUCTS_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/lineage-vdb-seed.qcow2"
-          rm -f "$VARS_SEED" "$VDB_SEED"
-          "$QEMU_IMG" create -f qcow2 "$VARS_SEED" 64M
-          "$QEMU_IMG" create -f qcow2 "$VDB_SEED" 16G
-        outputFiles:
-          - "$(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/vmlinuz-virt"
-          - "$(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/initramfs-virt"
-          - "$(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/edk2-aarch64-code.fd"
-          - "$(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/lineage-efi-vars-seed.fd"
-          - "$(BUILT_PRODUCTS_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/lineage-vdb-seed.qcow2"
 
     # EXPERIMENTAL (iOS 14): postBuildScripts and the HuskJITHelper target are
     # gone. Xcode refuses a deployment target above the installed SDK, so the
