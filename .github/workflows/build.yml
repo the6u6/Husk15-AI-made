@@ -52,7 +52,7 @@ on:
       angle-patch:
         description: "Patch ANGLE's redundant static_assert for Apple clang 15. Required with Xcode 15.x; see build_angle_ios.sh"
         type: choice
-        default: "no"
+        default: "yes"
         options: ["no", "yes"]
       webkit-commit:
         description: "Pin WebKit to this commit instead of tracking main. Only needed if the ANGLE patch does not get past the build; a 2024-era sha works because the feature does not exist there"
