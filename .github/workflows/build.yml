@@ -93,6 +93,38 @@ jobs:
         # stale artefact cannot pass review.
         run: cd src/app && xcodegen generate
 
+      - name: assert the project is openable by the oldest Xcode we target
+        # Xcode cannot open a project written in a format newer than it knows.
+        # XcodeGen defaults to projectFormat xcode16_0, which emits objectVersion
+        # 77 plus a preferredProjectObjectVersion attribute; Xcode 15.4 refuses
+        # it outright and says so:
+        #
+        #   Unable to read project 'Husk.xcodeproj' ... it is in a future Xcode
+        #   project file format (77). Adjust the project format using a
+        #   compatible version of Xcode to allow it to be opened by this one.
+        #
+        # project.yml pins projectFormat: xcode15_3, and this asserts the pin
+        # actually took effect. It runs after the regeneration above, so it reads
+        # what the build will really use rather than the checked-in artefact.
+        run: |
+          set -euo pipefail
+          ver="$(grep -m1 -oE 'objectVersion = [0-9]+' src/app/Husk.xcodeproj/project.pbxproj \
+                 | grep -oE '[0-9]+')"
+          echo "regenerated project objectVersion: $ver"
+          if [ -z "$ver" ]; then
+            echo "::error::could not read objectVersion out of the regenerated project"
+            exit 1
+          fi
+          if [ "$ver" -gt 63 ]; then
+            echo "::error::objectVersion $ver is unreadable by Xcode 15.4 (max 63). Check the projectFormat option in project.yml."
+            exit 1
+          fi
+          if grep -q 'preferredProjectObjectVersion' src/app/Husk.xcodeproj/project.pbxproj; then
+            echo "::error::the project still carries preferredProjectObjectVersion, which only the xcode16_* formats emit"
+            exit 1
+          fi
+          echo "ok: objectVersion $ver, readable by Xcode 15.3 and later"
+
       - name: assert every source file is in the target
         # The failure this guards is silent and confusing: a .swift file that
         # exists on disk but not in the target gives "cannot find 'X' in scope"
