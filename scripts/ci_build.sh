@@ -33,15 +33,12 @@ if [ ! -f build/ios-arm64/sysroot/lib/libvirglrenderer.a ]; then
         ./scripts/build_gpu_ios.sh
 fi
 
-step "QEMU"
-./scripts/build_ios.sh qemu
-
-step "integrate Husk sources into QEMU, then rebuild it"
-./scripts/integrate_husk.sh
-./scripts/build_ios.sh qemurebuild
-
-step "guest kernel + firmware"
-./scripts/fetch_phase0_guest.sh
+# REMOVED: the QEMU cross build, the Husk patches into it, and the guest
+# kernel/initramfs. Husk no longer runs a full Android system. The translation
+# layer (src/translation-layer-next) is a separate C runtime and is untouched.
+# Dropping these stages is most of this script's wall clock. The scripts are
+# still on disk if anyone wants them back: build_ios.sh, integrate_husk.sh,
+# fetch_phase0_guest.sh, build_phase1_image.sh.
 
 if [ ! -d build/ios-arm64/lib/MoltenVK.xcframework ]; then
     step "MoltenVK (Vulkan over Metal, for Unreal Engine games)"

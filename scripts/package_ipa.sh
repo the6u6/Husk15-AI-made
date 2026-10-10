@@ -37,12 +37,11 @@ mkdir -p "$DD"
 # stage -- so rebuilding QEMU with plain ninja produces a new dylib that never
 # reaches the app, and the IPA ships the previous one with no warning at all.
 # That happened once and looked exactly like a fix that did not work.
-BUILT="$HUSK_ROOT/third_party/build/qemu-10.0.12-utm/_husk_build/libqemu-aarch64-softmmu.dylib"
-STAGED="$HUSK_ROOT/build/ios-arm64/lib/libqemu-aarch64-softmmu.dylib"
-if [ -f "$BUILT" ] && [ "$BUILT" -nt "$STAGED" ]; then
-    echo "==> staged dylib is older than the built one; restaging"
-    cp "$BUILT" "$STAGED"
-fi
+#
+# REMOVED (VM removal): the libqemu staleness check above. There is no libqemu
+# any more, so there is nothing to compare a stale staged copy against. The
+# explanation of the hazard it guarded is kept, because the same shape applies
+# to ANGLE and MoltenVK.
 
 # Regenerate the project first.
 #
@@ -120,7 +119,8 @@ fi
 # @rpath/libANGLE-shared.dylib". Everything else in this validation passed. A
 # check that covers one of two required libraries is a check that reports
 # success on a bundle that cannot launch.
-for lib in libqemu-aarch64-softmmu.dylib libANGLE-shared.dylib; do
+# libqemu-aarch64-softmmu.dylib removed: no longer embedded.
+for lib in libANGLE-shared.dylib; do
     if [ ! -f "$APP/Frameworks/$lib" ]; then
         echo "  MISSING  Frameworks/$lib" >&2
         rc=1
@@ -130,9 +130,12 @@ for lib in libqemu-aarch64-softmmu.dylib libANGLE-shared.dylib; do
     fi
 done
 
-# Guest images, firmware, and blank disk seeds required by first launch.
-for f in vmlinuz-virt initramfs-virt husk-jit.js \
-         edk2-aarch64-code.fd lineage-efi-vars-seed.fd lineage-vdb-seed.qcow2; do
+# REMOVED (VM removal): the guest image / firmware / disk-seed check. Those five
+# files were staged by the "Stage guest image" preBuildScript, which is gone.
+# Leaving the loop in place would make every IPA fail this validation.
+#
+# husk-jit.js also went: it was the JIT payload staged for the VM's guest.
+for f in ; do
     if [ ! -f "$APP/$f" ]; then
         echo "  MISSING  $f" >&2
         rc=1
