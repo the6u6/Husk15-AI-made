@@ -17,7 +17,7 @@ struct DownloadsTab: View {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("No downloads").font(.headline)
                             Text("Add a link to an APK or a file, or the address a computer gives you when it shares a folder.")
-                                .font(.subheadline).foregroundStyle(.secondary)
+                                .font(.subheadline).foregroundColor(.secondary)
                         }
                         .padding(.vertical, 6)
                     }
@@ -39,7 +39,7 @@ struct DownloadsTab: View {
                     VStack(alignment: .leading, spacing: 6) {
                         if downloads.liveActivitiesOff {
                             Text("Live Activities are off for Husk, so downloads don't show on the Lock Screen or in the Dynamic Island. Turn them on in Settings › Husk › Live Activities.")
-                                .foregroundStyle(.orange)
+                                .foregroundColor(.orange)
                         }
                         if let free = Downloads.freeSpace() { Text("\(Downloads.bytes(free)) free on this device.") }
                     }
@@ -61,18 +61,18 @@ struct DownloadsTab: View {
                 HStack {
                     Label("Husk \(release.version)", systemImage: "arrow.down.app.fill")
                     Spacer()
-                    Button("View") { UIApplication.shared.open(release.page) }.buttonStyle(.bordered)
+                    Button("View") { UIApplication.shared.open(release.page) }.huskBordered()
                 }
             }
             if guest.update.isSomething {
                 HStack {
                     Label(guest.update.title, systemImage: "shippingbox.fill")
                     Spacer()
-                    Button("Download") { guest.applyUpdate() }.buttonStyle(.bordered)
+                    Button("Download") { guest.applyUpdate() }.huskBordered()
                 }
             }
             if updates.available == nil && !guest.update.isSomething {
-                Label("Everything is up to date", systemImage: "checkmark.circle").foregroundStyle(.secondary)
+                Label("Everything is up to date", systemImage: "checkmark.circle").foregroundColor(.secondary)
             }
         }
     }
@@ -105,7 +105,7 @@ private struct DownloadRow: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
                 Image(systemName: job.kind == .folder ? "folder.fill" : job.kind == .apk ? "app.badge.fill" : "doc.fill")
-                    .foregroundStyle(job.complete ? Color.green : Color.accentColor)
+                    .foregroundColor(job.complete ? Color.green : Color.accentColor)
                 Text(job.title).font(.headline).lineLimit(1)
                 Spacer()
                 if !job.complete {
@@ -114,11 +114,11 @@ private struct DownloadRow: View {
                     } label: {
                         Image(systemName: job.paused || job.failed ? "arrow.clockwise.circle.fill" : "pause.circle.fill").font(.title2)
                     }
-                    .buttonStyle(.borderless)
+                    .huskBorderless()
                 }
             }
             if !job.complete { ProgressView(value: fraction) }
-            Text(status).font(.caption).foregroundStyle(job.failed ? Color.orange : Color.secondary).lineLimit(2)
+            Text(status).font(.caption).foregroundColor(job.failed ? Color.orange : Color.secondary).lineLimit(2)
         }
         .padding(.vertical, 4)
     }
@@ -139,7 +139,7 @@ private struct AddDownloadSheet: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 } footer: {
-                    if let problem = downloads.problem { Text(problem).foregroundStyle(.orange) }
+                    if let problem = downloads.problem { Text(problem).foregroundColor(.orange) }
                 }
                 Section {
                     Text("An APK is added to your library when it finishes. Anything else goes into the Shared Storage folder, which games see as their phone storage.")
@@ -152,7 +152,7 @@ private struct AddDownloadSheet: View {
                     Text("How it works")
                 }
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundColor(.secondary)
             }
             .navigationTitle("Add Download")
             .navigationBarTitleDisplayMode(.inline)

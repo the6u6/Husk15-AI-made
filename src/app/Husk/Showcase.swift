@@ -168,9 +168,9 @@ struct ShowcaseGallery: View {
                     Button { shown = nil } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(.white)
+                            .foregroundColor(.white)
                             .frame(width: 36, height: 36)
-                            .background(Color.white.opacity(0.15), in: Circle())
+                            .huskBackground(Color.white.opacity(0.15), in: Circle())
                     }
                     .padding(16)
                 }
@@ -190,12 +190,18 @@ struct PictureView: View {
 
     var body: some View {
         ZStack {
-            Color(uiColor: .secondarySystemBackground)
+            Color(.secondarySystemBackground)
             if let image {
                 Image(uiImage: image).resizable().aspectRatio(contentMode: fill ? .fill : .fit).transition(.opacity)
             }
         }
-        .task(id: path) {
+        // .task(id:) is iOS 15; onAppear plus onChange is the same triggers.
+        .onAppear { loadImage() }
+        .onChange(of: path) { _ in loadImage() }
+    }
+
+    private func loadImage() {
+        Task {
             if let hit = IconCache.shared.cached(path, pixels: pixels) { image = hit; return }
             let loaded = await IconCache.shared.load(path, pixels: pixels)
             withAnimation(.easeOut(duration: 0.2)) { image = loaded }

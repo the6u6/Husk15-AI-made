@@ -516,13 +516,13 @@ struct TLChecksView: View {
             ForEach(store.checks) { check in
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        Text(check.title).foregroundStyle(Theme.text)
+                        Text(check.title).foregroundColor(Theme.text)
                         Spacer(minLength: 8)
                         TLCheckTag(status: check.status)
                     }
                     Text(check.detail)
                         .font(.system(size: 12))
-                        .foregroundStyle(Theme.textDim)
+                        .foregroundColor(Theme.textDim)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.vertical, 3)
@@ -765,11 +765,11 @@ struct TLClassicAttemptView: View {
                     if !runner.isRunning, runner.frameCount == 0 {
                         VStack(spacing: 10) {
                             if runner.isDone {
-                                Text("The game stopped").font(.headline).foregroundStyle(.white)
-                                Button("Run Again") { runner.start(apks: app.apks) }.buttonStyle(.borderedProminent)
+                                Text("The game stopped").font(.headline).foregroundColor(.white)
+                                Button("Run Again") { runner.start(apks: app.apks) }.huskBorderedProminent()
                             } else {
                                 ProgressView().tint(.white)
-                                Text("Starting \(app.label)…").font(.subheadline).foregroundStyle(.white.opacity(0.7))
+                                Text("Starting \(app.label)…").font(.subheadline).foregroundColor(.white.opacity(0.7))
                             }
                         }
                     }
@@ -785,9 +785,9 @@ struct TLClassicAttemptView: View {
                     Spacer()
                     Text("Tap with three fingers to show the interface")
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.white)
+                        .foregroundColor(.white)
                         .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(.black.opacity(0.65), in: Capsule())
+                        .huskBackground(.black.opacity(0.65), in: Capsule())
                         .padding(.bottom, 26)
                 }
                 .allowsHitTesting(false)
@@ -818,7 +818,7 @@ struct TLClassicAttemptView: View {
             .tint(.white)
             Circle().fill(runner.statusColor).frame(width: 7, height: 7)
             Text(runner.isRunning ? app.label : runner.statusText)
-                .font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.85)).lineLimit(1)
+                .font(.system(size: 12, weight: .medium)).foregroundColor(.white.opacity(0.85)).lineLimit(1)
             Spacer()
             if devInfo {
                 Button { withAnimation(.huskSnappy(duration: 0.25)) { showLog.toggle() } } label: {
@@ -841,7 +841,7 @@ struct TLClassicAttemptView: View {
             ScrollView {
                 Text(runner.logText.isEmpty ? "Starting…" : runner.logText)
                     .font(.technical(10))
-                    .foregroundStyle(.white.opacity(0.85))
+                    .foregroundColor(.white.opacity(0.85))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
                     .textSelection(.enabled)

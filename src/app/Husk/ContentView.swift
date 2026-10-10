@@ -80,12 +80,11 @@ struct ContentView: View {
                         .padding(.bottom, 8)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                .task(id: toast.id) {
-                    try? await Task.sleep(nanoseconds: 4_500_000_000)
-                    withAnimation(.huskSnappy) {
-                        if host.toast?.id == toast.id { host.toast = nil }
-                    }
-                }
+                // .task(id:) is iOS 15. onAppear covers the first toast and
+                // onChange each one after it. The previous sleep is no longer
+                // cancelled, which is why the id is re-checked inside.
+                .onAppear { dismissToast(after: toast.id) }
+                .onChange(of: toast.id) { _ in dismissToast(after: toast.id) }
             }
 
             if started && runner.isRunning {
@@ -146,10 +145,15 @@ struct ContentView: View {
         } message: {
             Text("You have \(AppUpdates.current). The new version's IPA is on its release page.")
         }
-        .task { await updates.check() }
+        // .task is iOS 15. onAppear + Task is the same thing with the
+        // cancellation thrown away; there is nothing to cancel here.
+        .onAppear { Task { await updates.check() } }
         .sheet(isPresented: $router.showFiles) { FilesTab() }
-        // Pictures for the apps here: read the index on launch and whenever the set of apps changes.
-        .task(id: showcasePackages) { showcase.refresh(for: showcasePackages) }
+        // Pictures for the apps here: read the index on launch and whenever the
+        // set of apps changes. .task(id:) is iOS 15, so the two halves are
+        // spelled out.
+        .onAppear { showcase.refresh(for: showcasePackages) }
+        .onChange(of: showcasePackages) { _ in showcase.refresh(for: showcasePackages) }
         .alert("Metadata Updated", isPresented: Binding(get: { showcase.shouldAsk && !showOnboarding },
                                                          set: { if !$0 { showcase.asked() } })) {
             Button("Download") { showcase.downloadUpdates() }
@@ -210,6 +214,17 @@ struct ContentView: View {
     /// Every package Husk holds, from both sides: what the picture index is read for.
     private var showcasePackages: Set<String> {
         Set(tlStore.apps.compactMap(\.packageName) + host.packages.map(\.name))
+    }
+
+    /// Clear the toast once its time is up, unless a newer one has replaced
+    /// it in the meantime.
+    private func dismissToast(after id: UUID) {
+        Task {
+            try? await Task.sleep(nanoseconds: 4_500_000_000)
+            withAnimation(.huskSnappy) {
+                if host.toast?.id == id { host.toast = nil }
+            }
+        }
     }
 
     private func evaluate() {
@@ -366,7 +381,7 @@ struct GuestScreenView: View {
                         .progressViewStyle(.linear)
                         .frame(width: 200)
                     Text(runner.setupMessage ?? "Starting Android…")
-                        .font(.caption2).foregroundStyle(.secondary)
+                        .font(.caption2).foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                 }
                 .padding(.horizontal, 18).padding(.vertical, 14)
@@ -450,7 +465,7 @@ struct GuestScreenView: View {
                         } label: {
                             Image(systemName: "ellipsis")
                                 .font(.system(size: 17, weight: .medium))
-                                .foregroundStyle(.white)
+                                .foregroundColor(.white)
                                 .frame(width: 46, height: 42)
                                 .contentShape(Rectangle())
                         }
@@ -497,7 +512,7 @@ struct LogView: View {
                             Text(line)
                                 .font(.system(size: 9, design: .monospaced))
                                 .textSelection(.enabled)
-                                .foregroundStyle(color(for: line))
+                                .foregroundColor(color(for: line))
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .id(i)
                         }
@@ -574,14 +589,14 @@ struct ControlsSheet: View {
                 HStack {
                     Text("Controls")
                         .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(Theme.text)
+                        .foregroundColor(Theme.text)
                     Spacer()
                     Button { dismiss() } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Theme.textDim)
+                            .foregroundColor(Theme.textDim)
                             .frame(width: 30, height: 30)
-                            .background(Theme.surfaceHigh, in: Circle())
+                            .huskBackground(Theme.surfaceHigh, in: Circle())
                     }
                     .buttonStyle(.plain)
                 }
@@ -606,7 +621,7 @@ struct ControlsSheet: View {
                 Text("Touch always works. A gamepad and a pointer are not wired "
                    + "through to Android yet.")
                     .font(.system(size: 12))
-                    .foregroundStyle(Theme.textDim)
+                    .foregroundColor(Theme.textDim)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 12)
 
@@ -621,20 +636,20 @@ struct ControlsSheet: View {
         HStack(spacing: 14) {
             Image(systemName: icon)
                 .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(available ? Theme.text : Theme.textDim.opacity(0.6))
+                .foregroundColor(available ? Theme.text : Theme.textDim.opacity(0.6))
                 .frame(width: 34, height: 34)
-                .background(Theme.surfaceHigh,
+                .huskBackground(Theme.surfaceHigh,
                             in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             Text(title)
                 .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(available ? Theme.text : Theme.textDim.opacity(0.6))
+                .foregroundColor(available ? Theme.text : Theme.textDim.opacity(0.6))
             Spacer()
             if on {
                 Image(systemName: "checkmark")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Theme.accent)
+                    .foregroundColor(Theme.accent)
             } else if !available {
-                Text("Not yet").font(.system(size: 12)).foregroundStyle(Theme.textDim)
+                Text("Not yet").font(.system(size: 12)).foregroundColor(Theme.textDim)
             }
         }
         .padding(.horizontal, 14).padding(.vertical, 12)

@@ -212,7 +212,7 @@ struct HomeView: View {
                             }
                         }
                         .padding(14)
-                        .background(Color(uiColor: .secondarySystemBackground),
+                        .huskBackground(Color(.secondarySystemBackground),
                                     in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                     }
                 }
@@ -222,7 +222,7 @@ struct HomeView: View {
             .padding(.bottom, 32)
             .id(jit.attachGeneration)
         }
-        .background(Color(uiColor: .systemBackground).ignoresSafeArea())
+        .background(Color(.systemBackground).ignoresSafeArea())
         .navigationBarHidden(true)
     }
 }
@@ -235,16 +235,16 @@ private struct WelcomeCard: View {
         VStack(alignment: .leading, spacing: 16) {
             Image(systemName: "gamecontroller.fill")
                 .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
+                .foregroundColor(Color.accentColor)
                 .frame(width: 60, height: 60)
-                .background(Color.accentColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .huskBackground(Color.accentColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             VStack(alignment: .leading, spacing: 6) {
                 Text("Add your first game")
                     .font(.system(.title2, design: .rounded).weight(.bold))
                 Text("Pick an APK or a bundle (.xapk, .apkm, .apks), or share one to Husk from Files or Safari. Games run "
                    + "straight on your iPhone. Other apps run inside Android.")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Button { router.addSomething() } label: {
@@ -253,7 +253,7 @@ private struct WelcomeCard: View {
             .buttonStyle(PrimaryButtonStyle())
         }
         .padding(20)
-        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .huskBackground(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 }
 
@@ -276,10 +276,10 @@ private struct ModeMenu: View {
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.system(size: 10, weight: .bold))
             }
-            .foregroundStyle(Color.accentColor)
+            .foregroundColor(Color.accentColor)
             .padding(.horizontal, 10)
             .frame(height: 28)
-            .background(Color.accentColor.opacity(0.14), in: Capsule())
+            .huskBackground(Color.accentColor.opacity(0.14), in: Capsule())
         }
         .padding(.top, 4)
     }
@@ -305,7 +305,7 @@ private struct ShelfHeader: View {
 /// under a dark fade so text on it reads. Android icons are all most apps carry, and this is what makes them big.
 struct IconBackdrop: View {
     let path: String?
-    var fallback: Color = Color(uiColor: .secondarySystemBackground)
+    var fallback: Color = Color(.secondarySystemBackground)
 
     var body: some View {
         ZStack {
@@ -329,7 +329,7 @@ struct IconBackdrop: View {
 struct ItemBackdrop: View {
     let item: LibraryItem
     var pixels: Int = 1200
-    var fallback: Color = Color(uiColor: .secondarySystemBackground)
+    var fallback: Color = Color(.secondarySystemBackground)
     @ObservedObject private var showcase = ShowcaseStore.shared
 
     var body: some View {
@@ -363,16 +363,16 @@ private struct HeroCard: View {
                             .lineLimit(2)
                         Text(item.usedText ?? (item.isGame ? "Ready to play" : "Ready to open"))
                             .font(.caption)
-                            .foregroundStyle(.white.opacity(0.75))
+                            .foregroundColor(.white.opacity(0.75))
                     }
-                    .foregroundStyle(.white)
+                    .foregroundColor(.white)
                     Spacer(minLength: 8)
                     Text(item.isGame ? "Play" : "Open")
                         .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.white)
+                        .foregroundColor(.white)
                         .padding(.horizontal, 18)
                         .frame(height: 36)
-                        .background(Color.accentColor, in: Capsule())
+                        .huskBackground(Color.accentColor, in: Capsule())
                 }
                 .padding(16)
             }
@@ -399,14 +399,14 @@ private struct CoverTile: View {
             .frame(width: 104, height: 136)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(alignment: .topTrailing) { if item.runsInAndroid { AndroidBadge().padding(7) } }
+            .huskOverlay(alignment: .topTrailing) { if item.runsInAndroid { AndroidBadge().padding(7) } }
             Text(item.title)
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(.primary)
+                .foregroundColor(.primary)
                 .lineLimit(1)
             Text(item.usedText ?? " ")
                 .font(.caption2)
-                .foregroundStyle(.secondary)
+                .foregroundColor(.secondary)
                 .lineLimit(1)
         }
         .frame(width: 104)
@@ -439,10 +439,10 @@ struct AndroidMark: View {
     var body: some View {
         Image(systemName: "apps.iphone")
             .font(.system(size: size * 0.46, weight: .semibold))
-            .foregroundStyle(.white)
+            .foregroundColor(.white)
             .frame(width: size, height: size)
             // `Color.gradient` is iOS 16; below it the fill is the flat colour.
-        .background(Self.green, in: RoundedRectangle(cornerRadius: size * 0.225, style: .continuous))
+        .huskBackground(Self.green, in: RoundedRectangle(cornerRadius: size * 0.225, style: .continuous))
     }
 }
 
@@ -452,9 +452,9 @@ struct AndroidBadge: View {
         Text("ANDROID")
             .font(.system(size: 8, weight: .heavy, design: .rounded))
             .tracking(0.4)
-            .foregroundStyle(Color(red: 0.03, green: 0.13, blue: 0.06))
+            .foregroundColor(Color(red: 0.03, green: 0.13, blue: 0.06))
             .padding(.horizontal, 5).padding(.vertical, 2)
-            .background(AndroidMark.green, in: Capsule())
+            .huskBackground(AndroidMark.green, in: Capsule())
     }
 }
 
@@ -508,7 +508,7 @@ struct LibraryScreen: View {
             .padding(.top, 8)
             .padding(.bottom, 32)
         }
-        .background(Color(uiColor: .systemBackground).ignoresSafeArea())
+        .background(Color(.systemBackground).ignoresSafeArea())
         .navigationBarHidden(true)
     }
 
@@ -517,11 +517,11 @@ struct LibraryScreen: View {
         if !items.isEmpty || empty != nil {
             HStack(alignment: .firstTextBaseline) {
                 Text(title).font(.system(.title3, design: .rounded).weight(.bold))
-                Text("\(items.count)").font(.subheadline).foregroundStyle(.secondary)
+                Text("\(items.count)").font(.subheadline).foregroundColor(.secondary)
             }
             .padding(.top, 6)
             if items.isEmpty, let empty {
-                Text(empty).font(.subheadline).foregroundStyle(.secondary)
+                Text(empty).font(.subheadline).foregroundColor(.secondary)
             } else {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 76, maximum: 110), spacing: 12, alignment: .top)], spacing: 20) {
                     ForEach(items) { item in
@@ -559,10 +559,10 @@ private struct FilterChips: View {
                 } label: {
                     Text(f.title)
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(filter == f ? Color(uiColor: .systemBackground) : Color.primary)
+                        .foregroundColor(filter == f ? Color(.systemBackground) : Color.primary)
                         .padding(.horizontal, 16)
                         .frame(height: 32)
-                        .background(filter == f ? Color.primary : Color(uiColor: .tertiarySystemFill), in: Capsule())
+                        .huskBackground(filter == f ? Color.primary : Color(.tertiarySystemFill), in: Capsule())
                 }
                 .buttonStyle(.plain)
             }
@@ -593,20 +593,20 @@ struct LauncherTile: View {
                 if let item { ItemIcon(item: item, size: size) } else { AppIcon(path: iconPath, size: size) }
             }
             .shadow(color: .black.opacity(0.14), radius: 6, y: 3)
-            .overlay(alignment: .bottom) {
+            .huskOverlay(alignment: .bottom) {
                 if item?.runsInAndroid == true { AndroidBadge().offset(y: 6) }
             }
-            .overlay(alignment: .topTrailing) {
+            .huskOverlay(alignment: .topTrailing) {
                 if let result { GameStatusBadge(result: result).offset(x: 5, y: -5) }
             }
             VStack(spacing: 1) {
                 Text(title)
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(.primary)
+                    .foregroundColor(.primary)
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
                 if let caption {
-                    Text(caption).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                    Text(caption).font(.caption2).foregroundColor(.secondary).lineLimit(1)
                 }
             }
             .padding(.top, item?.runsInAndroid == true ? 3 : 0)
@@ -626,9 +626,9 @@ struct HeaderButton: View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(enabled ? Color.accentColor : Color.secondary)
+                .foregroundColor(enabled ? Color.accentColor : Color.secondary)
                 .frame(width: 38, height: 38)
-                .background(Color(uiColor: .tertiarySystemFill), in: Circle())
+                .huskBackground(Color(.tertiarySystemFill), in: Circle())
         }
         .buttonStyle(.plain)
     }
@@ -645,7 +645,7 @@ struct BusyStrip: View {
             Spacer(minLength: 0)
         }
         .padding(14)
-        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .huskBackground(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -660,15 +660,14 @@ struct SearchField: View {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
                 TextField(prompt, text: $text)
                     .focused($focused)
-                    .submitLabel(.search)
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
                 if !text.isEmpty {
                     Button { text = "" } label: {
-                        Image(systemName: "xmark.circle.fill").foregroundStyle(.tertiary)
+                        Image(systemName: "xmark.circle.fill").foregroundColor(.tertiary)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Clear")
@@ -676,7 +675,7 @@ struct SearchField: View {
             }
             .padding(.horizontal, 10)
             .frame(height: 38)
-            .background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .huskBackground(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             if focused {
                 Button("Cancel") { text = ""; focused = false }
                     .transition(.move(edge: .trailing).combined(with: .opacity))
@@ -691,9 +690,9 @@ struct NoResults: View {
     let query: String
     var body: some View {
         VStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").font(.system(size: 28, weight: .light)).foregroundStyle(.secondary)
+            Image(systemName: "magnifyingglass").font(.system(size: 28, weight: .light)).foregroundColor(.secondary)
             Text("No Results").font(.headline)
-            Text("Nothing here is called “\(query)”.").font(.subheadline).foregroundStyle(.secondary)
+            Text("Nothing here is called “\(query)”.").font(.subheadline).foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 48)
@@ -739,6 +738,6 @@ private struct LibraryRouteView: View {
 
 private struct GoneView: View {
     var body: some View {
-        Text("This was removed.").foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
+        Text("This was removed.").foregroundColor(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

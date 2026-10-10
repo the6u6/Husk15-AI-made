@@ -230,9 +230,11 @@ struct SpecialKeysBar: View {
                 Text("ctrl")
                     .font(.caption2.weight(.medium))
                     .padding(.horizontal, 9).padding(.vertical, 6)
-                    .background(ctrlLatched ? AnyShapeStyle(Theme.accent)
-                                            : AnyShapeStyle(Theme.surfaceHigh),
-                                in: RoundedRectangle(cornerRadius: 7))
+                    // AnyShapeStyle is iOS 15. Both branches are already Color,
+                    // so the wrapper was only ever standing in for something
+                    // a ShapeStyle accepts.
+                    .huskBackground(ctrlLatched ? Theme.accent : Theme.surfaceHigh,
+                                    in: RoundedRectangle(cornerRadius: 7))
             }
 
             ForEach(keys, id: \.1) { label, qcode in
@@ -248,10 +250,10 @@ struct SpecialKeysBar: View {
                         .font(.caption2.weight(.medium))
                         .frame(minWidth: 26)
                         .padding(.horizontal, 7).padding(.vertical, 6)
-                        .background(Theme.surfaceHigh, in: RoundedRectangle(cornerRadius: 7))
+                        .huskBackground(Theme.surfaceHigh, in: RoundedRectangle(cornerRadius: 7))
                 }
             }
         }
-        .foregroundStyle(.primary)
+        .foregroundColor(.primary)
     }
 }

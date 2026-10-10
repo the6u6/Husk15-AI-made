@@ -44,7 +44,7 @@ struct SettingsTab: View {
                 Text("Husk").font(.title3.weight(.semibold))
                 Text("Version \(Bundle.main.version) · \(Bundle.main.commit)")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
             }
         }
         .padding(.vertical, 6)
@@ -56,7 +56,7 @@ struct SettingsTab: View {
             Label {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)
-                    Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Text(subtitle).font(.caption).foregroundColor(.secondary).lineLimit(1)
                 }
             } icon: {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -66,7 +66,7 @@ struct SettingsTab: View {
                     .overlay {
                         Image(systemName: icon)
                             .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(.white)
+                            .foregroundColor(.white)
                     }
             }
         }
@@ -308,7 +308,7 @@ struct InputSettings: View {
                                   value: "\(size.w) × \(size.h)")
                     } else {
                         Text("Both sides must be between 240 and 2560.")
-                            .font(.caption).foregroundStyle(.orange)
+                            .font(.caption).foregroundColor(.orange)
                     }
                 }
 
@@ -328,7 +328,7 @@ struct InputSettings: View {
                 Text("Touch is always on. The keyboard and the rotate control are "
                    + "in the pill at the bottom of the guest's screen; a gamepad "
                    + "and a pointer are not wired through yet.")
-                    .font(.footnote).foregroundStyle(.secondary)
+                    .font(.footnote).foregroundColor(.secondary)
             } header: {
                 Text("Controls")
             }
@@ -382,7 +382,7 @@ struct NetworkSettings: View {
                 Text("Android reaches the internet through a virtual ethernet card "
                    + "on QEMU's own network. Nothing on your phone's network can see "
                    + "the guest, and the guest cannot see it.")
-                    .font(.footnote).foregroundStyle(.secondary)
+                    .font(.footnote).foregroundColor(.secondary)
             } header: {
                 Text("How it connects")
             }
@@ -475,7 +475,7 @@ struct JITSettings: View {
                           value: JITBootstrap.detached ? "detached" : "attached",
                           mono: false)
                 if let why = JITBootstrap.lastFailure {
-                    Text(why).font(.caption).foregroundStyle(.orange)
+                    Text(why).font(.caption).foregroundColor(.orange)
                 }
                 if !JITBootstrap.ready {
                     Button {
@@ -535,7 +535,7 @@ struct JITSettings: View {
                    + "Split sets — a base APK plus its config pieces — must be picked "
                    + "together; installing the base alone fails on missing native "
                    + "libraries.")
-                    .font(.footnote).foregroundStyle(.secondary)
+                    .font(.footnote).foregroundColor(.secondary)
             } header: {
                 Text("Sideloading")
             }
@@ -585,7 +585,7 @@ struct SavedMachineSettings: View {
                 }
                 .disabled(!QemuRunner.shared.hasSnapshot)
                 if let deleteResult {
-                    Text(deleteResult).font(.caption).foregroundStyle(.secondary)
+                    Text(deleteResult).font(.caption).foregroundColor(.secondary)
                 }
             } footer: {
                 Text(QemuRunner.shared.hasSnapshot
@@ -703,7 +703,7 @@ struct AppearanceSettings: View {
                                 }
                                 Text(icon.title)
                                     .font(.caption)
-                                    .foregroundStyle(appIcon == icon ? Color.accentColor : .primary)
+                                    .foregroundColor(appIcon == icon ? Color.accentColor : .primary)
                                     .lineLimit(1)
                             }
                             .frame(maxWidth: .infinity)
@@ -732,7 +732,7 @@ struct AppearanceSettings: View {
                 if selected {
                     Image(systemName: "checkmark")
                         .font(.caption.bold())
-                        .foregroundStyle(color.isLight ? .black : .white)
+                        .foregroundColor(color.isLight ? .black : .white)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -753,7 +753,7 @@ struct AboutSettings: View {
                     HuskMark(size: 84)
                     Text("Husk").font(.title2.weight(.semibold))
                     Text("Version \(Bundle.main.version)")
-                        .font(.subheadline).foregroundStyle(.secondary)
+                        .font(.subheadline).foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
@@ -775,7 +775,7 @@ struct AboutSettings: View {
                         Text("Developer Info")
                         Text("Technical detail in the Android Translation Layer screens: "
                            + "library reports, device checks and run logs.")
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(.caption).foregroundColor(.secondary)
                     }
                 }
                 if devInfo {

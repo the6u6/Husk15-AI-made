@@ -54,7 +54,15 @@ struct DiscoverView: View {
                 Task { await manager.fetchSources() }
             }
         }
-        .task(id: searchText) {
+        // .task(id:) is iOS 15. The debounce survives, but Task.sleep is no
+        // longer cancelled between keystrokes, so the box updates a fixed
+        // 200ms after the last one rather than as soon as typing stops.
+        .onAppear { debounceSearch() }
+        .onChange(of: searchText) { _ in debounceSearch() }
+    }
+
+    private func debounceSearch() {
+        Task {
             do {
                 try await Task.sleep(nanoseconds: 200_000_000)
                 debouncedSearchText = searchText
@@ -76,9 +84,9 @@ struct DiscoverView: View {
                         Label {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(url).font(.footnote).lineLimit(1)
-                                Text(manager.fetchErrors[url] ?? "").font(.caption).foregroundStyle(.secondary)
+                                Text(manager.fetchErrors[url] ?? "").font(.caption).foregroundColor(.secondary)
                             }
-                        } icon: { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange) }
+                        } icon: { Image(systemName: "exclamationmark.triangle.fill").foregroundColor(.orange) }
                     }
                 } header: { Text("Could Not Load") }
             }
@@ -120,7 +128,7 @@ struct DiscoverView: View {
                 if let image = phase.image {
                     image.resizable().aspectRatio(contentMode: .fit)
                 } else if phase.error != nil {
-                    Image(systemName: "app.dashed").font(.title).foregroundStyle(.secondary)
+                    Image(systemName: "app.dashed").font(.title).foregroundColor(.secondary)
                 } else {
                     ProgressView()
                 }
@@ -131,7 +139,7 @@ struct DiscoverView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(app.name).font(.body.weight(.medium)).lineLimit(1)
                 Text(app.localizedDescription)
-                    .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                    .font(.caption).foregroundColor(.secondary).lineLimit(2)
             }
 
             Spacer(minLength: 8)
@@ -144,24 +152,22 @@ struct DiscoverView: View {
                     let intent = "am start -n \(app.bundleIdentifier)/\(app.bundleIdentifier).MainActivity"
                     _ = try? GuestBridge.shared.shell(intent, timeout: 5)
                 }
-                .buttonStyle(.bordered)
-                .buttonBorderShape(.capsule)
+                .huskBordered()
             } else if let progress = progress {
                 ZStack {
-                    Circle().stroke(Color(uiColor: .tertiarySystemFill), lineWidth: 3)
+                    Circle().stroke(Color(.tertiarySystemFill), lineWidth: 3)
                     Circle().trim(from: 0, to: progress)
                         .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                         .rotationEffect(.degrees(-90))
-                    Image(systemName: "stop.fill").font(.system(size: 9)).foregroundStyle(.secondary)
+                    Image(systemName: "stop.fill").font(.system(size: 9)).foregroundColor(.secondary)
                 }
                 .frame(width: 28, height: 28)
             } else {
                 Button("Get") { manager.downloadAndInstall(app: app) }
-                    .buttonStyle(.borderedProminent)
-                    .buttonBorderShape(.capsule)
+                    .huskBorderedProminent()
             }
         }
-        .buttonStyle(.borderless)
+        .huskBorderless()
         .padding(.vertical, 2)
     }
 
@@ -188,12 +194,12 @@ struct DiscoverView: View {
                         Button { newSourceURL = url } label: {
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(name).foregroundStyle(.primary)
-                                    Text(url).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                                    Text(name).foregroundColor(.primary)
+                                    Text(url).font(.caption2).foregroundColor(.secondary).lineLimit(1)
                                 }
                                 Spacer()
                                 if newSourceURL == url {
-                                    Image(systemName: "checkmark").foregroundStyle(Color.accentColor)
+                                    Image(systemName: "checkmark").foregroundColor(Color.accentColor)
                                 }
                             }
                         }
@@ -235,9 +241,9 @@ struct DiscoverView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             if let source = manager.sources.first(where: { $0.identifier == url }) {
                                 Text(source.name).font(.body.weight(.medium))
-                                Text("\(source.apps.count) apps").font(.caption).foregroundStyle(.secondary)
+                                Text("\(source.apps.count) apps").font(.caption).foregroundColor(.secondary)
                             }
-                            Text(url).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                            Text(url).font(.caption2).foregroundColor(.secondary).lineLimit(1)
                         }
                         .padding(.vertical, 2)
                     }

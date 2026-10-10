@@ -166,23 +166,23 @@ struct CrashReportSheet: View {
                 VStack(alignment: .leading, spacing: 18) {
                     HStack(spacing: 14) {
                         Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 30)).foregroundStyle(.orange)
+                            .font(.system(size: 30)).foregroundColor(.orange)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(report.cause.title).font(.title3.weight(.semibold))
-                            Text(report.game).foregroundStyle(.secondary)
+                            Text(report.game).foregroundColor(.secondary)
                         }
                     }
                     Text(report.cause.detail).font(.callout)
 
                     if !report.excerpt.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text("Last lines").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                            Text("Last lines").font(.footnote.weight(.semibold)).foregroundColor(.secondary)
                             Text(report.excerpt.joined(separator: "\n"))
                                 .font(.system(size: 10.5, design: .monospaced))
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(10)
-                                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+                                .huskBackground(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
                         }
                     }
 
@@ -191,10 +191,10 @@ struct CrashReportSheet: View {
                             Label("Share Report", systemImage: "square.and.arrow.up")
                                 .frame(maxWidth: .infinity).padding(.vertical, 6)
                         }
-                        .buttonStyle(.borderedProminent)
+                        .huskBorderedProminent()
                     }
                     Text("The report holds the full log of that run and which device and build it was on. Nothing is sent anywhere unless you share it.")
-                        .font(.footnote).foregroundStyle(.secondary)
+                        .font(.footnote).foregroundColor(.secondary)
                 }
                 .padding(20)
             }
@@ -202,6 +202,7 @@ struct CrashReportSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
-        .task { file = CrashReport.writeReport(report) }
+        // .task is iOS 15; nothing here is asynchronous.
+        .onAppear { file = CrashReport.writeReport(report) }
     }
 }

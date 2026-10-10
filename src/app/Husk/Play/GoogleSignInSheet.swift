@@ -37,10 +37,10 @@ struct GoogleSignInSheet: View {
                             .scaleEffect(1.2)
                         Text(manager.statusMessage ?? "Signing in to Google…")
                             .font(.subheadline.weight(.medium))
-                            .foregroundStyle(Theme.text)
+                            .foregroundColor(Theme.text)
                     }
                     .padding(24)
-                    .background(Theme.surfaceHigh, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .huskBackground(Theme.surfaceHigh, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .shadow(radius: 20)
                 } else if webLoading {
                     ProgressView("Loading Google Sign-In…")

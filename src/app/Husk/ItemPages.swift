@@ -13,7 +13,7 @@ private struct PageHero<Action: View>: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .bottomLeading) {
-                ItemBackdrop(item: item, fallback: Color(uiColor: .tertiarySystemFill))
+                ItemBackdrop(item: item, fallback: Color(.tertiarySystemFill))
                 LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .top, endPoint: .bottom)
                 HStack(alignment: .bottom, spacing: 14) {
                     ItemIcon(item: item, size: 84)
@@ -25,10 +25,10 @@ private struct PageHero<Action: View>: View {
                             .minimumScaleFactor(0.8)
                         Text(subtitle)
                             .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.75))
+                            .foregroundColor(.white.opacity(0.75))
                             .lineLimit(2)
                     }
-                    .foregroundStyle(.white)
+                    .foregroundColor(.white)
                     Spacer(minLength: 0)
                 }
                 .padding(16)
@@ -37,7 +37,7 @@ private struct PageHero<Action: View>: View {
             action
                 .padding(14)
         }
-        .background(Color(uiColor: .secondarySystemGroupedBackground))
+        .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 }
@@ -55,8 +55,8 @@ private struct BigButton: View {
                 .font(.system(.headline, design: .rounded))
                 .frame(maxWidth: .infinity)
                 .frame(height: 50)
-                .foregroundStyle(prominent ? Color.white : Color.accentColor)
-                .background(prominent ? Color.accentColor : Color.accentColor.opacity(0.14),
+                .foregroundColor(prominent ? Color.white : Color.accentColor)
+                .huskBackground(prominent ? Color.accentColor : Color.accentColor.opacity(0.14),
                             in: RoundedRectangle(cornerRadius: 15, style: .continuous))
         }
         .buttonStyle(CardButtonStyle())
@@ -199,7 +199,7 @@ struct GamePage: View {
                 HuskLabeledContent("Runs With", value: app.report?.runnerName ?? "Unknown")
                 if let st = GameStatusStore.shared.status(app.id) {
                     HuskLabeledContent("Last Result") {
-                        Label(st.result.label, systemImage: st.result.symbol).foregroundStyle(st.result.color)
+                        Label(st.result.label, systemImage: st.result.symbol).foregroundColor(st.result.color)
                     }
                 }
                 HuskLabeledContent("Last Played", value: app.lastPlayed.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "Never")
@@ -332,7 +332,7 @@ struct GamePage: View {
             BigButton(title: "Close Husk to Play", systemImage: "xmark.circle", prominent: false) { confirmQuit = true }
         } else if !Launcher.jitOn {
             if jit.busy {
-                HStack(spacing: 10) { ProgressView(); Text(jit.status ?? "Turning on JIT…").foregroundStyle(.secondary) }
+                HStack(spacing: 10) { ProgressView(); Text(jit.status ?? "Turning on JIT…").foregroundColor(.secondary) }
                     .frame(maxWidth: .infinity).frame(height: 50)
             } else {
                 BigButton(title: "Turn On JIT to Play", systemImage: "bolt.fill", action: turnOnJIT)
@@ -444,8 +444,8 @@ struct AndroidAppPage: View {
                 Label("Get Android First", systemImage: "arrow.down.circle")
                     .font(.system(.headline, design: .rounded))
                     .frame(maxWidth: .infinity).frame(height: 50)
-                    .foregroundStyle(.white)
-                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
+                    .foregroundColor(.white)
+                    .huskBackground(Color.accentColor, in: RoundedRectangle(cornerRadius: 15, style: .continuous))
             }
             .buttonStyle(CardButtonStyle())
         }
@@ -510,7 +510,7 @@ struct AndroidSystemPage: View {
                 Text("Android runs fully emulated, so it is slower than games on the translation layer. Use it for apps "
                    + "Husk cannot run directly, like Termux or app stores.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
             }
         }
         .listStyle(.insetGrouped)
@@ -573,7 +573,7 @@ struct AndroidSystemPage: View {
                 BigButton(title: "Try Again", systemImage: "arrow.clockwise") { JITBootstrap.prewarm(); guest.download() }
             case .ready:
                 if jit.busy {
-                    HStack(spacing: 10) { ProgressView(); Text(jit.status ?? "Turning on JIT…").foregroundStyle(.secondary) }
+                    HStack(spacing: 10) { ProgressView(); Text(jit.status ?? "Turning on JIT…").foregroundColor(.secondary) }
                         .frame(maxWidth: .infinity).frame(height: 50)
                 } else {
                     BigButton(title: Launcher.jitOn ? "Start Android" : "Turn On JIT", systemImage: Launcher.jitOn ? "power" : "bolt.fill") {

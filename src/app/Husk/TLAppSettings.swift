@@ -154,9 +154,17 @@ struct TLAppSettingsView: View {
                     AppIcon(path: app.iconPath, size: 52)
                     TextField("Name", text: $name)
                         .focused($nameFocused)
-                        .submitLabel(.done)
-                        .onSubmit { rename() }
                         .font(.system(size: 18, weight: .semibold))
+                    // .onSubmit is iOS 15, so the keyboard's return key no
+                    // longer commits. This is the explicit way in.
+                    if nameFocused {
+                        Button { nameFocused = false; rename() } label: {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 15, weight: .bold))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundColor(Theme.accent)
+                    }
                 }
                 .padding(.vertical, 2)
             } footer: {
@@ -241,7 +249,8 @@ struct TLAppSettingsView: View {
         }
         .onChange(of: nameFocused) { focused in if !focused { rename() } }
         .onDisappear { rename() }
-        .task { dataSize = await Self.measure(dataDirs) }
+        // .task is iOS 15.
+        .onAppear { Task { dataSize = await Self.measure(dataDirs) } }
         .confirmationDialog("Reset the data of \(app.label)?", isPresented: $confirmReset, titleVisibility: .visible) {
             Button("Reset Game Data", role: .destructive) {
                 for dir in dataDirs { try? FileManager.default.removeItem(at: dir) }
@@ -260,12 +269,12 @@ struct TLAppSettingsView: View {
         case .idle:
             Button("Download Geode") { Task { await geode.prepare(app) } }
         case .working(let what):
-            HStack(spacing: 10) { ProgressView(); Text(what).foregroundStyle(.secondary) }
+            HStack(spacing: 10) { ProgressView(); Text(what).foregroundColor(.secondary) }
         case .ready(let version):
             HuskLabeledContent("Geode", value: "v\(version), ready")
         case .failed(let why):
             VStack(alignment: .leading, spacing: 6) {
-                Text(why).font(.footnote).foregroundStyle(.orange)
+                Text(why).font(.footnote).foregroundColor(.orange)
                 Button("Try Again") { Task { await geode.prepare(app) } }
             }
         }

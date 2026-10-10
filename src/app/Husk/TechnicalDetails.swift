@@ -54,7 +54,7 @@ struct TLTechnicalView: View {
                 row("Package", app.packageName ?? "—", mono: true)
                 row("Architectures", report.map { $0.abis.isEmpty ? "None (Java only)" : $0.abis.joined(separator: ", ") } ?? "—")
                 if let summary = report?.displaySummary {
-                    Text(summary).font(.footnote).foregroundStyle(.secondary)
+                    Text(summary).font(.footnote).foregroundColor(.secondary)
                 }
             }
 
@@ -76,9 +76,9 @@ struct TLTechnicalView: View {
                             HStack {
                                 Text(lib.name).font(.system(.subheadline, design: .monospaced)).lineLimit(1).truncationMode(.middle)
                                 Spacer(minLength: 8)
-                                Text(bytes(lib.bytes)).font(.caption).foregroundStyle(.secondary)
+                                Text(bytes(lib.bytes)).font(.caption).foregroundColor(.secondary)
                             }
-                            Text(libraryDetail(lib)).font(.caption).foregroundStyle(lib.status == "ok" ? Color.secondary : Color.orange)
+                            Text(libraryDetail(lib)).font(.caption).foregroundColor(lib.status == "ok" ? Color.secondary : Color.orange)
                         }
                         .padding(.vertical, 2)
                     }
@@ -102,7 +102,7 @@ struct TLTechnicalView: View {
                     Button { sharing = true } label: { Label("Share Log", systemImage: "square.and.arrow.up") }
                 } else {
                     Text(log == nil ? "Reading…" : "No log yet. It is written the first time the game runs.")
-                        .font(.footnote).foregroundStyle(.secondary)
+                        .font(.footnote).foregroundColor(.secondary)
                 }
             } header: {
                 Text("Last Run")
@@ -113,7 +113,9 @@ struct TLTechnicalView: View {
         .listStyle(.insetGrouped)
         .navigationTitle("Technical Details")
         .navigationBarTitleDisplayMode(.inline)
-        .task {
+        // .task is iOS 15; onAppear + Task is the same thing minus
+        // cancellation.
+        .onAppear { Task {
             let url = logURL, dir = app.dataDirectory
             let (text, total) = await Task.detached(priority: .utility) { () -> (String, Int64) in
                 let text = (try? String(contentsOf: url, encoding: .utf8)).map { full -> String in
@@ -129,7 +131,7 @@ struct TLTechnicalView: View {
             }.value
             log = text
             dataSize = total == 0 ? "Nothing yet" : bytes(total)
-        }
+        } }
         .sheet(isPresented: $sharing) { ShareSheet(items: [logURL]) }
     }
 

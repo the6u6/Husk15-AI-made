@@ -110,8 +110,11 @@ struct DirectoryView: View {
         } message: {
             Text("Android installs it from where it already is — nothing is copied.")
         }
-        .task(id: path) { load() }
-        .refreshable { load() }
+        // .task(id:) and .refreshable are both iOS 15. There is no
+        // pull-to-refresh before that, so refreshing is manual: the
+        // directory reloads when it changes or appears.
+        .onAppear { load() }
+        .onChange(of: path) { _ in load() }
     }
 
     @ViewBuilder private func row(_ e: AndroidHost.GuestEntry) -> some View {
@@ -123,10 +126,10 @@ struct DirectoryView: View {
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.tertiary)
+                        .foregroundColor(.tertiary)
                 }
             }
-            .foregroundStyle(.primary)
+            .foregroundColor(.primary)
         } else {
             Button {
                 if e.name.lowercased().hasSuffix(".apk") { installing = e }
@@ -135,11 +138,11 @@ struct DirectoryView: View {
                     fileLabel(icon: icon(for: e.name), tint: .secondary, title: e.name, subtitle: subtitle(e))
                     if e.name.lowercased().hasSuffix(".apk") {
                         Spacer()
-                        Image(systemName: "arrow.down.circle").foregroundStyle(Color.accentColor)
+                        Image(systemName: "arrow.down.circle").foregroundColor(Color.accentColor)
                     }
                 }
             }
-            .foregroundStyle(.primary)
+            .foregroundColor(.primary)
         }
     }
 
@@ -147,12 +150,12 @@ struct DirectoryView: View {
         HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.title3)
-                .foregroundStyle(tint)
+                .foregroundColor(tint)
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).lineLimit(1).truncationMode(.middle)
                 if let subtitle {
-                    Text(subtitle).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Text(subtitle).font(.caption).foregroundColor(.secondary).lineLimit(1)
                 }
             }
         }
@@ -165,7 +168,7 @@ struct DirectoryView: View {
                 Spacer()
                 Text("\(AppDetailView.bytes(s.total - s.free)) of \(AppDetailView.bytes(s.total))")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
             }
             ProgressView(value: Double(used(s)))
         }
@@ -238,12 +241,12 @@ struct ImportSheet: View {
                 VStack(spacing: 10) {
                     Image(systemName: "doc.badge.plus")
                         .font(.system(size: 34, weight: .light))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundColor(Color.accentColor)
                     Text("Import Files").font(.headline)
                     Text("They go to \((destination as NSString).lastPathComponent). "
                        + "Unmodified APKs install from here too.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: .infinity)
@@ -251,8 +254,7 @@ struct ImportSheet: View {
                 .huskCard()
 
                 Button("Browse Files", action: onBrowse)
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.large)
+                    .huskBorderedProminent()
                 Spacer(minLength: 0)
             }
             .padding(16)

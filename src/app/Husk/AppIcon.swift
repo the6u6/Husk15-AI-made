@@ -72,6 +72,12 @@ struct AppIcon: View {
 
     private var corner: CGFloat { size * 0.225 }
     private var pixels: Int { Int((size * scale).rounded(.up)) }
+    /// What `.task(id:)` was keyed on. `.task` is iOS 15, so this is what
+    /// `.onChange(of:)` watches instead: the path, the pixel size, and the
+    /// cache's own stamp, so a cache invalidated underneath us reloads too.
+    private var cacheKey: String {
+        "\(path ?? "")|\(pixels)|\(IconCache.stamp(path))"
+    }
 
     var body: some View {
         ZStack {
@@ -86,17 +92,20 @@ struct AppIcon: View {
         }
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
-        .task(id: "\(path ?? "")|\(pixels)|\(IconCache.stamp(path))") { await load() }
+        // .task(id:) is iOS 15; onAppear plus onChange is the same pair of
+        // triggers without the cancellation.
+        .onAppear { load() }
+        .onChange(of: cacheKey) { _ in load() }
     }
 
     /// Quiet, so a grid still arriving does not read as broken: the surface an icon sits on, and a faint glyph.
     private var placeholder: some View {
         ZStack {
-            Color(uiColor: .tertiarySystemFill)
+            Color(.tertiarySystemFill)
             if image == nil {
                 Image(systemName: "app.dashed")
                     .font(.system(size: size * 0.38, weight: .light))
-                    .foregroundStyle(.tertiary)
+                    .foregroundColor(.tertiary)
             }
         }
     }

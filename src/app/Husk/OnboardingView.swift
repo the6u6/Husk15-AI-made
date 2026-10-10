@@ -111,10 +111,10 @@ struct OnboardingView: View {
             }
             Text("Husk").font(.system(size: 40, weight: .semibold, design: .rounded))
             Text("Android apps, on your iPhone.")
-                .font(.title3).foregroundStyle(.secondary)
+                .font(.title3).foregroundColor(.secondary)
             Text("Husk runs a real Android system and opens APKs inside it. "
                + "A few questions first — all of them can be changed later in Settings.")
-                .font(.callout).foregroundStyle(.secondary)
+                .font(.callout).foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 34).padding(.top, 4)
             Spacer()
@@ -157,13 +157,13 @@ struct OnboardingView: View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: icon)
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(Theme.accent)
+                .foregroundColor(Theme.accent)
                 .frame(width: 30, height: 30)
-                .background(Theme.accentSoft, in: RoundedRectangle(cornerRadius: 9,
+                .huskBackground(Theme.accentSoft, in: RoundedRectangle(cornerRadius: 9,
                                                                    style: .continuous))
             VStack(alignment: .leading, spacing: 3) {
                 Text(title).font(.body.weight(.medium))
-                Text(detail).font(.caption).foregroundStyle(.secondary)
+                Text(detail).font(.caption).foregroundColor(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
@@ -190,21 +190,21 @@ struct OnboardingView: View {
             Spacer()
             Image(systemName: "bolt.fill")
                 .font(.system(size: 54))
-                .foregroundStyle(Theme.accent)
+                .foregroundColor(Theme.accent)
             Text("Turn on JIT").font(.largeTitle.weight(.semibold))
             Text("Android and Translation Layer games need JIT, which on iOS only an attached debugger can grant. "
                + "StikJIT is built into Husk and is the recommended way: it turns JIT on from inside the app, "
                + "with no computer and no other app. StikDebug and TrollStore work too.")
-                .font(.callout).foregroundStyle(.secondary)
+                .font(.callout).foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 34)
             if let state = jitState {
                 Label(state, systemImage: "checkmark.circle.fill")
-                    .font(.callout.weight(.medium)).foregroundStyle(.green)
+                    .font(.callout.weight(.medium)).foregroundColor(.green)
             }
             Button(jitState == nil ? "Set Up StikJIT Now" : "Change JIT Setup") { settingUpJIT = true }
                 .font(.body.weight(.semibold))
-                .foregroundStyle(Theme.accent)
+                .foregroundColor(Theme.accent)
                 .padding(.top, 4)
             Spacer()
         }
@@ -215,12 +215,12 @@ struct OnboardingView: View {
             Spacer()
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 62))
-                .foregroundStyle(Theme.accent)
+                .foregroundColor(Theme.accent)
             Text("Ready").font(.largeTitle.weight(.semibold))
             Text("If JIT is not on when Android starts, Husk turns it on with the "
                + "method you chose, or walks you through setting one up. You can "
                + "change it any time in Settings › JIT & sideload.")
-                .font(.callout).foregroundStyle(.secondary)
+                .font(.callout).foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 34)
             Spacer()

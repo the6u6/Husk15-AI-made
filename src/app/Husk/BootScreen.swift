@@ -60,7 +60,7 @@ struct BootScreen: View {
                 Text("HUSK")
                     .font(.system(size: 22, weight: .semibold))
                     .tracking(9)
-                    .foregroundStyle(Theme.text)
+                    .foregroundColor(Theme.text)
                     .padding(.leading, 9)
                     .padding(.top, 18)
 
@@ -68,7 +68,7 @@ struct BootScreen: View {
                 // into the next rather than snapping.
                 Text(Self.phrases[phrase % Self.phrases.count])
                     .font(.system(size: 15))
-                    .foregroundStyle(Theme.textDim)
+                    .foregroundColor(Theme.textDim)
                     .multilineTextAlignment(.center)
                     .frame(height: 42)
                     .padding(.horizontal, 30)
@@ -86,7 +86,7 @@ struct BootScreen: View {
                 // The phrases pass the time; this is the part that is true.
                 Text(runner.setupMessage ?? host.status)
                     .font(.system(size: 11))
-                    .foregroundStyle(Theme.textDim.opacity(0.75))
+                    .foregroundColor(Theme.textDim.opacity(0.75))
                     .lineLimit(1)
                     .padding(.horizontal, 30)
 
@@ -95,7 +95,7 @@ struct BootScreen: View {
                 if now.timeIntervalSince(began) > 8 {
                     Button("Use Husk while it starts", action: onSkip)
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(Theme.textDim)
+                        .foregroundColor(Theme.textDim)
                         .padding(.top, 14)
                         .transition(.opacity)
                 }
@@ -125,12 +125,12 @@ struct BootScreen: View {
             HStack {
                 Text(shown > 0 ? "\(shown)%" : "starting")
                     .font(.technical(12, weight: .medium))
-                    .foregroundStyle(Theme.accent)
+                    .foregroundColor(Theme.accent)
                 Spacer()
                 if let left = remaining {
                     Text(left)
                         .font(.system(size: 12))
-                        .foregroundStyle(Theme.textDim)
+                        .foregroundColor(Theme.textDim)
                 }
             }
         }

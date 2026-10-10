@@ -15,23 +15,23 @@ import UIKit
 enum Theme {
     /// The page behind grouped content.
     static let bgUI = UIColor.systemGroupedBackground
-    static let bg = Color(uiColor: bgUI)
+    static let bg = Color(bgUI)
     /// Cards, rows, anything holding content.
-    static let surface = Color(uiColor: .secondarySystemGroupedBackground)
+    static let surface = Color(.secondarySystemGroupedBackground)
     /// One step further up: wells, chips, the things that sit on a card.
-    static let surfaceHigh = Color(uiColor: .tertiarySystemFill)
+    static let surfaceHigh = Color(.tertiarySystemFill)
     /// The edge that separates a surface from the page.
     static let hairlineUI = UIColor.separator
-    static let hairline = Color(uiColor: hairlineUI)
+    static let hairline = Color(hairlineUI)
 
     static let textUI = UIColor.label
-    static let text = Color(uiColor: textUI)
-    static let textDim = Color(uiColor: .secondaryLabel)
+    static let text = Color(textUI)
+    static let textDim = Color(.secondaryLabel)
 
     /// The user's accent: what is pressed, selected or switched on.
     static var accent: Color { AppTheme.shared.accentColor }
     static var accentSoft: Color { AppTheme.shared.accentColor.opacity(0.16) }
-    static let good = Color(uiColor: .systemGreen)
+    static let good = Color(.systemGreen)
     /// What a floating thing casts.
     static let shadow = Color.black.opacity(0.25)
 
@@ -88,7 +88,7 @@ extension View {
     /// A container for content that is not a list row: a surface on the grouped page, as the system draws one.
     @ViewBuilder
     func huskCard<S: Shape>(_ shape: S, high: Bool = false) -> some View {
-        self.background(high ? Theme.surfaceHigh : Theme.surface, in: shape)
+        self.huskBackground(high ? Theme.surfaceHigh : Theme.surface, in: shape)
     }
 
     func huskCard(high: Bool = false) -> some View {
@@ -104,7 +104,7 @@ extension View {
     /// Always dark, whatever the app's appearance: it floats over a guest that is mostly black, and the
     /// controls on it are drawn in white.
     func huskPanel<S: Shape>(_ shape: S) -> some View {
-        self.background(Color(red: 0.082, green: 0.094, blue: 0.129).opacity(0.94), in: shape)
+        self.huskBackground(Color(red: 0.082, green: 0.094, blue: 0.129).opacity(0.94), in: shape)
             .overlay(shape.stroke(Color.white.opacity(0.10), lineWidth: 0.5))
             .environment(\.colorScheme, .dark)
     }
@@ -126,14 +126,14 @@ struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 16, weight: .semibold))
-            .foregroundStyle(enabled ? .white : Theme.textDim)
+            .foregroundColor(enabled ? .white : Theme.textDim)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 15)
-            .background(enabled ? Theme.accent : Theme.surfaceHigh,
+            .huskBackground(enabled ? Theme.accent : Theme.surfaceHigh,
                         in: RoundedRectangle(cornerRadius: 15, style: .continuous))
             .opacity(configuration.isPressed ? 0.85 : 1)
             .scaleEffect(configuration.isPressed ? 0.985 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .huskAnimation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 
@@ -143,7 +143,7 @@ struct CardButtonStyle: ButtonStyle {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .opacity(configuration.isPressed ? 0.9 : 1)
-            .animation(.easeOut(duration: 0.14), value: configuration.isPressed)
+            .huskAnimation(.easeOut(duration: 0.14), value: configuration.isPressed)
     }
 }
 
@@ -157,9 +157,9 @@ struct CircleButton: View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(active ? .white : Theme.text)
+                .foregroundColor(active ? .white : Theme.text)
                 .frame(width: 36, height: 36)
-                .background(active ? Theme.accent : Theme.surfaceHigh, in: Circle())
+                .huskBackground(active ? Theme.accent : Theme.surfaceHigh, in: Circle())
         }
         .buttonStyle(.plain)
     }
@@ -176,7 +176,7 @@ struct HuskMark: View {
                 Image(uiImage: art).resizable().scaledToFit()
             } else {
                 Image(systemName: "cube.fill").font(.system(size: size * 0.6))
-                    .foregroundStyle(Theme.accent)
+                    .foregroundColor(Theme.accent)
             }
         }
         .frame(width: size, height: size)
@@ -194,9 +194,9 @@ struct Chip: View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(selected ? .white : Theme.textDim)
+                .foregroundColor(selected ? .white : Theme.textDim)
                 .padding(.horizontal, 16).padding(.vertical, 8)
-                .background(selected ? Theme.accent : Theme.surfaceHigh, in: Capsule())
+                .huskBackground(selected ? Theme.accent : Theme.surfaceHigh, in: Capsule())
         }
         .buttonStyle(.plain)
     }
@@ -210,9 +210,9 @@ struct Tag: View {
     var body: some View {
         Text(text)
             .font(.system(size: 12, weight: .medium))
-            .foregroundStyle(tint)
+            .foregroundColor(tint)
             .padding(.horizontal, 10).padding(.vertical, 4)
-            .background(Theme.surfaceHigh, in: Capsule())
+            .huskBackground(Theme.surfaceHigh, in: Capsule())
     }
 }
 
@@ -224,11 +224,11 @@ struct DetailRow: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(label).foregroundStyle(Theme.textDim)
+            Text(label).foregroundColor(Theme.textDim)
             Spacer(minLength: 16)
             Text(value)
                 .font(mono ? .technical() : .system(size: 15))
-                .foregroundStyle(Theme.text)
+                .foregroundColor(Theme.text)
                 .multilineTextAlignment(.trailing)
                 .textSelection(.enabled)
         }
@@ -249,18 +249,18 @@ struct HuskRow: View {
         HStack(spacing: 14) {
             Image(systemName: systemImage)
                 .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(tint)
+                .foregroundColor(tint)
                 .frame(width: 34, height: 34)
-                .background(Theme.surfaceHigh,
+                .huskBackground(Theme.surfaceHigh,
                             in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(tint)
+                    .foregroundColor(tint)
                 if let subtitle {
                     Text(subtitle)
                         .font(.system(size: 12))
-                        .foregroundStyle(Theme.textDim)
+                        .foregroundColor(Theme.textDim)
                         .lineLimit(1)
                 }
             }
@@ -268,7 +268,7 @@ struct HuskRow: View {
             if showsChevron {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Theme.textDim.opacity(0.7))
+                    .foregroundColor(Theme.textDim.opacity(0.7))
             }
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
@@ -304,10 +304,10 @@ struct SectionHeader: View {
         HStack(alignment: .firstTextBaseline) {
             Text(title)
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(Theme.text)
+                .foregroundColor(Theme.text)
             Spacer()
             if let trailing {
-                Text(trailing).font(.system(size: 13)).foregroundStyle(Theme.textDim)
+                Text(trailing).font(.system(size: 13)).foregroundColor(Theme.textDim)
             }
         }
     }
@@ -323,8 +323,8 @@ struct StatusPill: View {
         Label(text, systemImage: systemImage)
             .font(.system(size: 12, weight: .medium))
             .padding(.horizontal, 10).padding(.vertical, 5)
-            .background(tint.opacity(0.16), in: Capsule())
-            .foregroundStyle(tint)
+            .huskBackground(tint.opacity(0.16), in: Capsule())
+            .foregroundColor(tint)
     }
 }
 
@@ -340,15 +340,15 @@ struct EmptyState: View {
         VStack(spacing: 14) {
             Image(systemName: systemImage)
                 .font(.system(size: 30, weight: .light))
-                .foregroundStyle(Theme.accent)
+                .foregroundColor(Theme.accent)
                 .frame(width: 64, height: 64)
-                .background(Theme.accentSoft, in: Circle())
+                .huskBackground(Theme.accentSoft, in: Circle())
             Text(title)
                 .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(Theme.text)
+                .foregroundColor(Theme.text)
             Text(message)
                 .font(.system(size: 14))
-                .foregroundStyle(Theme.textDim)
+                .foregroundColor(Theme.textDim)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 28)
             if let actionTitle, let action {
@@ -384,15 +384,15 @@ struct ToastView: View {
             Image(systemName: toast.good ? "checkmark.circle.fill"
                                          : "exclamationmark.triangle.fill")
                 .font(.system(size: 19))
-                .foregroundStyle(toast.good ? Theme.good : .orange)
+                .foregroundColor(toast.good ? Theme.good : .orange)
             VStack(alignment: .leading, spacing: 2) {
                 Text(toast.title)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Theme.text)
+                    .foregroundColor(Theme.text)
                 if let detail = toast.detail {
                     Text(detail)
                         .font(.system(size: 12))
-                        .foregroundStyle(Theme.textDim)
+                        .foregroundColor(Theme.textDim)
                         .lineLimit(2)
                 }
             }
@@ -400,12 +400,12 @@ struct ToastView: View {
             Button(action: onClose) {
                 Image(systemName: "xmark")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Theme.textDim)
+                    .foregroundColor(Theme.textDim)
             }
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 14).padding(.vertical, 12)
-        .background(Theme.surfaceHigh,
+        .huskBackground(Theme.surfaceHigh,
                     in: RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
                     .stroke(Theme.hairline, lineWidth: 0.5))
@@ -428,7 +428,7 @@ struct GuestControl: View {
                 } else {
                     Image(systemName: systemImage)
                         .font(.system(size: 17, weight: .medium))
-                        .foregroundStyle(active ? Theme.accent : .white)
+                        .foregroundColor(active ? Theme.accent : .white)
                 }
             }
             .frame(width: 46, height: 42)

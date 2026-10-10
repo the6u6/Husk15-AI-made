@@ -59,18 +59,18 @@ struct WhatsNewSheet: View {
                 VStack(alignment: .leading, spacing: 26) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("What's New in Husk \(WhatsNew.version)").font(.largeTitle.weight(.bold))
-                        Text("The first full release.").foregroundStyle(.secondary)
+                        Text("The first full release.").foregroundColor(.secondary)
                     }
                     .padding(.top, 36)
                     ForEach(WhatsNew.items) { item in
                         HStack(alignment: .top, spacing: 16) {
                             Image(systemName: item.symbol)
                                 .font(.system(size: 26))
-                                .foregroundStyle(Color.accentColor)
+                                .foregroundColor(Color.accentColor)
                                 .frame(width: 36)
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(item.title).font(.headline)
-                                Text(item.detail).font(.subheadline).foregroundStyle(.secondary)
+                                Text(item.detail).font(.subheadline).foregroundColor(.secondary)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
@@ -82,7 +82,7 @@ struct WhatsNewSheet: View {
             Button(action: done) {
                 Text("Continue").font(.headline).frame(maxWidth: .infinity).padding(.vertical, 8)
             }
-            .buttonStyle(.borderedProminent)
+            .huskBorderedProminent()
             .padding(.horizontal, 28)
             .padding(.vertical, 18)
         }

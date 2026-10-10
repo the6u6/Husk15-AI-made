@@ -39,14 +39,14 @@ struct JITCard: View {
             HStack(spacing: 12) {
                 Image(systemName: "bolt.fill")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundColor(Color.accentColor)
                     .frame(width: 32, height: 32)
-                    .background(Color.accentColor.opacity(0.16), in: Circle())
+                    .huskBackground(Color.accentColor.opacity(0.16), in: Circle())
                 Button { jit.showSetup = true } label: {
                     VStack(alignment: .leading, spacing: 1) {
-                        Text("JIT is off").font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
+                        Text("JIT is off").font(.subheadline.weight(.semibold)).foregroundColor(.primary)
                         Text(jit.busy ? (jit.status ?? "Turning on JIT…") : "Games need it. \(offered == .builtIn ? "StikJIT" : offered.title) turns it on.")
-                            .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            .font(.caption).foregroundColor(.secondary).lineLimit(1)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
@@ -61,20 +61,20 @@ struct JITCard: View {
                     } label: {
                         Text("Turn On")
                             .font(.subheadline.weight(.bold))
-                            .foregroundStyle(.white)
+                            .foregroundColor(.white)
                             .padding(.horizontal, 14)
                             .frame(height: 30)
-                            .background(Color.accentColor, in: Capsule())
+                            .huskBackground(Color.accentColor, in: Capsule())
                     }
                     .buttonStyle(CardButtonStyle())
                 }
             }
             if let error = jit.error {
-                Text(error).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                Text(error).font(.caption).foregroundColor(.orange).fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(12)
-        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .huskBackground(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private var explanation: String {
@@ -105,10 +105,10 @@ struct JITCard: View {
         HStack(spacing: 12) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.title2)
-                .foregroundStyle(.green)
+                .foregroundColor(.green)
             VStack(alignment: .leading, spacing: 2) {
                 Text("JIT is on").font(.headline)
-                Text("Games and Android can run.").font(.subheadline).foregroundStyle(.secondary)
+                Text("Games and Android can run.").font(.subheadline).foregroundColor(.secondary)
             }
             Spacer(minLength: 0)
         }
@@ -121,11 +121,11 @@ struct JITCard: View {
             HStack(spacing: 12) {
                 ZStack {
                     Circle().fill(Color.accentColor.opacity(0.16)).frame(width: 44, height: 44)
-                    Image(systemName: "bolt.fill").font(.title3).foregroundStyle(Color.accentColor)
+                    Image(systemName: "bolt.fill").font(.title3).foregroundColor(Color.accentColor)
                 }
                 VStack(alignment: .leading, spacing: 4) {
                     Text(offered == .builtIn ? "StikJIT" : offered.title).font(.title3.weight(.semibold))
-                    Text("Turn on JIT").font(.subheadline).foregroundStyle(.secondary)
+                    Text("Turn on JIT").font(.subheadline).foregroundColor(.secondary)
                 }
                 Spacer(minLength: 0)
             }
@@ -135,13 +135,13 @@ struct JITCard: View {
                 .fixedSize(horizontal: false, vertical: true)
 
             if let why = HuskBuiltInJIT.unavailableReason {
-                Text(why).font(.footnote).foregroundStyle(.orange)
+                Text(why).font(.footnote).foregroundColor(.orange)
             }
 
             if jit.busy {
                 HStack(spacing: 10) {
                     ProgressView()
-                    Text(jit.status ?? "Turning on JIT…").font(.subheadline).foregroundStyle(.secondary)
+                    Text(jit.status ?? "Turning on JIT…").font(.subheadline).foregroundColor(.secondary)
                 }
             } else {
                 Button {
@@ -156,12 +156,11 @@ struct JITCard: View {
                         Spacer()
                     }
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .huskBorderedProminent()
             }
 
             if let error = jit.error {
-                Text(error).font(.footnote).foregroundStyle(.orange)
+                Text(error).font(.footnote).foregroundColor(.orange)
             }
 
             Button { jit.showSetup = true } label: {

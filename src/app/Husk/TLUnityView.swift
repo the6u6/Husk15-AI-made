@@ -534,9 +534,9 @@ struct TLCocosAttemptView: View {
                 if let other = blockedBy {
                     VStack(spacing: 8) {
                         Text("Another game is already loaded")
-                            .font(.system(size: 16, weight: .semibold)).foregroundStyle(.white)
+                            .font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
                         Text("\(other) was started in this session, and a game cannot be unloaded once it has started. Close Husk completely and open it again to run \(app.label).")
-                            .font(.system(size: 13)).foregroundStyle(.white.opacity(0.7))
+                            .font(.system(size: 13)).foregroundColor(.white.opacity(0.7))
                             .multilineTextAlignment(.center).frame(maxWidth: 460)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -553,7 +553,8 @@ struct TLCocosAttemptView: View {
                             VirtualPadView(pad: virtualPad, opacity: settings.padOpacity, haptics: settings.haptics,
                                            layout: padLayout, editing: editingPad, selected: $padSelected,
                                            onChange: { padLayout = $0; padLayout.save(app.id) })
-                                .overlay(alignment: .center) { if editingPad { padEditor } }
+                                // overlay's default alignment is already .center.
+                                .overlay { if editingPad { padEditor } }
                         }
                     }
                     .ignoresSafeArea()
@@ -578,9 +579,9 @@ struct TLCocosAttemptView: View {
                     Spacer()
                     Text("Tap with three fingers to show the interface")
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.white)
+                        .foregroundColor(.white)
                         .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(.black.opacity(0.65), in: Capsule())
+                        .huskBackground(.black.opacity(0.65), in: Capsule())
                         .padding(.bottom, 26)
                 }
                 .allowsHitTesting(false)
@@ -616,33 +617,33 @@ struct TLCocosAttemptView: View {
     private var padEditor: some View {
         VStack(spacing: 10) {
             if let id = padSelected {
-                Text(PadLayout.name(id)).font(.system(size: 14, weight: .semibold)).foregroundStyle(.white)
+                Text(PadLayout.name(id)).font(.system(size: 14, weight: .semibold)).foregroundColor(.white)
                 HStack(spacing: 10) {
-                    Image(systemName: "minus.magnifyingglass").foregroundStyle(.white.opacity(0.7))
+                    Image(systemName: "minus.magnifyingglass").foregroundColor(.white.opacity(0.7))
                     Slider(value: Binding(get: { Double(padLayout[id].scale) },
                                           set: { padLayout[id].scale = CGFloat($0) }),
                            in: 0.6...1.8, onEditingChanged: { if !$0 { padLayout.save(app.id) } })
                         .frame(width: 180)
-                    Image(systemName: "plus.magnifyingglass").foregroundStyle(.white.opacity(0.7))
+                    Image(systemName: "plus.magnifyingglass").foregroundColor(.white.opacity(0.7))
                 }
                 HStack(spacing: 10) {
                     Button(padLayout[id].hidden ? "Show" : "Hide") { padLayout[id].hidden.toggle(); padLayout.save(app.id) }
                     Button("Reset") { padLayout[id] = PadLayout.Adjust(); padLayout.save(app.id) }
                 }
-                .buttonStyle(.bordered).tint(.white)
+                .huskBordered().tint(.white)
             } else {
                 Text("Drag a control to move it, or tap one to resize or hide it.")
-                    .font(.system(size: 13, weight: .medium)).foregroundStyle(.white)
+                    .font(.system(size: 13, weight: .medium)).foregroundColor(.white)
                     .multilineTextAlignment(.center).frame(maxWidth: 260)
             }
             HStack(spacing: 10) {
                 Button("Reset All", role: .destructive) { padLayout = PadLayout(); padSelected = nil; padLayout.save(app.id) }
-                Button("Done") { editingPad = false; padSelected = nil }.buttonStyle(.borderedProminent)
+                Button("Done") { editingPad = false; padSelected = nil }.huskBorderedProminent()
             }
-            .buttonStyle(.bordered)
+            .huskBordered()
         }
         .padding(16)
-        .background(.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 16))
+        .huskBackground(.black.opacity(0.75), in: RoundedRectangle(cornerRadius: 16))
         .font(.system(size: 13, weight: .semibold))
     }
 
@@ -654,11 +655,11 @@ struct TLCocosAttemptView: View {
             .tint(.white)
             Circle().fill(model.statusColor).frame(width: 7, height: 7)
             Text(model.state == Int32(HUSK_UNITY_RUNNING) ? app.label : model.statusText)
-                .font(.system(size: 12, weight: .medium)).foregroundStyle(.white.opacity(0.85)).lineLimit(1)
+                .font(.system(size: 12, weight: .medium)).foregroundColor(.white.opacity(0.85)).lineLimit(1)
             Spacer()
             if !pads.names.isEmpty {
                 Label(pads.names.count == 1 ? pads.names[0] : "\(pads.names.count) controllers", systemImage: "gamecontroller.fill")
-                    .font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.7)).lineLimit(1)
+                    .font(.system(size: 11, weight: .medium)).foregroundColor(.white.opacity(0.7)).lineLimit(1)
             }
             if padOffered {
                 Button { settings.padShown.toggle(); settings.save(app.id); if !settings.padShown { editingPad = false } } label: {
@@ -674,7 +675,7 @@ struct TLCocosAttemptView: View {
                 }
             }
             if settings.showStats, model.state == Int32(HUSK_UNITY_RUNNING) {
-                Text(stats).font(.technical(11)).foregroundStyle(.white.opacity(0.7)).lineLimit(1)
+                Text(stats).font(.technical(11)).foregroundColor(.white.opacity(0.7)).lineLimit(1)
             }
             if devInfo {
                 Button { withAnimation(.huskSnappy(duration: 0.25)) { showLog.toggle() } } label: {
@@ -695,7 +696,7 @@ struct TLCocosAttemptView: View {
     private var logPanel: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("ATTEMPT LOG").font(.technical(10, weight: .bold)).foregroundStyle(Theme.textDim)
+                Text("ATTEMPT LOG").font(.technical(10, weight: .bold)).foregroundColor(Theme.textDim)
                 Spacer()
                 Button { UIPasteboard.general.string = model.logText } label: {
                     Label("Copy", systemImage: "doc.on.doc").font(.system(size: 11))
@@ -706,7 +707,7 @@ struct TLCocosAttemptView: View {
                 ScrollView {
                     Text(model.logText.isEmpty ? "Starting…" : model.logText)
                         .font(.technical(10))
-                        .foregroundStyle(Theme.text)
+                        .foregroundColor(Theme.text)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(8)
                         .textSelection(.enabled)

@@ -103,8 +103,7 @@ struct AppDetailView: View {
                         Spacer()
                     }
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .huskBorderedProminent()
                 .disabled(!canOpen)
                 .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
             } footer: {
@@ -178,7 +177,7 @@ struct AppDetailView: View {
                     .lineLimit(2)
                 Text(live.name)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundColor(.secondary)
                     .lineLimit(1).truncationMode(.middle)
                 HStack(spacing: 6) {
                     if let c = live.category { Tag(text: c) }

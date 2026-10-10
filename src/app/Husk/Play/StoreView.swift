@@ -35,7 +35,7 @@ struct StoreView: View {
                                 Text(s.isAnonymous ? "Guest Account (Aurora)" : s.email)
                                     .font(.caption)
                                 if s.isAnonymous {
-                                    Text(s.email).font(.caption2).foregroundStyle(.secondary)
+                                    Text(s.email).font(.caption2).foregroundColor(.secondary)
                                 }
                                 Divider()
                             }
@@ -73,15 +73,11 @@ struct StoreView: View {
             .sheet(item: $selectedApp) { app in
                 PlayAppDetailSheet(app: app)
             }
-            .task(id: searchText) {
-                do {
-                    try await Task.sleep(nanoseconds: 350_000_000)
-                    debouncedSearchText = searchText
-                    if !searchText.isEmpty {
-                        await manager.search(query: searchText)
-                    }
-                } catch {}
-            }
+            // .task(id:) is iOS 15. The debounce is kept, but Task.sleep's
+            // cancellation no longer discards the trailing keystrokes -- the
+            // sleep has to finish first, so a fast typist waits it out.
+            .onAppear { runSearch() }
+            .onChange(of: searchText) { _ in runSearch() }
             .alert("Error", isPresented: Binding(
                 get: { manager.errorMessage != nil },
                 set: { if !$0 { manager.errorMessage = nil } }
@@ -93,6 +89,19 @@ struct StoreView: View {
         }
     }
 
+    /// The debounced search `.task(id:)` used to run, called explicitly now.
+    private func runSearch() {
+        Task {
+            do {
+                try await Task.sleep(nanoseconds: 350_000_000)
+                debouncedSearchText = searchText
+                if !searchText.isEmpty {
+                    await manager.search(query: searchText)
+                }
+            } catch {}
+        }
+    }
+
     // MARK: - Signed Out State
 
     private var signedOutState: some View {
@@ -101,16 +110,16 @@ struct StoreView: View {
 
             Image(systemName: "cart.fill")
                 .font(.system(size: 64))
-                .foregroundStyle(Color.accentColor)
+                .foregroundColor(Color.accentColor)
 
             VStack(spacing: 8) {
                 Text("Google Play Store")
                     .font(.title2.weight(.bold))
-                    .foregroundStyle(Theme.text)
+                    .foregroundColor(Theme.text)
 
                 Text("Browse and download apps using an anonymous Aurora guest account, or sign in with your Google account.")
                     .font(.subheadline)
-                    .foregroundStyle(Theme.textDim)
+                    .foregroundColor(Theme.textDim)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 32)
             }
@@ -120,7 +129,7 @@ struct StoreView: View {
                     ProgressView()
                     Text(manager.statusMessage ?? "Signing in…")
                         .font(.footnote)
-                        .foregroundStyle(Theme.textDim)
+                        .foregroundColor(Theme.textDim)
                 }
                 .padding(.top, 12)
             } else {
@@ -139,8 +148,7 @@ struct StoreView: View {
                         .frame(maxWidth: 240)
                         .padding(.vertical, 12)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .buttonBorderShape(.capsule)
+                    .huskBorderedProminent()
 
                     // Google Account Button
                     Button {
@@ -154,8 +162,7 @@ struct StoreView: View {
                         .frame(maxWidth: 240)
                         .padding(.vertical, 10)
                     }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.capsule)
+                    .huskBordered()
                 }
                 .padding(.top, 8)
             }
@@ -181,7 +188,7 @@ struct StoreView: View {
                     } else if manager.searchResults.isEmpty {
                         Text("No apps found for \"\(debouncedSearchText)\".")
                             .font(.subheadline)
-                            .foregroundStyle(Theme.textDim)
+                            .foregroundColor(Theme.textDim)
                             .padding(.vertical, 8)
                     } else {
                         ForEach(manager.searchResults) { app in
@@ -204,19 +211,14 @@ struct StoreView: View {
                     Section {
                         Text("No featured apps available. Try searching above.")
                             .font(.subheadline)
-                            .foregroundStyle(Theme.textDim)
+                            .foregroundColor(Theme.textDim)
                     }
                 }
             }
         }
         .listStyle(.insetGrouped)
-        .refreshable {
-            if debouncedSearchText.isEmpty {
-                await manager.loadBrowseApps()
-            } else {
-                await manager.search(query: debouncedSearchText)
-            }
-        }
+        // .refreshable is iOS 15 and there is nothing to replace it with; the
+        // list loads through runSearch() above instead.
     }
 
     // MARK: - App Row
@@ -234,9 +236,9 @@ struct StoreView: View {
                         } else if phase.error != nil {
                             Image(systemName: "app.fill")
                                 .font(.title)
-                                .foregroundStyle(Color.accentColor.opacity(0.8))
+                                .foregroundColor(Color.accentColor.opacity(0.8))
                         } else {
-                            Color(uiColor: .tertiarySystemFill)
+                            Color(.tertiarySystemFill)
                         }
                     }
                     .frame(width: 52, height: 52)
@@ -245,22 +247,22 @@ struct StoreView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(app.title)
                             .font(.body.weight(.semibold))
-                            .foregroundStyle(Theme.text)
+                            .foregroundColor(Theme.text)
                             .lineLimit(1)
 
                         Text(app.developer.isEmpty ? app.id : app.developer)
                             .font(.caption)
-                            .foregroundStyle(Theme.textDim)
+                            .foregroundColor(Theme.textDim)
                             .lineLimit(1)
 
                         if app.rating > 0 {
                             HStack(spacing: 3) {
                                 Image(systemName: "star.fill")
                                     .font(.system(size: 10))
-                                    .foregroundStyle(.yellow)
+                                    .foregroundColor(.yellow)
                                 Text(String(format: "%.1f", app.rating))
                                     .font(.caption2.weight(.medium))
-                                    .foregroundStyle(Theme.textDim)
+                                    .foregroundColor(Theme.textDim)
                             }
                         }
                     }
@@ -284,7 +286,7 @@ struct StoreView: View {
             if isDownloading || progress != nil {
                 ZStack {
                     Circle()
-                        .stroke(Color(uiColor: .tertiarySystemFill), lineWidth: 3)
+                        .stroke(Color(.tertiarySystemFill), lineWidth: 3)
                     Circle()
                         .trim(from: 0, to: progress ?? 0.05)
                         .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
@@ -302,8 +304,7 @@ struct StoreView: View {
                         .padding(.horizontal, 14)
                         .padding(.vertical, 6)
                 }
-                .buttonStyle(.borderedProminent)
-                .buttonBorderShape(.capsule)
+                .huskBorderedProminent()
             }
         }
     }
@@ -326,7 +327,7 @@ struct PlayAppDetailSheet: View {
                             if let image = phase.image {
                                 image.resizable().aspectRatio(contentMode: .fit)
                             } else {
-                                Color(uiColor: .tertiarySystemFill)
+                                Color(.tertiarySystemFill)
                             }
                         }
                         .frame(width: 76, height: 76)
@@ -335,12 +336,12 @@ struct PlayAppDetailSheet: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(app.title)
                                 .font(.title3.weight(.bold))
-                                .foregroundStyle(Theme.text)
+                                .foregroundColor(Theme.text)
                                 .lineLimit(2)
 
                             Text(app.developer)
                                 .font(.subheadline)
-                                .foregroundStyle(Theme.textDim)
+                                .foregroundColor(Theme.textDim)
                                 .lineLimit(1)
 
                             Spacer(minLength: 4)
@@ -371,7 +372,7 @@ struct PlayAppDetailSheet: View {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Preview")
                                 .font(.headline)
-                                .foregroundStyle(Theme.text)
+                                .foregroundColor(Theme.text)
 
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 12) {
@@ -380,7 +381,7 @@ struct PlayAppDetailSheet: View {
                                             if let image = phase.image {
                                                 image.resizable().aspectRatio(contentMode: .fit)
                                             } else {
-                                                Color(uiColor: .tertiarySystemFill)
+                                                Color(.tertiarySystemFill)
                                             }
                                         }
                                         .frame(height: 220)
@@ -397,11 +398,11 @@ struct PlayAppDetailSheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("About this app")
                                 .font(.headline)
-                                .foregroundStyle(Theme.text)
+                                .foregroundColor(Theme.text)
 
                             Text(app.summary)
                                 .font(.body)
-                                .foregroundStyle(Theme.textDim)
+                                .foregroundColor(Theme.textDim)
                         }
                     }
                 }
@@ -428,7 +429,7 @@ struct PlayAppDetailSheet: View {
                     ProgressView()
                     Text("Downloading…")
                         .font(.caption.weight(.medium))
-                        .foregroundStyle(Theme.textDim)
+                        .foregroundColor(Theme.textDim)
                 }
             } else {
                 Button {
@@ -440,8 +441,7 @@ struct PlayAppDetailSheet: View {
                         .padding(.horizontal, 24)
                         .padding(.vertical, 6)
                 }
-                .buttonStyle(.borderedProminent)
-                .buttonBorderShape(.capsule)
+                .huskBorderedProminent()
             }
         }
     }
@@ -450,10 +450,10 @@ struct PlayAppDetailSheet: View {
         VStack(spacing: 4) {
             Text(value)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Theme.text)
+                .foregroundColor(Theme.text)
             Text(title)
                 .font(.caption2)
-                .foregroundStyle(Theme.textDim)
+                .foregroundColor(Theme.textDim)
         }
     }
 }

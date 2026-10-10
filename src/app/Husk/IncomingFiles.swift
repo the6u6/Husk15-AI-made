@@ -131,7 +131,7 @@ struct IncomingChooser: View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Add to Husk").font(.title2.weight(.bold))
-                Text(title).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+                Text(title).font(.subheadline).foregroundColor(.secondary).lineLimit(2)
             }
 
             choice(icon: "bolt.fill", title: "Translation Layer",
@@ -161,19 +161,19 @@ struct IncomingChooser: View {
             HStack(spacing: 14) {
                 Image(systemName: icon)
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundColor(Color.accentColor)
                     .frame(width: 44, height: 44)
-                    .background(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .huskBackground(Color.accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(.headline).foregroundStyle(.primary)
-                    Text(detail).font(.subheadline).foregroundStyle(.secondary)
+                    Text(title).font(.headline).foregroundColor(.primary)
+                    Text(detail).font(.subheadline).foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
-                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundColor(.tertiary)
             }
             .padding(14)
-            .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .huskBackground(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(CardButtonStyle())
     }

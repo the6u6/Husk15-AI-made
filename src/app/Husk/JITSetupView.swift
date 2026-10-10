@@ -113,7 +113,7 @@ struct JITSetupFlow: View {
         } actions: {
             Button("Not now") { close() }
                 .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(Theme.textDim)
+                .foregroundColor(Theme.textDim)
         }
     }
 
@@ -123,19 +123,19 @@ struct JITSetupFlow: View {
             HStack(spacing: 14) {
                 Image(systemName: symbol)
                     .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(Theme.accent)
+                    .foregroundColor(Theme.accent)
                     .frame(width: 34, height: 34)
-                    .background(Theme.accentSoft, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .huskBackground(Theme.accentSoft, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(title).font(.system(size: 16, weight: .semibold)).foregroundStyle(Theme.text)
-                    Text(detail).font(.system(size: 13)).foregroundStyle(Theme.textDim)
+                    Text(title).font(.system(size: 16, weight: .semibold)).foregroundColor(Theme.text)
+                    Text(detail).font(.system(size: 13)).foregroundColor(Theme.textDim)
                         .fixedSize(horizontal: false, vertical: true)
                         .multilineTextAlignment(.leading)
                 }
                 Spacer(minLength: 8)
                 Image(systemName: done ? "checkmark.circle.fill" : "chevron.right")
                     .font(.system(size: done ? 18 : 13, weight: .semibold))
-                    .foregroundStyle(done ? .green : Theme.textDim.opacity(0.7))
+                    .foregroundColor(done ? .green : Theme.textDim.opacity(0.7))
             }
             .padding(14)
             .contentShape(Rectangle())
@@ -180,7 +180,7 @@ struct JITSetupFlow: View {
             case .waiting, .pin:
                 Button("Cancel pairing", role: .cancel) { pairing.cancel() }
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(Theme.textDim)
+                    .foregroundColor(Theme.textDim)
             case .paired:
                 Button("Continue") { step = .connect }
                     .buttonStyle(PrimaryButtonStyle())
@@ -197,7 +197,7 @@ struct JITSetupFlow: View {
                 HStack(spacing: 10) {
                     ProgressView().tint(Theme.accent)
                     Text("Waiting for your \(device)…").font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Theme.text)
+                        .foregroundColor(Theme.text)
                 }
                 Button("Open Settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
@@ -206,7 +206,7 @@ struct JITSetupFlow: View {
                 if pairing.backgroundLimited {
                     Text("This installation can only wait about 30 seconds in the background, "
                        + "so go to Settings straight away.")
-                        .font(.system(size: 13)).foregroundStyle(.orange)
+                        .font(.system(size: 13)).foregroundColor(.orange)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -215,9 +215,9 @@ struct JITSetupFlow: View {
         case .pin(let pin):
             VStack(spacing: 8) {
                 Text("Enter this code on your \(device)").font(.system(size: 14))
-                    .foregroundStyle(Theme.textDim)
+                    .foregroundColor(Theme.textDim)
                 Text(pin).font(.system(size: 40, weight: .bold, design: .monospaced)).tracking(6)
-                    .foregroundStyle(Theme.text)
+                    .foregroundColor(Theme.text)
                     .textSelection(.enabled)
                     .accessibilityLabel("Pairing code \(pin.map(String.init).joined(separator: " "))")
             }
@@ -246,7 +246,7 @@ struct JITSetupFlow: View {
             .padding(16).huskCard()
             Label("The pairing file stays in Husk's Documents folder and is only sent to Husk's own helper.",
                   systemImage: "lock.fill")
-                .font(.system(size: 13)).foregroundStyle(Theme.textDim)
+                .font(.system(size: 13)).foregroundColor(Theme.textDim)
             if let error = jit.error { outcome(error, ok: false) }
         } actions: {
             if jit.pairingSource == .imported {
@@ -299,7 +299,7 @@ struct JITSetupFlow: View {
             if jit.busy {
                 HStack(spacing: 11) {
                     ProgressView().tint(Theme.accent)
-                    Text(jit.status ?? "Working…").font(.system(size: 14)).foregroundStyle(Theme.text)
+                    Text(jit.status ?? "Working…").font(.system(size: 14)).foregroundColor(Theme.text)
                     Spacer(minLength: 0)
                 }
                 .padding(16).huskCard(high: true)
@@ -387,7 +387,7 @@ struct JITSetupFlow: View {
             if !JITBootstrap.isTrollStoreInstalled {
                 Label("TrollStore was not found on this \(device). Husk can only use it once it is installed "
                     + "and Husk was installed through it.", systemImage: "info.circle")
-                    .font(.system(size: 13)).foregroundStyle(Theme.textDim)
+                    .font(.system(size: 13)).foregroundColor(Theme.textDim)
                     .fixedSize(horizontal: false, vertical: true)
             }
         } actions: {
@@ -415,10 +415,10 @@ struct JITSetupFlow: View {
             .padding(16).huskCard()
             if JITBootstrap.debuggedAtLaunch {
                 Label("Husk was marked as debugged when it opened, so JIT is on.", systemImage: "checkmark.circle.fill")
-                    .font(.system(size: 13)).foregroundStyle(.green)
+                    .font(.system(size: 13)).foregroundColor(.green)
             } else if !JITBootstrap.isJailbroken {
                 Label("No jailbreak was found on this \(device).", systemImage: "info.circle")
-                    .font(.system(size: 13)).foregroundStyle(Theme.textDim)
+                    .font(.system(size: 13)).foregroundColor(Theme.textDim)
             }
         } actions: {
             Button("Use the jailbreak") {
@@ -442,18 +442,21 @@ struct JITSetupFlow: View {
                 VStack(alignment: .leading, spacing: 16) {
                     Image(systemName: symbol)
                         .font(.system(size: 26, weight: .semibold))
-                        .foregroundStyle(Theme.accent)
+                        .foregroundColor(Theme.accent)
                         .frame(width: 56, height: 56)
-                        .background(Theme.accentSoft, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    Text(title).font(.system(size: 28, weight: .semibold)).foregroundStyle(Theme.text)
-                    Text(subtitle).font(.system(size: 15)).foregroundStyle(Theme.textDim)
+                        .huskBackground(Theme.accentSoft, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    Text(title).font(.system(size: 28, weight: .semibold)).foregroundColor(Theme.text)
+                    Text(subtitle).font(.system(size: 15)).foregroundColor(Theme.textDim)
                         .fixedSize(horizontal: false, vertical: true)
                     content()
                 }
-                .padding(.horizontal, 22).padding(.top, 8).padding(.bottom, 24)
+                // safeAreaInset is iOS 15. The action bar is overlaid at the
+                // bottom edge instead, and the ScrollView carries the padding
+                // safeAreaInset would have measured for it: 24pt of slack plus
+                // roughly the 92pt the bar itself occupies (16 of padding plus
+                // a 44pt button and 12 of spacing).
+                .padding(.horizontal, 22).padding(.top, 8).padding(.bottom, 116)
             }
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
             VStack(spacing: 12) { actions() }
                 .padding(.horizontal, 22).padding(.top, 10).padding(.bottom, 16)
                 .background(Theme.backdrop)
@@ -478,15 +481,15 @@ struct JITSetupFlow: View {
             ZStack {
                 Circle().fill(done ? Color.green.opacity(0.18) : Theme.accentSoft)
                 if done {
-                    Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundStyle(.green)
+                    Image(systemName: "checkmark").font(.system(size: 12, weight: .bold)).foregroundColor(.green)
                 } else {
-                    Text("\(number)").font(.system(size: 13, weight: .bold)).foregroundStyle(Theme.accent)
+                    Text("\(number)").font(.system(size: 13, weight: .bold)).foregroundColor(Theme.accent)
                 }
             }
             .frame(width: 26, height: 26)
             Text(.init(text))
                 .font(.system(size: 15))
-                .foregroundStyle(Theme.text)
+                .foregroundColor(Theme.text)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
@@ -495,7 +498,7 @@ struct JITSetupFlow: View {
     private func outcome(_ text: String, ok: Bool) -> some View {
         Label(text, systemImage: ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
             .font(.system(size: 14, weight: .medium))
-            .foregroundStyle(ok ? .green : .red)
+            .foregroundColor(ok ? .green : .red)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14).huskCard()
