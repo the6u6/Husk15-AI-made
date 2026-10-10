@@ -737,3 +737,103 @@ happen on a local or self-hosted macOS 14 machine.
 Nothing in this experiment has been compiled on a machine with a Swift compiler
 other than CI. Every check here is brace balance, regex residue, mask audits
 and reading.
+
+## 4b. Round 7: the compiler's second list
+
+Same four gates, same toolchain. **24 errors**, down from ~90. Every one is now
+addressed; the first four were mine and the rest were latent.
+
+### The trailing-closure ordering bug
+
+Four files failed with `consecutive statements on a line must be separated by
+';'` at the line after a `huskDialog` call. The cause was my own signature:
+
+```swift
+func huskDialog(..., primaryAction: @escaping () -> Void, secondary: String)
+```
+
+**A trailing closure binds to the last parameter.** With `secondary:` declared
+after the closure, the only spelling available was `} secondary: "Cancel"`,
+which is not Swift. Three sites wrote exactly that; three more (ContentView)
+passed `secondary:` on the line *after* a trailing closure. All six failed.
+
+`secondary:` now comes before the closure, and there are two two-action
+overloads: one where the secondary is a bare Cancel (`.cancel`, no action) and
+one where it has a body (`.default` + action). They are distinguished by
+`secondaryAction` having no default, so neither can match the other's calls.
+The one-action overload was already correct -- its closure parameter is last --
+which is why those five sites compiled.
+
+The lesson is about the check, not the code: my verifier confirmed every label
+present matched an overload, and it did. It never asked where the closure
+parameter sat in the declaration order, which is the only thing that makes a
+trailing closure legal. `order_check.py` now does.
+
+### Main-actor isolation, five sites
+
+`Downloads.bytes`, `HuskFilePicker.present`, and three `VirtualPad` members are
+`@MainActor`, called from nonisolated contexts.
+
+- `Downloads` is `@MainActor final class`; `bytes` is a pure formatter with no
+  state, so `nonisolated static func bytes` is the honest fix rather than an
+  isolation hop at five call sites.
+- `HuskFilePicker` is a `@MainActor enum`; the `onChange` closure that calls
+  `present` is not. A `Task { @MainActor in }` hop, which is free because
+  `onChange` already fires on the main actor.
+- `VirtualPad.update` writes members of `PadView`, which is `@MainActor`.
+  `makeUIView` constructs a `PadView` on the line above without error, which
+  is what proves `makeUIView` is already main-actor isolated -- and that is
+  what makes annotating `update` safe rather than a new error.
+
+### Two type-check timeouts
+
+`SettingsTab` had two `Form` bodies the solver gave up on, and
+`HuskBridgeFS.refreshMetadata` had a nine-term string concatenation chain.
+Both are solver blow-ups, not errors.
+
+The fix for both is the same shape: cut the expression into pieces the checker
+solves independently. Ten `Section`s came out of the two `Form` bodies into
+typed properties (`screenSection` ... `sideloadingSection`), and the shell
+script became a multi-line literal. The script was diffed against the original
+after whitespace normalisation -- newlines and semicolons are both command
+separators in a shell, so the guest sees the same commands.
+
+### Two that were not what they looked like
+
+- `ApkMetadata.string(for:)` indexed `found[0]` on a non-optional array and the
+  compiler still saw an optional. `guard let ... ?? found.first` states the
+  intent and is correct either way.
+- `HuskBridgeFS` used `.whitespaces` where the contextual base could not be
+  inferred. `CharacterSet.whitespaces`.
+
+### Stale CI, again
+
+The build that produced this list was still compiling the pre-round-6 tree:
+`AppDetailView:145` was reported at the exact columns of the old
+`} secondary: "Cancel"` form, which this tree no longer contains. **Push before
+reading another error list** -- the line numbers are the evidence, and they are
+never wrong about it.
+
+## 4c. Round 8: three expressions, one cause
+
+Down to three errors, all in `SettingsTab.swift`, all the same diagnostic.
+Extracting the `Section`s into properties the round before had not been enough,
+because the blow-up was *inside* three of the properties.
+
+Two shapes cause it:
+
+1. **A ternary whose branches are each a chain of `+` over string literals.**
+   `cond ? "a" + "b" : "c" + "d" + "e"` -- the checker resolves `+` across
+   `String` and its literal protocols at every level, and the search space is
+   the product of the levels.
+2. **A nested ternary**, `a ? x : b ? y : z`, for the same reason.
+
+Both were in `Text(...)` footers and `DetailRow(value:)` arguments. The fix is
+to name the value with an explicit type -- `let text: String = ...` -- so every
+`+` has exactly one applicable overload. Six expressions across the three
+properties; nothing about the rendered text changes, and the literals were
+re-read to confirm it.
+
+One more of the same shape turned up in `resolutionSection` on the line after
+the footer: `HuskLog.log("ui", v ? "on: " + "\(w)x\(h)" : "off")`, a ternary
+whose branch is a `+` over an *interpolated* literal.
