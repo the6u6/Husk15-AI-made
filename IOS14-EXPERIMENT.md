@@ -343,6 +343,90 @@ find out whether the backport is viable at all.
 
 ## 4. The Swift sweep -- done
 
+### Round 2: what the compiler found that the sweep missed
+
+The first sweep converted 323 sites from a pattern inventory. The app then
+compiled far enough to produce an authoritative list, and it disagreed with the
+inventory in three ways worth recording, because all three are ways a pattern
+search goes wrong that look like success:
+
+- **`.tint()` is not simply iOS 13.** `View` has two `tint` overloads:
+  `tint(_: Color?)` is 13.0, and `tint(_: S?) where S: ShapeStyle` is 15.0. A
+  leading-dot literal like `.tint(.white)` can only resolve through the second,
+  because there is no `.white` on `Color?`. So 19 `.tint(` sites, 11 of them
+  literals, were iOS 15 all along. §3's "`.tint(` was not touched: it is iOS 13"
+  was wrong, and the compiler proved it.
+- **`.overlay { }` with no arguments is iOS 15**, not only `.overlay(alignment:)`.
+  Seven sites. The inventory had checked exactly this distinction for `.background`
+  and not for `.overlay`.
+- **`Compat15.swift` is compiled at the app's floor.** It stood in for iOS 16 and
+  17 but was itself using `.foregroundStyle`, which is iOS 15. Excluding the
+  shim file from the sweep was right for the banned-API grep and wrong for the
+  compiler.
+
+### Round 2 inventory, from the compiler's own output
+
+| Family | Sites | Replacement |
+|---|---|---|
+| `Button(role:)` | 27 | role dropped; `.destructive` becomes `.foregroundColor(.red)` |
+| `@Environment(\.dismiss)` + calls | 36 | `presentationMode`, iOS 13, same sheet |
+| `Section("title")` | 11 | `Section(header: Text(...))` |
+| `.textSelection(.enabled)` | 9 | **removed** -- no pre-15 equivalent |
+| `BGContinuedProcessingTask` | 8 | **feature removed** -- see below |
+| `.overlay { }` | 7 | `huskOverlay { }` |
+| `AsyncImage` | 4 | `HuskAsyncImage` |
+| `.textInputAutocapitalization` | 3 | `.autocapitalization` |
+| `Date.formatted` / `FormatStyle` | 3 | `huskFormatDateTime` / `huskFormatDateStamp` |
+| `.searchable` | 2 | `huskSearchBar` |
+| `@FocusState` / `.focused` | 4 | `@State` + `onAppear` |
+| `URLSession.download(for:)` | 2 | `huskDownload`, a continuation wrapper |
+| `.interactiveDismissDisabled` | 1 | **removed** |
+| `preferredFrameRateRange` | 1 | `#available(iOS 15.0, *)` |
+| `shouldMonitorBackgroundEvents` | 1 | `#available(iOS 14.5, *)` |
+| `alert` / `confirmationDialog` titles | 11 | `String(...)`, so the `StringProtocol` overload wins over the iOS 15 `LocalizedStringKey` one |
+
+`BGContinuedProcessingTask` is **iOS 26.0**, not 16. The iOS 17.5 SDK an iOS 14
+floor forces does not contain the symbol at all, so `#available` cannot rescue
+it -- the compiler said "cannot find type in scope", not "only available in
+iOS 26". Both call sites already degraded: `JITPairing` sets `backgroundLimited`
+and warns, `Downloads` falls back to its Live Activity. So this removed a
+progressive enhancement, and the fallbacks are now the only paths.
+
+### What round 2 cost
+
+Four self-inflicted errors, three of them mine and one a near-miss:
+
+- `huskOverlay<A: Alignment>` -- **`Alignment` is a struct, not a protocol**, so
+  the generic constraint did not compile at all, and the three call sites failed
+  with "cannot infer contextual base" pointing at the arguments rather than the
+  declaration.
+- `.onAppear { load() }` where `load()` is async -- needs `Task { }`.
+- `HuskAsyncPhase` first written as an enum, which would have meant rewriting
+  four call sites that read `phase.image`; made a struct to match.
+- **A round that wrote the masked source back instead of the real one**, blanking
+  every string literal and comment in 14 files. Caught immediately by a residue
+  check, restored from a backup taken moments earlier. Same mistake as round 1's
+  colour rewrite; the mask is now search-only and splices into the source by
+  offset.
+
+Two more bugs in that helper, found only because a count came out zero:
+`^` without `re.M` never matches except at offset 0, and the mask was blanking
+the *quote characters*, so any pattern matching a string literal could never
+match the mask at all -- which is why `Button(role:)` and `Section("title")`
+reported 0 rather than 19 and 11.
+
+### Still unexplained
+
+`HuskBridgeFS.swift` alone produces ~40 `reference to captured var 'self' in
+concurrently-executing code` errors, plus three type-checker timeouts and six
+main-actor-isolation errors. **That file was never edited by any round here.** If
+those were genuine, the 15.0 build would be failing too. The likeliest
+explanation is that the iOS 26 SDK annotates closures `@Sendable` where 17.5 does
+not, which turns a warning into an error; but that is a guess, and the Xcode 26
+build log for the same file would settle it. Not addressed.
+
+---
+
 ~330 call sites across 30 files used iOS 15.0 APIs. They compiled silently at
 target 15.0; at 14.0 every one is an error. All of them are now rewritten.
 **323 sites touched**, split by how faithful the replacement is:
