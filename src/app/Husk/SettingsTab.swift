@@ -256,14 +256,18 @@ struct InputSettings: View {
         } header: {
             Text("Screen")
         } footer: {
-            Text(customRes
-                 ? "A custom resolution sets the shape itself, so this does nothing "
-                 + "while it is on. Type a wide size for landscape."
-                 : "Android cannot reshape a screen once it is running, so a "
-                 + "landscape game on a portrait screen gets letterboxed into a "
-                 + "band and looks tiny. Creating it landscape is the only way it "
-                 + "can fill it — portrait apps are letterboxed instead. Costs one "
-                 + "cold boot.")
+            // A ternary whose branches are each a chain of `+` over literals is
+            // one of the two shapes the type checker gives up on. Naming the
+            // value as a String gives every `+` one overload to resolve.
+            let text: String = customRes
+                ? "A custom resolution sets the shape itself, so this does nothing "
+                    + "while it is on. Type a wide size for landscape."
+                : "Android cannot reshape a screen once it is running, so a "
+                    + "landscape game on a portrait screen gets letterboxed into a "
+                    + "band and looks tiny. Creating it landscape is the only way it "
+                    + "can fill it — portrait apps are letterboxed instead. Costs one "
+                    + "cold boot."
+            Text(text)
         }
     }
 
@@ -273,9 +277,13 @@ struct InputSettings: View {
                 .onChange(of: customRes) { v in
                     UserDefaults.standard.set(v, forKey: "husk.customRes")
                     store()
-                    HuskLog.log("ui", v ? "custom resolution on: "
-                                        + "\(widthText)x\(heightText)"
-                                        : "custom resolution off")
+                    // Anchored for the same reason as the footers: a
+                    // ternary whose branch is a `+` over an interpolated
+                    // literal.
+                    let resolutionLog: String = v ? "custom resolution on: "
+                        + "\(widthText)x\(heightText)"
+                        : "custom resolution off"
+                    HuskLog.log("ui", resolutionLog)
                 }
 
             if customRes {
@@ -327,12 +335,14 @@ struct InputSettings: View {
         } header: {
             Text("Resolution")
         } footer: {
-            Text("The panel is built when the machine starts, so a change costs "
-               + "one cold boot, and the next save replaces the machine saved at "
-               + "the old size — changing back costs another. Sizes are rounded "
-               + "to a multiple of eight. Bigger is slower: every pixel is drawn "
-               + "by an emulated phone. Android's density does not change with "
-               + "the panel, so a larger one shows more rather than bigger.")
+            // The same anchor, for a plain seven-term `+` chain.
+            let text: String = "The panel is built when the machine starts, so a change costs "
+                + "one cold boot, and the next save replaces the machine saved at "
+                + "the old size — changing back costs another. Sizes are rounded "
+                + "to a multiple of eight. Bigger is slower: every pixel is drawn "
+                + "by an emulated phone. Android's density does not change with "
+                + "the panel, so a larger one shows more rather than bigger."
+            Text(text)
         }
     }
 
@@ -483,10 +493,10 @@ struct JITSettings: View {
             // The two routes, named separately. Either one is enough, and
             // when someone reports "JIT does not work" these two rows are
             // the whole diagnosis.
-            DetailRow(label: "Trap servicer",
-                      value: husk_ios_jit_self_route() != nil ? "not needed"
-                           : JITBootstrap.prewarmed ? "answering" : "not answering",
-                      mono: false)
+            // A nested ternary is the other shape that blows the solver up.
+            let trapServicer: String = husk_ios_jit_self_route() != nil ? "not needed"
+                : JITBootstrap.prewarmed ? "answering" : "not answering"
+            DetailRow(label: "Trap servicer", value: trapServicer, mono: false)
             if let route = husk_ios_jit_self_route() {
                 DetailRow(label: "Made by Husk",
                           value: String(cString: route) == "MAP_JIT" ? "MAP_JIT (TrollStore entitlement)" : "plain memory (debugged or jailbroken)",
@@ -494,11 +504,10 @@ struct JITSettings: View {
             }
             // Cached answer only: running the probe from a view body
             // could freeze the app (see JITBootstrap.mapJITWorks).
-            DetailRow(label: "MAP_JIT",
-                      value: JITBootstrap.deviceEnforcesTXM ? "not used (TXM)"
-                           : JITBootstrap.mapJITResult.map { $0 ? "executes" : "refused" }
-                             ?? "not tested",
-                      mono: false)
+            let mapJIT: String = JITBootstrap.deviceEnforcesTXM ? "not used (TXM)"
+                : JITBootstrap.mapJITResult.map { $0 ? "executes" : "refused" }
+                  ?? "not tested"
+            DetailRow(label: "MAP_JIT", value: mapJIT, mono: false)
             DetailRow(label: "Debugger after setup",
                       value: JITBootstrap.detached ? "detached" : "attached",
                       mono: false)
@@ -521,12 +530,13 @@ struct JITSettings: View {
         } header: {
             Text("JIT")
         } footer: {
-            Text("Husk needs memory it can write and then execute, which on iOS "
-               + "takes an attached debugger. There are two ways to get it: a "
-               + "debugger that services trap requests, or a MAP_JIT mapping, "
-               + "which the kernel allows any debugged process. Either one is "
-               + "enough — which is available depends on the device and the iOS "
-               + "version, so Husk tests both rather than assuming.")
+            let text: String = "Husk needs memory it can write and then execute, which on iOS "
+                + "takes an attached debugger. There are two ways to get it: a "
+                + "debugger that services trap requests, or a MAP_JIT mapping, "
+                + "which the kernel allows any debugged process. Either one is "
+                + "enough — which is available depends on the device and the iOS "
+                + "version, so Husk tests both rather than assuming."
+            Text(text)
         }
     }
 
