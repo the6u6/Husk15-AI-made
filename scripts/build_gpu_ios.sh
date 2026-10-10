@@ -125,6 +125,61 @@ fetch () {
 fetch epoxy https://github.com/utmapp/libepoxy.git   "$EPOXY_COMMIT"
 fetch virgl https://github.com/utmapp/virglrenderer.git "$VIRGL_COMMIT"
 
+# HUSK_CLANG15_PATCHES: one empty statement after a label that precedes a
+# declaration. Same family as the ANGLE patch in build_angle_ios.sh, same env
+# var, because both exist only to get 2026 third-party source through a 2024
+# clang.
+#
+#   ../src/vrend/vrend_renderer.c:13026:4: error: expected expression
+#        char *llvmpipe_string = strstr(caps->v2.renderer, "llvmpipe");
+#        ^
+#
+# Lines 13021 and 13026 of the pinned commit are:
+#
+#     angle_done:            <- a label
+#                             <- blank
+#        /* glamor reject llvmpipe, ... */
+#        char *llvmpipe_string = strstr(...);   <- a declaration, not a statement
+#
+# In C17 and earlier a label must be followed by a statement, and a declaration
+# is not one, so clang rejects it. C23 changed this -- WG14 N2508, "free
+# positioning of labels and empty statements" -- and clang implemented it in
+# version 18, under "C23 Feature Support". Apple clang 15 predates that, and
+# there is no `-std` that rescues it: virglrenderer's own meson.build:30 pins
+# c_std=gnu11, and clang 15's incomplete -std=c2x predates the feature too.
+#
+# Note this is not simply "old clang". The construct is invalid C11 as well, so
+# any conforming C11 compiler rejects it. It only survives on newer toolchains
+# because clang's implementation is more permissive than the letter of gnu11.
+#
+# The fix is an empty statement, which is a statement in every C version:
+#
+#     angle_done:
+#        ;
+#
+# Deliberately NOT "move the declaration above the label". `goto angle_done` at
+# line 13015 already jumps over that declaration, so hoisting it would leave
+# llvmpipe_string indeterminate on that path and turn the `if` on the next line
+# into a read of an uninitialised pointer. (That hazard predates this patch --
+# it is upstream's -- but hoisting would make it worse rather than paper over
+# it.) An empty statement changes no control flow: the label still attaches to
+# the next real statement, and both the goto and the fall-through arrive there
+# exactly as before.
+HUSK_CLANG15_PATCHES="${HUSK_CLANG15_PATCHES:-0}"
+if [ "$HUSK_CLANG15_PATCHES" != "0" ]; then
+    vrend="$GPU/virgl/src/vrend/vrend_renderer.c"
+    if [ ! -f "$vrend" ]; then
+        echo "::warning::HUSK_CLANG15_PATCHES is on but $vrend is absent; nothing to patch"
+    elif grep -q '^angle_done:$' "$vrend" \
+         && ! sed -n '/^angle_done:$/,/[^[:space:]]/p' "$vrend" | grep -q '^[[:space:]]*;$'; then
+        # BSD sed: -i takes its suffix as a separate argument.
+        sed -i '' 's|^angle_done:$|angle_done:\n   ;|' "$vrend"
+        echo "==> patched vrend_renderer.c: empty statement after 'angle_done:'"
+    else
+        echo "==> vrend_renderer.c needs no patch (already applied, or the label is gone)"
+    fi
+fi
+
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
 
 echo "==> libepoxy"

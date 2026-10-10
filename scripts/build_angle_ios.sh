@@ -24,7 +24,7 @@
 # Pinning is not what the iOS 14 experiment needs. Xcode 15.4 cannot compile one
 # line of current WebKit -- ResourceMap.h's `static_assert(kNeedsLock)`, which
 # Apple clang diagnoses inside a discarded `if constexpr` branch. Everything
-# else in the tree builds. Set ANGLE_PATCH_RESOURCEMAP=1 to drop that one
+# else in the tree builds. Set HUSK_CLANG15_PATCHES=1 to drop that one
 # redundant assert; see the block below the checkout for the full argument, and
 # IOS14-EXPERIMENT.md section 3 for the failure it works around.
 set -euo pipefail
@@ -56,9 +56,10 @@ else
     echo "==> WebKit is tracking main; set WEBKIT_COMMIT to make this reproducible"
 fi
 
-# ANGLE_PATCH_RESOURCEMAP works around one Apple Clang bug in current ANGLE.
-# Off by default: the working 15.0/Xcode 26 build does not need it and the
-# vendored tree should stay untouched unless it is asked for.
+# HUSK_CLANG15_PATCHES works around one Apple Clang bug in current ANGLE, for the
+# same reason build_gpu_ios.sh patches virglrenderer: 2026 source through a 2024
+# clang. Off by default -- the working 15.0/Xcode 26 build does not need it and
+# the vendored trees should stay untouched unless they are asked to be.
 #
 # What happens without it, on Xcode 15.4 and any current WebKit:
 #
@@ -99,11 +100,11 @@ fi
 # does not exist. That throws away a tree that is otherwise 92% compatible with
 # this toolchain and may trade this error for others in the files that never
 # got to compile, so the patch is the cheaper experiment.
-ANGLE_PATCH_RESOURCEMAP="${ANGLE_PATCH_RESOURCEMAP:-0}"
-if [ "$ANGLE_PATCH_RESOURCEMAP" != "0" ]; then
+HUSK_CLANG15_PATCHES="${HUSK_CLANG15_PATCHES:-0}"
+if [ "$HUSK_CLANG15_PATCHES" != "0" ]; then
     rm_header="$WK/Source/ThirdParty/ANGLE/src/libANGLE/ResourceMap.h"
     if [ ! -f "$rm_header" ]; then
-        echo "::warning::ANGLE_PATCH_RESOURCEMAP is on but $rm_header is absent; nothing to patch"
+        echo "::warning::HUSK_CLANG15_PATCHES is on but $rm_header is absent; nothing to patch"
     elif grep -q '^[[:space:]]*static_assert(kNeedsLock);$' "$rm_header"; then
         # BSD sed: the -i suffix is a separate argument, not attached. '|' as the
         # delimiter so the slashes in the replacement need no escaping.
