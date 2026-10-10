@@ -80,7 +80,7 @@ struct AppDetailView: View {
 
     @ObservedObject private var host = AndroidHost.shared
     @ObservedObject private var router = Router.shared
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.presentationMode) private var huskPM
     @State private var confirmUninstall = false
 
     private var live: AndroidHost.Package {
@@ -124,9 +124,10 @@ struct AppDetailView: View {
                     Label("App Info", systemImage: "info.circle")
                 }
                 .disabled(!canOpen)
-                Button(role: .destructive) { confirmUninstall = true } label: {
-                    Label("Uninstall", systemImage: "trash")
+Button(action: { confirmUninstall = true }) {
+                    Label(           , systemImage:        )
                 }
+                    .foregroundColor(Color.red)
                 .disabled(!canOpen)
             }
         }
@@ -134,13 +135,14 @@ struct AppDetailView: View {
         .navigationTitle(live.label)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { menu } }
-        .confirmationDialog("Uninstall \(live.label)?", isPresented: $confirmUninstall,
+        .confirmationDialog(String("Uninstall \(live.label)?"), isPresented: $confirmUninstall,
                             titleVisibility: .visible) {
-            Button("Uninstall", role: .destructive) {
+Button("Uninstall") {
                 host.uninstall(app.name)
-                dismiss()
+                huskPM.wrappedValue.dismiss()
             }
-            Button("Cancel", role: .cancel) { }
+            .foregroundColor(Color.red)
+Button("Cancel") { }
         } message: {
             Text("Its data goes with it. Save Android afterwards or the change is "
                + "lost on the next launch.")
@@ -159,9 +161,10 @@ struct AppDetailView: View {
             }
             .disabled(!canOpen)
             Divider()
-            Button(role: .destructive) { confirmUninstall = true } label: {
-                Label("Uninstall", systemImage: "trash")
+Button(action: { confirmUninstall = true }) {
+                Label(           , systemImage:        )
             }
+                .foregroundColor(Color.red)
             .disabled(!canOpen)
         } label: {
             Image(systemName: "ellipsis.circle")

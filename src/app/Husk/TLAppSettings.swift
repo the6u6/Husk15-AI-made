@@ -126,7 +126,7 @@ struct TLAppSettingsView: View {
     @State private var name: String
     @State private var dataSize: String = "…"
     @State private var confirmReset = false
-    @FocusState private var nameFocused: Bool
+    @State private var nameFocused: Bool
 
     init(app: TLApp) {
         self.app = app
@@ -153,7 +153,7 @@ struct TLAppSettingsView: View {
                 HStack(spacing: 14) {
                     AppIcon(path: app.iconPath, size: 52)
                     TextField("Name", text: $name)
-                        .focused($nameFocused)
+                        .onAppear { nameFocused = true }
                         .font(.system(size: 18, weight: .semibold))
                     // .onSubmit is iOS 15, so the keyboard's return key no
                     // longer commits. This is the explicit way in.
@@ -229,9 +229,10 @@ struct TLAppSettingsView: View {
 
             Section {
                 DetailRow(label: "Saved by the game", value: dataSize, mono: false)
-                Button(role: .destructive) { confirmReset = true } label: {
-                    Label("Reset Game Data", systemImage: "arrow.counterclockwise")
+Button(action: { confirmReset = true }) {
+                    Label(                 , systemImage:                         )
                 }
+                    .foregroundColor(Color.red)
                 .disabled(inUse || dataDirs.isEmpty)
             } header: {
                 Text("Data")
@@ -251,13 +252,14 @@ struct TLAppSettingsView: View {
         .onDisappear { rename() }
         // .task is iOS 15.
         .onAppear { Task { dataSize = await Self.measure(dataDirs) } }
-        .confirmationDialog("Reset the data of \(app.label)?", isPresented: $confirmReset, titleVisibility: .visible) {
-            Button("Reset Game Data", role: .destructive) {
+        .confirmationDialog(String("Reset the data of \(app.label)?"), isPresented: $confirmReset, titleVisibility: .visible) {
+Button("Reset Game Data") {
                 for dir in dataDirs { try? FileManager.default.removeItem(at: dir) }
                 HuskLog.log("tl", "reset the data of \(app.label)")
                 Task { dataSize = await Self.measure(dataDirs) }
             }
-            Button("Cancel", role: .cancel) { }
+            .foregroundColor(Color.red)
+Button("Cancel") { }
         } message: {
             Text("Saves, settings and caches the game made here are deleted.")
         }

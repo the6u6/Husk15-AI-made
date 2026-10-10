@@ -230,7 +230,6 @@ struct DetailRow: View {
                 .font(mono ? .technical() : .system(size: 15))
                 .foregroundColor(Theme.text)
                 .multilineTextAlignment(.trailing)
-                .textSelection(.enabled)
         }
         .font(.system(size: 15))
     }
@@ -424,7 +423,7 @@ struct GuestControl: View {
         Button(action: action) {
             ZStack {
                 if busy {
-                    ProgressView().scaleEffect(0.6).tint(.white)
+                    ProgressView().scaleEffect(0.6).accentColor(.white)
                 } else {
                     Image(systemName: systemImage)
                         .font(.system(size: 17, weight: .medium))

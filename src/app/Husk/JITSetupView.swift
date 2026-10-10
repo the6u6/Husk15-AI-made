@@ -21,7 +21,7 @@ struct JITSetupFlow: View {
     /// the same flow with a different shape.
     @State private var step: Step?
     @State private var importing = false
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.presentationMode) private var huskPM
 
     private var device: String { OnDevicePairing.deviceKind }
 
@@ -55,7 +55,7 @@ struct JITSetupFlow: View {
 
     private func close() {
         jit.showSetup = false
-        dismiss()
+        huskPM.wrappedValue.dismiss()
     }
 
     @ViewBuilder private func stepView(_ step: Step) -> some View {
@@ -178,7 +178,7 @@ struct JITSetupFlow: View {
                 }
                 .buttonStyle(PrimaryButtonStyle())
             case .waiting, .pin:
-                Button("Cancel pairing", role: .cancel) { pairing.cancel() }
+Button("Cancel pairing") { pairing.cancel() }
                     .font(.system(size: 15, weight: .medium))
                     .foregroundColor(Theme.textDim)
             case .paired:
@@ -218,7 +218,6 @@ struct JITSetupFlow: View {
                     .foregroundColor(Theme.textDim)
                 Text(pin).font(.system(size: 40, weight: .bold, design: .monospaced)).tracking(6)
                     .foregroundColor(Theme.text)
-                    .textSelection(.enabled)
                     .accessibilityLabel("Pairing code \(pin.map(String.init).joined(separator: " "))")
             }
             .frame(maxWidth: .infinity)
@@ -324,7 +323,8 @@ struct JITSetupFlow: View {
             }
 
             if !attached {
-                Button("Reset Developer Disk Image", role: .destructive) { jit.resetDDI() }
+Button("Reset Developer Disk Image") { jit.resetDDI() }
+                .foregroundColor(Color.red)
                     .font(.system(size: 13, weight: .medium))
                     .disabled(jit.busy)
                     .padding(.top, 4)

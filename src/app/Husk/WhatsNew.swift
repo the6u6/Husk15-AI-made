@@ -86,7 +86,6 @@ struct WhatsNewSheet: View {
             .padding(.horizontal, 28)
             .padding(.vertical, 18)
         }
-        .interactiveDismissDisabled()
     }
 }
 

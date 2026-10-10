@@ -157,7 +157,7 @@ final class CrashReport: ObservableObject {
 /// The sheet shown at launch after a game ended Husk.
 struct CrashReportSheet: View {
     let report: CrashReport.Report
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.presentationMode) private var huskPM
     @State private var file: URL?
 
     var body: some View {
@@ -179,7 +179,6 @@ struct CrashReportSheet: View {
                             Text("Last lines").font(.footnote.weight(.semibold)).foregroundColor(.secondary)
                             Text(report.excerpt.joined(separator: "\n"))
                                 .font(.system(size: 10.5, design: .monospaced))
-                                .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(10)
                                 .huskBackground(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
@@ -200,7 +199,7 @@ struct CrashReportSheet: View {
             }
             .navigationTitle("Crash Report")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { huskPM.wrappedValue.dismiss() } } }
         }
         // .task is iOS 15; nothing here is asynchronous.
         .onAppear { file = CrashReport.writeReport(report) }

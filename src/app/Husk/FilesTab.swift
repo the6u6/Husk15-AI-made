@@ -14,7 +14,7 @@ struct FilesTab: View {
 
     @ObservedObject private var host = AndroidHost.shared
     @ObservedObject private var router = Router.shared
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.presentationMode) private var huskPM
 
     var body: some View {
         // `router.files` is the path itself, so "Open in Files" from an app's
@@ -33,7 +33,7 @@ struct FilesTab: View {
                       title: path == Self.root ? "Files" : (path as NSString).lastPathComponent,
                       onOpen: { router.files = [$0] })
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Done") { huskPM.wrappedValue.dismiss() } }
             }
     }
 }
@@ -72,7 +72,7 @@ struct DirectoryView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .overlay {
+        .huskOverlay {
             if loading && entries.isEmpty {
                 ProgressView()
             } else if let failure {
@@ -98,7 +98,7 @@ struct DirectoryView: View {
         .huskFilePicker(isPresented: $importing) { urls in
             host.sendFiles(urls, to: path)
         }
-        .confirmationDialog("Install \(installing?.name ?? "")?",
+        .confirmationDialog(String("Install \(installing?.name ?? "")?"),
                             isPresented: Binding(get: { installing != nil },
                                                  set: { if !$0 { installing = nil } }),
                             titleVisibility: .visible) {
@@ -106,7 +106,7 @@ struct DirectoryView: View {
                 if let apk = installing { host.installFromGuest(apk.path, name: apk.name) }
                 installing = nil
             }
-            Button("Cancel", role: .cancel) { installing = nil }
+Button("Cancel") { installing = nil }
         } message: {
             Text("Android installs it from where it already is — nothing is copied.")
         }
@@ -126,7 +126,7 @@ struct DirectoryView: View {
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.footnote.weight(.semibold))
-                        .foregroundColor(.tertiary)
+                        .foregroundColor(Color(UIColor.tertiaryLabel))
                 }
             }
             .foregroundColor(.primary)
@@ -233,7 +233,7 @@ struct ImportSheet: View {
     let destination: String
     let onBrowse: () -> Void
 
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.presentationMode) private var huskPM
 
     var body: some View {
         NavigationView {
@@ -262,7 +262,7 @@ struct ImportSheet: View {
             .navigationTitle("Import")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .topBarTrailing) { Button("Done") { huskPM.wrappedValue.dismiss() } }
             }
         }
     }

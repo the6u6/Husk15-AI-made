@@ -59,13 +59,196 @@ extension View {
     /// that already has a fixed frame or a fixed-size child, so the ZStack comes
     /// out the same size. Badges that hang off an edge still do: an `offset`
     /// takes no part in layout.
-    func huskOverlay<A: Alignment, C: View>(alignment: A,
-                                            @ViewBuilder content: () -> C) -> some View {
+    ///
+    /// `Alignment` is a struct, not a protocol, so the parameter is concrete.
+    /// Writing `<A: Alignment>` -- which is what this said first -- does not
+    /// compile at all, and the three call sites failed with "cannot infer
+    /// contextual base in reference to member 'topTrailing'" rather than with
+    /// anything pointing at the declaration.
+    func huskOverlay<C: View>(alignment: Alignment,
+                              @ViewBuilder content: () -> C) -> some View {
         ZStack(alignment: alignment) {
             self
             content()
         }
     }
+
+    /// `.overlay { ... }` with no arguments, which is iOS 15.
+    ///
+    /// Distinct from the aligned overload above, and the reason the first
+    /// version of the sweep missed seven of these: only `.overlay(alignment:)`
+    /// was counted, on the assumption that the trailing-closure form was older.
+    /// It is not -- `View.overlay(_:alignment:)` taking a finished View is
+    /// iOS 13, but the `@ViewBuilder` form is 15.0.
+    ///
+    /// `AnyView` picks the View overload deterministically; without it the
+    /// compiler has to choose between it and the ShapeStyle one.
+    func huskOverlay<C: View>(@ViewBuilder content: () -> C) -> some View {
+        self.overlay(AnyView(content()))
+    }
+}
+
+// MARK: - AsyncImage (iOS 15.0)
+
+/// `AsyncImage`'s phase, so call sites keep reading the same shape.
+///
+/// A struct with `image` and `error` rather than an enum: SwiftUI's phase is a
+/// struct with exactly those two properties, and every call site already does
+/// `if let image = phase.image` / `else if phase.error != nil`. An enum would
+/// have meant rewriting all four of them for no benefit.
+struct HuskAsyncPhase {
+    var image: UIImage?
+    var error: Error?
+
+    static let empty = HuskAsyncPhase()
+    static func success(_ image: UIImage) -> HuskAsyncPhase { .init(image: image) }
+    static func failure(_ error: Error) -> HuskAsyncPhase { .init(error: error) }
+}
+
+/// `AsyncImage`, which is iOS 15.
+///
+/// iOS 14 has no async image primitive. This is the same shape: a URL in, a
+/// phase out, loaded once per URL. The differences are that it does not reuse
+/// another view's in-flight request, and that it does nothing at all when the
+/// URL is nil -- the `empty` phase is what the call sites already handle.
+struct HuskAsyncImage<Content: View>: View {
+    let url: URL?
+    @ViewBuilder let content: (HuskAsyncPhase) -> Content
+
+    @State private var phase: HuskAsyncPhase = .empty
+
+    var body: some View {
+        content(phase)
+            .onAppear { load() }
+            .onChange(of: url) { _ in load() }
+    }
+
+    private func load() {
+        guard let url else {
+            phase = .empty
+            return
+        }
+        phase = .empty
+        Task {
+            do {
+                let (data, _) = try await URLSession.shared.data(from: url)
+                guard let image = UIImage(data: data) else {
+                    phase = .failure(HuskAsyncError.notAnImage)
+                    return
+                }
+                phase = .success(image)
+            } catch {
+                phase = .failure(error)
+            }
+        }
+    }
+}
+
+enum HuskAsyncError: Error { case notAnImage }
+
+extension View {
+    /// `.searchable(text:prompt:)`, which is iOS 15. There is no pre-15
+    /// equivalent that attaches itself, so this is a field the caller places.
+    func huskSearchField(text: Binding<String>, prompt: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.secondary)
+            TextField(prompt, text: text)
+                .font(.system(size: 15))
+                .autocapitalization(.none)
+                .autocorrectionDisabled()
+            if !text.wrappedValue.isEmpty {
+                Button { text.wrappedValue = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .huskBackground(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    /// `.searchable(text:prompt:)`, which is iOS 15.
+    ///
+    /// Nothing below iOS 15 attaches a search field to a navigation view, so
+    /// this is a field in a VStack above the content.
+    ///
+    /// Apply it to the view *inside* the navigation modifiers. Chaining it after
+    /// `.navigationTitle` wraps the navigation modifiers inside the VStack, and
+    /// the title then decorates a child rather than the presented content.
+    func huskSearchBar(text: Binding<String>, prompt: String) -> some View {
+        VStack(spacing: 8) {
+            huskSearchField(text: text, prompt: prompt)
+                .padding(.horizontal, 12)
+                .padding(.top, 6)
+            self
+        }
+    }
+}
+
+// MARK: - Date formatting (iOS 15.0 FormatStyle)
+
+/// `Date.formatted(date:time:)` with `.abbreviated`/`.shortened`.
+func huskFormatDateTime(_ date: Date) -> String {
+    let d = DateFormatter()
+    d.dateStyle = .medium
+    d.timeStyle = .short
+    return d.string(from: date)
+}
+
+/// `Date.formatted(.iso8601.year().month().day())`.
+///
+/// Not ISO 8601 despite the name: the chained style formats *numerically* in
+/// the current locale, so a user on a non-Gregorian calendar gets their own
+/// calendar's y/M/d rather than the ISO string. Matching that matters, because
+/// the stamp ends up in a filename users see.
+func huskFormatDateStamp(_ date: Date) -> String {
+    let f = DateFormatter()
+    f.locale = .current
+    f.setLocalizedDateFormatFromTemplate("yMd")
+    return f.string(from: date)
+}
+
+// MARK: - URLSession.download(for:) (iOS 15.0)
+
+extension URLSession {
+    /// `download(for:delegate:)`, which is iOS 15, over the completion-handler
+    /// form that exists in iOS 14.
+    ///
+    /// The file is copied before the continuation resumes: the temporary file
+    /// the download task hands back is deleted as soon as the completion handler
+    /// returns, and the caller resumes from another context.
+    func huskDownload(for request: URLRequest) async throws -> (URL, URLResponse) {
+        let box = TaskBox()
+        return try await withCheckedThrowingContinuation { continuation in
+            let task = downloadTask(with: request) { url, response, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if let url, let response {
+                    let copy = FileManager.default.temporaryDirectory
+                        .appendingPathComponent(UUID().uuidString)
+                    do {
+                        try FileManager.default.copyItem(at: url, to: copy)
+                        continuation.resume(returning: (copy, response))
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                } else {
+                    continuation.resume(throwing: URLError(.badServerResponse))
+                }
+            }
+            box.task = task
+            task.resume()
+        }
+    }
+}
+
+private final class TaskBox: @unchecked Sendable {
+    var task: URLSessionDownloadTask?
 }
 
 // MARK: - Button styles (iOS 15.0)

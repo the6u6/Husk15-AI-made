@@ -134,14 +134,14 @@ struct ContentView: View {
             WhatsNewSheet { WhatsNew.markSeen(); showWhatsNew = false }
         }
         // A newer Husk is on GitHub.
-        .alert("Husk \(updates.available?.version ?? "") Is Available", isPresented: Binding(
+        .alert(String("Husk \(updates.available?.version ?? "") Is Available"), isPresented: Binding(
                 get: { updates.available != nil && !showOnboarding && !showWhatsNew && crash.pending == nil },
                 set: { if !$0 { updates.dismiss() } })) {
             Button("View Release") {
                 if let page = updates.available?.page { UIApplication.shared.open(page) }
                 updates.dismiss()
             }
-            Button("Not Now", role: .cancel) { updates.dismiss() }
+Button("Not Now") { updates.dismiss() }
         } message: {
             Text("You have \(AppUpdates.current). The new version's IPA is on its release page.")
         }
@@ -154,10 +154,10 @@ struct ContentView: View {
         // spelled out.
         .onAppear { showcase.refresh(for: showcasePackages) }
         .onChange(of: showcasePackages) { _ in showcase.refresh(for: showcasePackages) }
-        .alert("Metadata Updated", isPresented: Binding(get: { showcase.shouldAsk && !showOnboarding },
+        .alert(String("Metadata Updated"), isPresented: Binding(get: { showcase.shouldAsk && !showOnboarding },
                                                          set: { if !$0 { showcase.asked() } })) {
             Button("Download") { showcase.downloadUpdates() }
-            Button("Not Now", role: .cancel) { showcase.asked() }
+Button("Not Now") { showcase.asked() }
         } message: {
             let n = showcase.updates.count
             Text("Metadata for \(n) of your app\(n == 1 ? "" : "s") has been updated. Would you like to download the updates?")
@@ -189,7 +189,7 @@ struct ContentView: View {
                 get: { guest.update.isSomething },
                 set: { if !$0 { guest.dismissUpdate() } })) {
             Button("Download") { guest.applyUpdate() }
-            Button("Not now", role: .cancel) { guest.dismissUpdate() }
+Button("Not now") { guest.dismissUpdate() }
         } message: {
             Text(guest.update.detail)
         }
@@ -498,7 +498,7 @@ struct GuestScreenView: View {
 /// booting is expensive and each of them changes what that boot costs.
 struct LogView: View {
     var isSheet = true
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.presentationMode) private var huskPM
     @State private var lines: [String] = []
     @State private var showShare = false
     private let tick = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
@@ -511,7 +511,6 @@ struct LogView: View {
                         ForEach(Array(lines.enumerated()), id: \.offset) { i, line in
                             Text(line)
                                 .font(.system(size: 9, design: .monospaced))
-                                .textSelection(.enabled)
                                 .foregroundColor(color(for: line))
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .id(i)
@@ -531,7 +530,7 @@ struct LogView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     if isSheet {
-                        Button("Done") { dismiss() }
+                        Button("Done") { huskPM.wrappedValue.dismiss() }
                     }
                 }
                 ToolbarItem(placement: .primaryAction) {
@@ -580,7 +579,7 @@ struct ShareSheet: UIViewControllerRepresentable {
 /// wondering whether you simply cannot find it.
 struct ControlsSheet: View {
     @Binding var keyboard: Bool
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.presentationMode) private var huskPM
 
     var body: some View {
         ZStack {
@@ -591,7 +590,7 @@ struct ControlsSheet: View {
                         .font(.system(size: 20, weight: .semibold))
                         .foregroundColor(Theme.text)
                     Spacer()
-                    Button { dismiss() } label: {
+                    Button { huskPM.wrappedValue.dismiss() } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(Theme.textDim)
@@ -607,7 +606,7 @@ struct ControlsSheet: View {
                     Button {
                         keyboard.toggle()
                         HuskLog.log("kbd", "keyboard \(keyboard ? "shown" : "hidden")")
-                        dismiss()
+                        huskPM.wrappedValue.dismiss()
                     } label: {
                         row("keyboard", "Keyboard", on: keyboard, available: true)
                     }

@@ -184,7 +184,7 @@ final class GeodeSupport: ObservableObject {
         var req = URLRequest(url: url)
         req.timeoutInterval = 120
         req.setValue("Husk", forHTTPHeaderField: "User-Agent")
-        let (tmp, response) = try await URLSession.shared.download(for: req)
+        let (tmp, response) = try await URLSession.shared.huskDownload(for: req)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             throw GeodeError("Download failed (HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)).")
         }

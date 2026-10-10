@@ -139,7 +139,14 @@ struct HuskLabeledContent: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             value
                 .multilineTextAlignment(.trailing)
-                .foregroundStyle(.secondary)
+                // Compat15 stands in for iOS 16 and 17, but it is still compiled
+                // at whatever floor the app has -- 14.0 in the experiment -- so
+                // it may not reach for anything above that either. The iOS 15
+                // port wrote foregroundStyle here, which was correct at 15.0 and
+                // is not at 14.0. The file is excluded from the sweep for the
+                // same reason it is excluded from the banned-API grep: it is
+                // where the shims live.
+                .foregroundColor(.secondary)
         }
     }
 }

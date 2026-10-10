@@ -445,7 +445,7 @@ final class TLUnityModel: ObservableObject {
 /// status, the frames per second and the time a frame takes -- and, with developer info on, the log beside the game.
 struct TLCocosAttemptView: View {
     let app: TLApp
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.presentationMode) private var huskPM
     @StateObject private var model = TLUnityModel()
     @AppStorage("husk.tl.unity.showLog") private var showLogSetting = false
     @AppStorage(TranslationLayer.devInfoKey) private var devInfo = false
@@ -546,7 +546,7 @@ struct TLCocosAttemptView: View {
                     TLUnityScreen(apk: apk, extraApks: Array(app.apks.dropFirst()), dataDir: dataDir, engine: engine, portrait: portrait,
                                   scale: settings.resolution.scale, onStats: { stats = $0 }, onThreeFingerTap: { toggleInterface() })
                         .background(Color.black)
-                    .overlay {
+                    .huskOverlay {
                         // A game whose menus answer only a controller: with none paired, one on the glass. Hiding the bar leaves
                         // it in place; only Hide pad takes it away.
                         if padOffered, settings.padShown, model.state == Int32(HUSK_UNITY_RUNNING) {
@@ -554,7 +554,7 @@ struct TLCocosAttemptView: View {
                                            layout: padLayout, editing: editingPad, selected: $padSelected,
                                            onChange: { padLayout = $0; padLayout.save(app.id) })
                                 // overlay's default alignment is already .center.
-                                .overlay { if editingPad { padEditor } }
+                                .huskOverlay { if editingPad { padEditor } }
                         }
                     }
                     .ignoresSafeArea()
@@ -630,14 +630,15 @@ struct TLCocosAttemptView: View {
                     Button(padLayout[id].hidden ? "Show" : "Hide") { padLayout[id].hidden.toggle(); padLayout.save(app.id) }
                     Button("Reset") { padLayout[id] = PadLayout.Adjust(); padLayout.save(app.id) }
                 }
-                .huskBordered().tint(.white)
+                .huskBordered().accentColor(.white)
             } else {
                 Text("Drag a control to move it, or tap one to resize or hide it.")
                     .font(.system(size: 13, weight: .medium)).foregroundColor(.white)
                     .multilineTextAlignment(.center).frame(maxWidth: 260)
             }
             HStack(spacing: 10) {
-                Button("Reset All", role: .destructive) { padLayout = PadLayout(); padSelected = nil; padLayout.save(app.id) }
+Button("Reset All") { padLayout = PadLayout(); padSelected = nil; padLayout.save(app.id) }
+                .foregroundColor(Color.red)
                 Button("Done") { editingPad = false; padSelected = nil }.huskBorderedProminent()
             }
             .huskBordered()
@@ -649,10 +650,10 @@ struct TLCocosAttemptView: View {
 
     private var bar: some View {
         HStack(spacing: 12) {
-            Button { dismiss() } label: {
+            Button { huskPM.wrappedValue.dismiss() } label: {
                 Label("Close", systemImage: "xmark").font(.system(size: 13, weight: .semibold))
             }
-            .tint(.white)
+            .accentColor(.white)
             Circle().fill(model.statusColor).frame(width: 7, height: 7)
             Text(model.state == Int32(HUSK_UNITY_RUNNING) ? app.label : model.statusText)
                 .font(.system(size: 12, weight: .medium)).foregroundColor(.white.opacity(0.85)).lineLimit(1)
@@ -665,7 +666,7 @@ struct TLCocosAttemptView: View {
                 Button { settings.padShown.toggle(); settings.save(app.id); if !settings.padShown { editingPad = false } } label: {
                     Label(settings.padShown ? "Hide pad" : "Pad", systemImage: "gamecontroller").font(.system(size: 12, weight: .semibold))
                 }
-                .tint(.white)
+                .accentColor(.white)
                 if settings.padShown {
                     Button { padSelected = nil; editingPad.toggle() } label: {
                         Label(editingPad ? "Done" : "Edit pad", systemImage: "slider.horizontal.below.square.and.square.filled")
@@ -681,12 +682,12 @@ struct TLCocosAttemptView: View {
                 Button { withAnimation(.huskSnappy(duration: 0.25)) { showLog.toggle() } } label: {
                     Text(showLog ? "Hide log" : "Log").font(.system(size: 12, weight: .semibold))
                 }
-                .tint(.white)
+                .accentColor(.white)
             }
             Button { toggleInterface() } label: {
                 Label("Hide", systemImage: "eye.slash").font(.system(size: 12, weight: .semibold))
             }
-            .tint(.white)
+            .accentColor(.white)
         }
         .padding(.horizontal, 14)
         .frame(height: 30)
@@ -710,7 +711,6 @@ struct TLCocosAttemptView: View {
                         .foregroundColor(Theme.text)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(8)
-                        .textSelection(.enabled)
                         .id("bottom")
                 }
                 .onChange(of: model.logText) { _ in proxy.scrollTo("bottom") }

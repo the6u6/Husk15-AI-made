@@ -49,7 +49,7 @@ struct TLTechnicalView: View {
 
     var body: some View {
         List {
-            Section("Runtime") {
+            Section(header: Text("Runtime")) {
                 row("Runs With", report?.runnerName ?? "Not scanned")
                 row("Package", app.packageName ?? "—", mono: true)
                 row("Architectures", report.map { $0.abis.isEmpty ? "None (Java only)" : $0.abis.joined(separator: ", ") } ?? "—")
@@ -58,7 +58,7 @@ struct TLTechnicalView: View {
                 }
             }
 
-            Section("Package") {
+            Section(header: Text("Package")) {
                 ForEach(app.apks, id: \.self) { apk in
                     row((apk as NSString).lastPathComponent, size(of: apk), mono: true)
                 }
@@ -94,7 +94,6 @@ struct TLTechnicalView: View {
                     ScrollView(.horizontal) {
                         Text(log)
                             .font(.system(size: 10, design: .monospaced))
-                            .textSelection(.enabled)
                             .fixedSize(horizontal: true, vertical: false)
                             .padding(.vertical, 4)
                     }
@@ -140,7 +139,6 @@ struct TLTechnicalView: View {
             Text(value)
                 .font(mono ? .system(.footnote, design: .monospaced) : .body)
                 .multilineTextAlignment(.trailing)
-                .textSelection(.enabled)
         } label: {
             Text(label).lineLimit(2)
         }

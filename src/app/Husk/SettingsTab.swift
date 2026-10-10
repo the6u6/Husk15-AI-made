@@ -19,14 +19,14 @@ struct SettingsTab: View {
                     Text("Android and Translation Layer games need JIT. StikJIT, built into Husk, turns it on without a computer.")
                 }
 
-                Section("General") {
+                Section(header: Text("General")) {
                     row(DiscoverView(), "sparkle.magnifyingglass", .mint, "Discover", "Find apps in F-Droid and other repositories")
                     row(LibrarySettings(), "square.grid.2x2.fill", .blue, "Library", "Your apps and their icons")
                     row(PerformanceSettings(), "speedometer", .orange, "Performance", "Renderer, sound")
                     row(AppearanceSettings(), "paintbrush.fill", .pink, "Appearance", "Light or dark, accent colour, app icon")
                 }
 
-                Section("Emulator") {
+                Section(header: Text("Emulator")) {
                     row(InputSettings(), "hand.tap.fill", .indigo, "Input", "Screen, touch, keyboard")
                     row(NetworkSettings(), "globe", .green, "Network", "Internet and saved sessions")
                     row(SavedMachineSettings(), "externaldrive.fill", .teal, "Saved Machine", "Snapshots and automatic saving")
@@ -63,7 +63,7 @@ struct SettingsTab: View {
                     // `Color.gradient` is iOS 16; below it the fill is the flat colour.
                 .fill(tint)
                     .frame(width: 30, height: 30)
-                    .overlay {
+                    .huskOverlay {
                         Image(systemName: icon)
                             .font(.system(size: 15, weight: .medium))
                             .foregroundColor(.white)
@@ -580,9 +580,10 @@ struct SavedMachineSettings: View {
             }
 
             Section {
-                Button(role: .destructive) { askWhichToDelete = true } label: {
-                    Label("Delete saved machine", systemImage: "trash")
+Button(action: { askWhichToDelete = true }) {
+                    Label(                      , systemImage:        )
                 }
+                    .foregroundColor(Color.red)
                 .disabled(!QemuRunner.shared.hasSnapshot)
                 if let deleteResult {
                     Text(deleteResult).font(.caption).foregroundColor(.secondary)
@@ -615,11 +616,13 @@ struct SavedMachineSettings: View {
         }
         .huskForm()
         .navigationTitle("Saved machine")
-        .confirmationDialog("Which saved machine?", isPresented: $askWhichToDelete,
+        .confirmationDialog(String("Which saved machine?"), isPresented: $askWhichToDelete,
                             titleVisibility: .visible) {
-            Button("GPU machine", role: .destructive) { forget("gl", "GPU") }
-            Button("Software machine", role: .destructive) { forget("sw", "software") }
-            Button("Cancel", role: .cancel) { }
+Button("GPU machine") { forget("gl", "GPU") }
+            .foregroundColor(Color.red)
+Button("Software machine") { forget("sw", "software") }
+            .foregroundColor(Color.red)
+Button("Cancel") { }
         } message: {
             Text("Android will boot from cold once, then save a new one.")
         }
@@ -728,7 +731,7 @@ struct AppearanceSettings: View {
             .fill(color)
             .frame(width: 34, height: 34)
             .overlay(Circle().strokeBorder(Color.primary.opacity(0.9), lineWidth: selected ? 2 : 0).padding(-4))
-            .overlay {
+            .huskOverlay {
                 if selected {
                     Image(systemName: "checkmark")
                         .font(.caption.bold())

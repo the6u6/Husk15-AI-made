@@ -143,7 +143,7 @@ struct IncomingChooser: View {
                 incoming.sendToAndroid()
             }
 
-            Button("Cancel", role: .cancel) { incoming.discard() }
+Button("Cancel") { incoming.discard() }
                 .frame(maxWidth: .infinity)
                 .padding(.top, 2)
         }
@@ -170,7 +170,7 @@ struct IncomingChooser: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 0)
-                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundColor(.tertiary)
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundColor(Color(UIColor.tertiaryLabel))
             }
             .padding(14)
             .huskBackground(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))

@@ -92,7 +92,7 @@ struct GamePage: View {
 
     @ObservedObject private var store = TranslationLayerStore.shared
     @ObservedObject private var jit = JITCoordinator.shared
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.presentationMode) private var huskPM
     @State private var playing = false
     @State private var confirmRemove = false
     @State private var backupFile: URL?
@@ -167,7 +167,7 @@ struct GamePage: View {
             .heroRow()
 
             if !ShowcaseStore.shared.pictures(for: app.packageName).isEmpty {
-                Section("Screenshots") {
+                Section(header: Text("Screenshots")) {
                     ShowcaseGallery(package: app.packageName)
                         .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
                 }
@@ -195,21 +195,22 @@ struct GamePage: View {
                 }
             }
 
-            Section("About") {
+            Section(header: Text("About")) {
                 HuskLabeledContent("Runs With", value: app.report?.runnerName ?? "Unknown")
                 if let st = GameStatusStore.shared.status(app.id) {
                     HuskLabeledContent("Last Result") {
                         Label(st.result.label, systemImage: st.result.symbol).foregroundColor(st.result.color)
                     }
                 }
-                HuskLabeledContent("Last Played", value: app.lastPlayed.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "Never")
+                HuskLabeledContent("Last Played", value: app.lastPlayed.map { huskFormatDateTime($0) } ?? "Never")
                 HuskLabeledContent("Size", value: fileBytes(app.apks))
             }
 
             Section {
-                Button(role: .destructive) { confirmRemove = true } label: {
-                    Label("Remove Game", systemImage: "trash")
+Button(action: { confirmRemove = true }) {
+                    Label(             , systemImage:        )
                 }
+                    .foregroundColor(Color.red)
             }
         }
         .listStyle(.insetGrouped)
@@ -219,13 +220,14 @@ struct GamePage: View {
         .sheet(item: Binding(get: { backupFile.map(IdentifiedURL.init) }, set: { backupFile = $0?.url })) { f in
             ShareSheet(items: [f.url])
         }
-        .confirmationDialog("Replace \(app.label)'s saves?", isPresented: Binding(get: { confirmRestore != nil }, set: { if !$0 { confirmRestore = nil } }),
+        .confirmationDialog(String("Replace \(app.label)'s saves?"), isPresented: Binding(get: { confirmRestore != nil }, set: { if !$0 { confirmRestore = nil } }),
                             titleVisibility: .visible) {
-            Button("Replace", role: .destructive) { if let url = confirmRestore { restore(url) } }
+Button("Replace") { if let url = confirmRestore { restore(url) } }
+            .foregroundColor(Color.red)
         } message: {
             Text("What \(app.label) has saved now is replaced by the backup. Back up first if you want to keep it.")
         }
-        .confirmationDialog("Close Husk?", isPresented: $confirmQuit, titleVisibility: .visible) {
+        .confirmationDialog(String("Close Husk?"), isPresented: $confirmQuit, titleVisibility: .visible) {
             Button("Close Husk") {
                 // The game that is loaded is closed with Husk, which is the normal way out for it, not a crash; and this
                 // one starts by itself when Husk is opened again.
@@ -237,11 +239,12 @@ struct GamePage: View {
         } message: {
             Text("\(blockedBy ?? "The other game") is still loaded and only one game can run per session. Husk closes; open it again and \(app.label) starts by itself.")
         }
-        .confirmationDialog("Remove \(app.label)?", isPresented: $confirmRemove, titleVisibility: .visible) {
-            Button("Remove", role: .destructive) {
-                dismiss()
+        .confirmationDialog(String("Remove \(app.label)?"), isPresented: $confirmRemove, titleVisibility: .visible) {
+Button("Remove") {
+                huskPM.wrappedValue.dismiss()
                 store.remove(app)
             }
+            .foregroundColor(Color.red)
         } message: {
             Text("The game and everything it saved here are deleted from Husk.")
         }
@@ -354,7 +357,7 @@ struct AndroidAppPage: View {
     @ObservedObject private var guest = GuestImage.shared
     @ObservedObject private var runner = QemuRunner.shared
     @ObservedObject private var router = Router.shared
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.presentationMode) private var huskPM
     @State private var confirmUninstall = false
 
     private var live: AndroidHost.Package { host.packages.first { $0.name == app.name } ?? app }
@@ -373,13 +376,13 @@ struct AndroidAppPage: View {
             .heroRow()
 
             if !ShowcaseStore.shared.pictures(for: app.name).isEmpty {
-                Section("Screenshots") {
+                Section(header: Text("Screenshots")) {
                     ShowcaseGallery(package: app.name)
                         .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
                 }
             }
 
-            Section("About") {
+            Section(header: Text("About")) {
                 HuskLabeledContent("Version", value: live.version ?? "—")
                 HuskLabeledContent("Size", value: live.sizeBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "—")
                 HuskLabeledContent("Package", value: live.name)
@@ -401,9 +404,10 @@ struct AndroidAppPage: View {
             }
 
             Section {
-                Button(role: .destructive) { confirmUninstall = true } label: {
-                    Label("Uninstall", systemImage: "trash")
+Button(action: { confirmUninstall = true }) {
+                    Label(           , systemImage:        )
                 }
+                    .foregroundColor(Color.red)
                 .disabled(!canOpen)
             } footer: {
                 if !canOpen { Text("Start Android to uninstall or look inside the app.") }
@@ -412,11 +416,12 @@ struct AndroidAppPage: View {
         .listStyle(.insetGrouped)
         .navigationTitle(live.label)
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("Uninstall \(live.label)?", isPresented: $confirmUninstall, titleVisibility: .visible) {
-            Button("Uninstall", role: .destructive) {
+        .confirmationDialog(String("Uninstall \(live.label)?"), isPresented: $confirmUninstall, titleVisibility: .visible) {
+Button("Uninstall") {
                 host.uninstall(app.name)
-                dismiss()
+                huskPM.wrappedValue.dismiss()
             }
+            .foregroundColor(Color.red)
         } message: {
             Text("Its data goes with it.")
         }
@@ -499,7 +504,7 @@ struct AndroidSystemPage: View {
                 }
             }
 
-            Section("Settings") {
+            Section(header: Text("Settings")) {
                 NavigationLink { PerformanceSettings() } label: { Label("Performance", systemImage: "speedometer") }
                 NavigationLink { InputSettings() } label: { Label("Input", systemImage: "hand.tap") }
                 NavigationLink { NetworkSettings() } label: { Label("Network", systemImage: "globe") }

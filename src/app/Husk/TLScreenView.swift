@@ -102,7 +102,9 @@ final class TLScreenUIView: UIView {
         // not at all. Sixty is the game's own rate, and asking for no more lets a
         // ProMotion screen settle at a rate that divides evenly into it.
         let l = CADisplayLink(target: self, selector: #selector(refresh))
-        l.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 60, preferred: 60)
+        if #available(iOS 15.0, *) {
+            l.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 60, preferred: 60)
+        }
         l.add(to: .main, forMode: .common)
         link = l
 

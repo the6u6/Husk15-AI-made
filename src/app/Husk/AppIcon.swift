@@ -93,9 +93,12 @@ struct AppIcon: View {
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
         // .task(id:) is iOS 15; onAppear plus onChange is the same pair of
-        // triggers without the cancellation.
-        .onAppear { load() }
-        .onChange(of: cacheKey) { _ in load() }
+        // triggers without the cancellation. load() is async, and an onAppear
+        // closure is not, so the call has to be wrapped -- the compiler says
+        // "'async' call in a function that does not support concurrency"
+        // otherwise.
+        .onAppear { Task { await load() } }
+        .onChange(of: cacheKey) { _ in Task { await load() } }
     }
 
     /// Quiet, so a grid still arriving does not read as broken: the surface an icon sits on, and a faint glyph.
@@ -105,7 +108,7 @@ struct AppIcon: View {
             if image == nil {
                 Image(systemName: "app.dashed")
                     .font(.system(size: size * 0.38, weight: .light))
-                    .foregroundColor(.tertiary)
+                    .foregroundColor(Color(UIColor.tertiaryLabel))
             }
         }
     }

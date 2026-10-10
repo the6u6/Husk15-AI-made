@@ -246,10 +246,12 @@ final class Downloads: ObservableObject {
         task.resume()
     }
 
-    /// Husk is leaving the screen. With a continued processing task running it carries on as it is; without one, each file's
-    /// remaining bytes go to the background session now, while Husk is still active.
+    /// Husk is leaving the screen. Each file's remaining bytes go to the background session now, while Husk is
+    /// still active.
+    ///
+    /// There used to be an early return here for when an iOS 26 continued processing task was keeping the
+    /// download alive on its own. That task is gone; see the note where its enum was.
     private func leaving() {
-        if #available(iOS 26.0, *), ContinuedDownload.active { return }
         guard jobs.contains(where: { !$0.complete && !$0.paused }) else { return }
         // Kept running by its silent audio: carry on downloading as if on screen.
         if DownloadKeepAlive.shared.running { HuskLog.log("downloads", "leaving the screen; kept running, downloads carry on"); return }
@@ -510,8 +512,12 @@ final class Downloads: ObservableObject {
     /// Island and on the Lock Screen, and Husk keeps downloading itself. Only from something the person did -- adding or resuming a
     /// download -- which is what the system allows.
     private func keepRunning() {
-        guard let active = jobs.first(where: { !$0.complete && !$0.paused }) else { return }
-        if #available(iOS 26.0, *) { ContinuedDownload.begin(title: active.title) }
+        // iOS 26: submit a continued processing task so the system keeps Husk
+        // running with its own progress UI. Removed for the iOS 14 floor, where
+        // the type does not exist. The Live Activity in LiveDownload is what
+        // carries on now, and DownloadKeepAlive keeps the process alive while
+        // Husk is on screen.
+        _ = jobs.first(where: { !$0.complete && !$0.paused })
     }
 
     /// The continued processing task ended (finished, or stopped by the system): if Husk is not on screen, hand off now.
@@ -681,13 +687,10 @@ final class BackgroundDownloadDelegate: NSObject, URLSessionDownloadDelegate {
 @MainActor
 enum LiveDownload {
     static func update(jobs: [Downloads.Job], speed: Double) {
-        if #available(iOS 26.0, *), ContinuedDownload.update(jobs: jobs, speed: speed) {
-            // The system's own progress is showing; Husk's Live Activity would only repeat it.
-            #if canImport(ActivityKit)
-            if #available(iOS 16.1, *) { Live.end() }
-            #endif
-            return
-        }
+        // There used to be an early branch here that deferred to an iOS 26
+        // continued processing task and ended the Live Activity so the two
+        // would not both show progress. That task is gone; this is now always
+        // the branch that runs.
         #if canImport(ActivityKit)
         if #available(iOS 16.1, *) { Live.update(jobs: jobs, speed: speed) }
         #endif
@@ -753,100 +756,14 @@ private enum Live {
 }
 #endif
 
-/// The download as a continued processing task (iOS 26): the system keeps Husk running in the background for it and shows its
-/// progress in the Dynamic Island and on the Lock Screen.
-@available(iOS 26.0, *)
-@MainActor
-enum ContinuedDownload {
-    private static var task: BGContinuedProcessingTask?
-    private static var pending: String?
-    private static var registered: String?
-    private static var lastSubtitle = Date.distantPast
-
-    static var running: Bool { task != nil || pending != nil }
-    /// The system started it: Husk is being kept running.
-    static var active: Bool { task != nil }
-
-    private static var refused = false
-
-    static func begin(title: String) {
-        guard !running, !refused, let bundle = Bundle.main.bundleIdentifier else { return }
-        // The launch handler is registered for a wildcard pattern from Info.plist, and the submitted identifier has to start with the
-        // app's bundle ID. A sideloader renames the bundle (com.husk.app.<team>) but not Info.plist: then the broad com.husk.app.* is
-        // the pattern, and the identifier is made from the bundle ID as it is now.
-        let permitted = Bundle.main.object(forInfoDictionaryKey: "BGTaskSchedulerPermittedIdentifiers") as? [String] ?? []
-        guard let downloads = permitted.first(where: { $0.hasSuffix(".downloads.*") }) else { return }
-        let built = String(downloads.dropLast(".downloads.*".count))      // the bundle ID Husk was built with
-        let pattern: String? = bundle == built ? downloads : (bundle.hasPrefix(built + ".") ? permitted.first { $0 == built + ".*" } : nil)
-        guard let pattern else { refused = true; HuskLog.log("downloads", "background task: no permitted pattern"); return }
-        if registered != pattern {
-            let ok = BGTaskScheduler.shared.register(forTaskWithIdentifier: pattern, using: .main) { t in
-                MainActor.assumeIsolated { started(t) }
-            }
-            guard ok else { refused = true; HuskLog.log("downloads", "background task: \(pattern) not permitted; Husk keeps itself running instead"); return }
-            registered = pattern
-        }
-        let id = "\(bundle).downloads.\(UUID().uuidString.prefix(8))"
-        let request = BGContinuedProcessingTaskRequest(identifier: id, title: "Downloading \(title)", subtitle: "Starting…")
-        request.strategy = .fail
-        do {
-            try BGTaskScheduler.shared.submit(request)
-            pending = id
-            HuskLog.log("downloads", "background task submitted (\(id), handler \(pattern))")
-        } catch {
-            HuskLog.log("downloads", "background task \(id) refused: \(error.localizedDescription); using Husk's Live Activity instead")
-        }
-    }
-
-    private static func started(_ t: BGTask) {
-        guard let t = t as? BGContinuedProcessingTask else { t.setTaskCompleted(success: false); return }
-        task = t
-        pending = nil
-        HuskLog.log("downloads", "background task running")
-        t.expirationHandler = {
-            MainActor.assumeIsolated {
-                HuskLog.log("downloads", "background task ended by the system")
-                task = nil
-                Downloads.shared.continuedEnded()
-            }
-        }
-        _ = update(jobs: Downloads.shared.jobs, speed: Downloads.shared.speed)
-    }
-
-    /// Progress into the task. True while the system's progress is the one showing.
-    @discardableResult
-    static func update(jobs: [Downloads.Job], speed: Double) -> Bool {
-        guard let t = task else { return false }
-        let active = jobs.filter { !$0.complete && !$0.paused }
-        if active.isEmpty {
-            let failed = jobs.contains { $0.failed }
-            t.progress.completedUnitCount = t.progress.totalUnitCount
-            t.updateTitle(failed ? "Download stopped" : "Download finished", subtitle: failed ? "Open Husk to retry" : (jobs.first?.title ?? ""))
-            t.setTaskCompleted(success: !failed)
-            task = nil
-            HuskLog.log("downloads", "background task completed")
-            return false
-        }
-        let received = active.reduce(0) { $0 + $1.received }, total = active.reduce(0) { $0 + $1.total }
-        // In megabytes: Progress counts in Int64 and the system shows a fraction, so the unit only has to be fine enough.
-        t.progress.totalUnitCount = max(1, total / 1_000_000)
-        t.progress.completedUnitCount = min(t.progress.totalUnitCount, received / 1_000_000)
-        if Date().timeIntervalSince(lastSubtitle) > 2 {
-            lastSubtitle = Date()
-            var sub = "\(Downloads.bytes(received)) of \(Downloads.bytes(total))"
-            if speed > 1 { sub += " · \(Downloads.bytes(Int64(speed)))/s" }
-            let files = active.reduce(0) { $0 + $1.files.count }
-            if files > 1 { sub += " · \(active.reduce(0) { $0 + $1.filesDone })/\(files) files" }
-            if speed > 1, total > received {
-                let left = Double(total - received) / speed
-                let f = DateComponentsFormatter(); f.allowedUnits = left > 3600 ? [.hour, .minute] : [.minute, .second]; f.unitsStyle = .abbreviated
-                if let tl = f.string(from: left) { sub += " · \(tl) left" }
-            }
-            t.updateTitle(active.count == 1 ? "Downloading \(active[0].title)" : "Downloading \(active.count) items", subtitle: sub)
-        }
-        return true
-    }
-}
+// The download as a continued processing task (iOS 26): the system keeps Husk running in the
+// background for it and shows progress in the Dynamic Island and on the Lock Screen.
+//
+// REMOVED for the iOS 14 floor. BGContinuedProcessingTask is iOS 26.0 and the symbol does not
+// exist in the iOS 17.5 SDK, so there is nothing to guard with. Downloads already falls
+// back to its Live Activity when the task cannot be submitted, and that path is what
+// runs now. To bring it back on a newer floor, restore this enum and the call sites that
+// used it; git has the original.
 
 /// Keeps Husk running in the background while downloads are active, by playing silence: iOS lets an app that is playing audio keep
 /// running, so Husk goes on downloading at full speed and its Live Activity stays current. It mixes with other audio (music keeps

@@ -66,7 +66,8 @@ import UserNotifications
 
     private var session: OpaquePointer?
     private var registration: DNSServiceRef?
-    private var continued: AnyObject?            // BGContinuedProcessingTask (iOS 26+)
+    // Was a BGContinuedProcessingTask. Kept so `pairing.continued == nil` still
+    // compiles and reads the same; always nil now. See the note on submitContinued.
     private var registered: String?
     private var grace: UIBackgroundTaskIdentifier = .invalid
     private var deadline: Timer?
@@ -138,10 +139,6 @@ import UserNotifications
         guard active else { return }
         phase = .pin(pin)
         log("code shown")
-        if #available(iOS 26.0, *), let task = continued as? BGContinuedProcessingTask {
-            task.updateTitle("Pairing code \(pin)", subtitle: "Enter it on this \(Self.deviceKind) to pair with Husk")
-            task.progress.completedUnitCount = 1
-        }
         if UIApplication.shared.applicationState != .active {
             notify("Husk pairing code: \(pin)", body: "Enter this code on your \(Self.deviceKind) to finish pairing.")
         }
@@ -251,56 +248,15 @@ import UserNotifications
                 pairing.endGrace()
             }
         }
-        if #available(iOS 26.0, *) { submitContinued() } else { backgroundLimited = true }
+        // iOS 26 kept pairing alive in the background. Removed for the iOS 14 floor:
+        // BGContinuedProcessingTask does not exist in the iOS 17.5 SDK. The fallback is
+        // what runs -- a short grace period, then the pairing is told it was limited.
+        backgroundLimited = true
     }
 
-    @available(iOS 26.0, *)
-    private func submitContinued() {
-        guard let identifier = taskIdentifier else { backgroundLimited = true; return }
-        if registered != identifier {
-            let ok = BGTaskScheduler.shared.register(forTaskWithIdentifier: identifier, using: .main) { task in
-                guard let task = task as? BGContinuedProcessingTask else { task.setTaskCompleted(success: false); return }
-                MainActor.assumeIsolated { OnDevicePairing.shared.attach(task) }
-            }
-            guard ok else { log("register refused"); backgroundLimited = true; return }
-            registered = identifier
-        }
-        let request = BGContinuedProcessingTaskRequest(identifier: identifier, title: "Pairing with Husk",
-                                                       subtitle: "Settings › Privacy & Security › Developer Mode")
-        request.strategy = .fail
-        do {
-            try BGTaskScheduler.shared.submit(request)
-            log("continued-processing submitted")
-        } catch {
-            log("continued-processing refused")
-            backgroundLimited = true
-        }
-    }
 
-    @available(iOS 26.0, *)
-    private func attach(_ task: BGContinuedProcessingTask) {
-        guard active else { task.setTaskCompleted(success: false); return }
-        continued = task
-        task.progress.totalUnitCount = 2
-        if case .pin(let pin) = phase {
-            task.updateTitle("Pairing code \(pin)", subtitle: "Enter it on this \(Self.deviceKind) to pair with Husk")
-            task.progress.completedUnitCount = 1
-        }
-        task.expirationHandler = {
-            DispatchQueue.main.async {
-                OnDevicePairing.shared.continued = nil
-                OnDevicePairing.shared.cancel(reason: "iOS stopped the pairing in the background. Try again.")
-            }
-        }
-        log("continued-processing running")
-    }
 
     private func endBackground(success: Bool) {
-        if #available(iOS 26.0, *), let task = continued as? BGContinuedProcessingTask {
-            task.progress.completedUnitCount = task.progress.totalUnitCount
-            task.setTaskCompleted(success: success)
-        }
-        continued = nil
         endGrace()
     }
 

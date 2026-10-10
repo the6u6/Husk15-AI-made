@@ -335,7 +335,7 @@ struct ItemBackdrop: View {
     var body: some View {
         Group {
             if let art = item.artworkPath {
-                Color.clear.overlay { PictureView(path: art, pixels: pixels) }.clipped()
+                Color.clear.huskOverlay { PictureView(path: art, pixels: pixels) }.clipped()
             } else {
                 IconBackdrop(path: item.iconPath, fallback: item == .android ? AndroidMark.green.opacity(0.55) : fallback)
             }
@@ -423,7 +423,7 @@ struct ItemIcon: View {
             AndroidMark(size: size)
         } else {
             AppIcon(path: item.iconPath, size: size)
-                .overlay {
+                .huskOverlay {
                     RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
                         .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
                 }
@@ -653,7 +653,7 @@ struct BusyStrip: View {
 struct SearchField: View {
     @Binding var text: String
     let prompt: String
-    @FocusState private var focused: Bool
+    @State private var focused: Bool
 
     var body: some View {
         HStack(spacing: 8) {
@@ -662,12 +662,12 @@ struct SearchField: View {
                     .font(.system(size: 15, weight: .medium))
                     .foregroundColor(.secondary)
                 TextField(prompt, text: $text)
-                    .focused($focused)
+                    .onAppear { focused = true }
                     .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
+                    .autocapitalization(.never)
                 if !text.isEmpty {
                     Button { text = "" } label: {
-                        Image(systemName: "xmark.circle.fill").foregroundColor(.tertiary)
+                        Image(systemName: "xmark.circle.fill").foregroundColor(Color(UIColor.tertiaryLabel))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Clear")

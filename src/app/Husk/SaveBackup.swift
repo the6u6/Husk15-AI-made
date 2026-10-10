@@ -42,7 +42,7 @@ enum SaveBackup {
             "created": ISO8601DateFormatter().string(from: Date()),
             "husk": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?",
         ]
-        let stamp = Date().formatted(.iso8601.year().month().day())
+        let stamp = huskFormatDateStamp(Date())
         let safe = app.label.replacingOccurrences(of: "/", with: "-")
         let out = FileManager.default.temporaryDirectory.appendingPathComponent("\(safe) Saves \(stamp).zip")
         let zip = try ZipWriter(out)

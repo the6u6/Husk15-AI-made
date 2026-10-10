@@ -723,7 +723,7 @@ struct TLAttemptView: View {
 struct TLClassicAttemptView: View {
     let app: TLApp
     @StateObject private var runner = TLAttemptRunner()
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.presentationMode) private var huskPM
     @AppStorage("husk.tl.showLog") private var showLogSetting = false
     @AppStorage(TranslationLayer.devInfoKey) private var devInfo = false
     @State private var settings: TLAppSettings
@@ -768,7 +768,7 @@ struct TLClassicAttemptView: View {
                                 Text("The game stopped").font(.headline).foregroundColor(.white)
                                 Button("Run Again") { runner.start(apks: app.apks) }.huskBorderedProminent()
                             } else {
-                                ProgressView().tint(.white)
+                                ProgressView().accentColor(.white)
                                 Text("Starting \(app.label)…").font(.subheadline).foregroundColor(.white.opacity(0.7))
                             }
                         }
@@ -812,10 +812,10 @@ struct TLClassicAttemptView: View {
 
     private var bar: some View {
         HStack(spacing: 12) {
-            Button { runner.stop(); dismiss() } label: {
+            Button { runner.stop(); huskPM.wrappedValue.dismiss() } label: {
                 Label("Close", systemImage: "xmark").font(.system(size: 13, weight: .semibold))
             }
-            .tint(.white)
+            .accentColor(.white)
             Circle().fill(runner.statusColor).frame(width: 7, height: 7)
             Text(runner.isRunning ? app.label : runner.statusText)
                 .font(.system(size: 12, weight: .medium)).foregroundColor(.white.opacity(0.85)).lineLimit(1)
@@ -824,12 +824,12 @@ struct TLClassicAttemptView: View {
                 Button { withAnimation(.huskSnappy(duration: 0.25)) { showLog.toggle() } } label: {
                     Text(showLog ? "Hide log" : "Log").font(.system(size: 12, weight: .semibold))
                 }
-                .tint(.white)
+                .accentColor(.white)
             }
             Button { toggleInterface() } label: {
                 Label("Hide", systemImage: "eye.slash").font(.system(size: 12, weight: .semibold))
             }
-            .tint(.white)
+            .accentColor(.white)
         }
         .padding(.horizontal, 14)
         .frame(height: 30)
@@ -844,7 +844,6 @@ struct TLClassicAttemptView: View {
                     .foregroundColor(.white.opacity(0.85))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(10)
-                    .textSelection(.enabled)
                     .id("bottom")
             }
             .background(Color(white: 0.06))

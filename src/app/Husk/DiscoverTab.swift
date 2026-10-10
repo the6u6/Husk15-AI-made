@@ -28,10 +28,13 @@ struct DiscoverView: View {
                 list
             }
         }
+        // .searchable is iOS 15. Placed before the navigation modifiers, not
+        // after: chained after .navigationTitle it would wrap the title inside
+        // the VStack instead of sitting above the content.
+        .huskSearchBar(text: $searchText, prompt: "Search \(totalAppCount) apps")
         .background(Theme.backdrop)
         .navigationTitle("Discover")
         .navigationBarTitleDisplayMode(.large)
-        .searchable(text: $searchText, prompt: "Search \(totalAppCount) apps")
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button { Task { await manager.fetchSources() } } label: {
@@ -124,7 +127,7 @@ struct DiscoverView: View {
 
     private func appRow(_ app: SourceApp) -> some View {
         HStack(spacing: 14) {
-            AsyncImage(url: URL(string: app.iconURL)) { phase in
+            HuskAsyncImage(url: URL(string: app.iconURL)) { phase in
                 if let image = phase.image {
                     image.resizable().aspectRatio(contentMode: .fit)
                 } else if phase.error != nil {
@@ -178,14 +181,14 @@ struct DiscoverView: View {
             Form {
                 Section {
                     TextField("https://f-droid.org/repo/index-v1.json", text: $newSourceURL)
-                        .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                        .keyboardType(.URL).autocapitalization(.never).autocorrectionDisabled()
                 } header: {
                     Text("Source URL")
                 } footer: {
                     Text("Paste any F-Droid-compatible repository index URL.")
                 }
 
-                Section("Presets") {
+                Section(header: Text("Presets")) {
                     ForEach([
                         ("F-Droid", "https://f-droid.org/repo/index-v1.json"),
                         ("IzzyOnDroid", "https://apt.izzysoft.de/fdroid/repo/index-v1.json"),

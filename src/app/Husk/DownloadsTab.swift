@@ -24,7 +24,8 @@ struct DownloadsTab: View {
                     ForEach(downloads.jobs) { job in
                         DownloadRow(job: job, speed: downloads.speed)
                             .swipeActions {
-                                Button(role: .destructive) { downloads.remove(job.id) } label: { Label("Remove", systemImage: "trash") }
+Button(action: { downloads.remove(job.id) }) { Label(        , systemImage:        ) }
+                                    .foregroundColor(Color.red)
                             }
                     }
                 } header: {
@@ -56,7 +57,7 @@ struct DownloadsTab: View {
     }
 
     @ViewBuilder private var updatesSection: some View {
-        Section("Updates") {
+        Section(header: Text("Updates")) {
             if let release = updates.available {
                 HStack {
                     Label("Husk \(release.version)", systemImage: "arrow.down.app.fill")
@@ -125,7 +126,7 @@ private struct DownloadRow: View {
 }
 
 private struct AddDownloadSheet: View {
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.presentationMode) private var huskPM
     @ObservedObject private var downloads = Downloads.shared
     @State private var link = ""
     @State private var working = false
@@ -136,7 +137,7 @@ private struct AddDownloadSheet: View {
                 Section {
                     TextField("https://… or http://192.168.1.20:8642/", text: $link)
                         .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
+                        .autocapitalization(.never)
                         .autocorrectionDisabled()
                 } footer: {
                     if let problem = downloads.problem { Text(problem).foregroundColor(.orange) }
@@ -146,7 +147,6 @@ private struct AddDownloadSheet: View {
                     Text("To send a whole folder from a computer on the same Wi‑Fi, run this on it and enter the address it shows:")
                     Text("python3 serve-folder.py <folder>")
                         .font(.system(.footnote, design: .monospaced))
-                        .textSelection(.enabled)
                     Text("serve-folder.py is in Husk's repository, under tools. The folder's contents land at the top of Shared Storage, so serve the folder that holds what a game expects there.")
                 } header: {
                     Text("How it works")
@@ -157,7 +157,7 @@ private struct AddDownloadSheet: View {
             .navigationTitle("Add Download")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { huskPM.wrappedValue.dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     if working { ProgressView() } else {
                         Button("Download") {
@@ -165,7 +165,7 @@ private struct AddDownloadSheet: View {
                             Task {
                                 await downloads.add(link: link)
                                 working = false
-                                if downloads.problem == nil { dismiss() }
+                                if downloads.problem == nil { huskPM.wrappedValue.dismiss() }
                             }
                         }
                         .disabled(link.trimmingCharacters(in: .whitespaces).isEmpty)
