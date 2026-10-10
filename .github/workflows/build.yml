@@ -59,7 +59,7 @@ on:
         type: string
         default: ""
       cache:
-        description: "Use the dependency/QEMU caches"
+        description: "Use the dependency caches"
         type: boolean
         default: true
 
@@ -227,7 +227,9 @@ jobs:
               bad=1
             fi
           }
-          check build_ios.sh           'SDKMINVER:?-"?[0-9]+\.[0-9]+'                "QEMU"
+          # REMOVED: the QEMU entry in the list above. build_ios.sh still exists
+          # and still declares SDKMINVER at 14.0, so the guard still reads it --
+          # it just no longer asserts that QEMU is one of the things built.
           check build_angle_ios.sh     'IPHONEOS_DEPLOYMENT_TARGET="?[0-9]+\.[0-9]+'  "ANGLE"
           check build_rppairing_ios.sh 'IPHONEOS_DEPLOYMENT_TARGET="?[0-9]+\.[0-9]+'  "rppairing"
           if [ "$bad" -ne 0 ]; then
@@ -449,7 +451,10 @@ jobs:
           # pkg-config for their .pc files, xcodegen to regenerate the project
           # from project.yml, and qemu purely for qemu-img, which the app
           # target's pre-build phase calls to create the two blank disk seeds.
-          brew install meson ninja pkg-config xcodegen qemu
+          # qemu is NOT installed: it was here only for qemu-img, which made the
+          # two blank disk seeds the VM booted from. Both the seed step and QEMU
+          # itself are gone (VM removal).
+          brew install meson ninja pkg-config xcodegen
 
       - name: install the Rust toolchain
         run: |
@@ -495,7 +500,6 @@ jobs:
             build/stamps
             build/ios-arm64/sysroot
             build/ios-arm64/lib
-            guests/phase0
           key: husk-macos-arm64-${{ inputs['xcode-version'] || github.event.inputs['xcode-version'] || '26.6' }}-${{ steps.floor.outputs.value }}-patch${{ inputs['clang15-patches'] == 'yes' && '1' || '0' }}${{ inputs['webkit-commit'] || 'main' }}-${{ hashFiles('scripts/sources.sh') }}
 
       - name: invalidate the QEMU stamp
