@@ -18,8 +18,22 @@ HUSK_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 GPU="$HUSK_ROOT/third_party/gpu"
 PREFIX="$HUSK_ROOT/build/ios-arm64/sysroot"
 LOGS="$HUSK_ROOT/build/logs"
-MESON=/opt/homebrew/bin/meson
-NINJA=/opt/homebrew/bin/ninja
+MESON="${MESON:-$(command -v meson || true)}"
+NINJA="${NINJA:-$(command -v ninja || true)}"
+# These two used to be hardcoded to /opt/homebrew/bin, which is the Apple Silicon
+# Homebrew prefix. That works on an M-series Mac and fails on an Intel one, where
+# the same packages land in /usr/local -- and it fails as "No such file or
+# directory" inside a redirection to a log file, so the script appears to hang
+# rather than complain. PATH first, then either prefix.
+if [ -z "$MESON" ] || [ -z "$NINJA" ]; then
+    for prefix in /opt/homebrew/bin /usr/local/bin; do
+        if [ -z "$MESON" ] && [ -x "$prefix/meson" ]; then MESON="$prefix/meson"; fi
+        if [ -z "$NINJA" ] && [ -x "$prefix/ninja" ]; then NINJA="$prefix/ninja"; fi
+    done
+fi
+[ -n "$MESON" ]  || { echo "meson not found; install it (brew install meson)" >&2; exit 1; }
+[ -n "$NINJA" ] || { echo "ninja not found; install it (brew install ninja)" >&2; exit 1; }
+echo "==> meson=$MESON ninja=$NINJA"
 mkdir -p "$GPU" "$LOGS"
 
 EPOXY_COMMIT=bf98587477fe68d07b93319ece7b40a7d0e2eabe
@@ -51,7 +65,8 @@ VIRGL_COMMIT=482f9d8b8c2d2288efa10a027116216909d2c226
 # find a pure-Python `yaml` there -- so it cannot go stale against whichever
 # Homebrew python meson happens to be built against.
 MESON_PY="$(head -1 "$MESON" 2>/dev/null | sed -e 's|^#!||' -e 's|[[:space:]].*$||')"
-[ -x "$MESON_PY" ] || MESON_PY="${MESON_PYTHON:-/opt/homebrew/bin/python3}"
+[ -x "$MESON_PY" ] || MESON_PY="${MESON_PYTHON:-$(command -v python3 || true)}"
+[ -n "$MESON_PY" ] || { echo "no python3 for meson to run under" >&2; exit 1; }
 
 ensure_meson_yaml () {
     if "$MESON_PY" -c 'import yaml' 2>/dev/null; then
