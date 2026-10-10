@@ -20,6 +20,13 @@
 #     WEBKIT_COMMIT=<sha> ./scripts/build_angle_ios.sh
 #
 # or export it in CI. Leave it empty to track main.
+#
+# Pinning is not what the iOS 14 experiment needs. Xcode 15.4 cannot compile one
+# line of current WebKit -- ResourceMap.h's `static_assert(kNeedsLock)`, which
+# Apple clang diagnoses inside a discarded `if constexpr` branch. Everything
+# else in the tree builds. Set ANGLE_PATCH_RESOURCEMAP=1 to drop that one
+# redundant assert; see the block below the checkout for the full argument, and
+# IOS14-EXPERIMENT.md section 3 for the failure it works around.
 set -euo pipefail
 
 HUSK_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -49,6 +56,65 @@ else
     echo "==> WebKit is tracking main; set WEBKIT_COMMIT to make this reproducible"
 fi
 
+# ANGLE_PATCH_RESOURCEMAP works around one Apple Clang bug in current ANGLE.
+# Off by default: the working 15.0/Xcode 26 build does not need it and the
+# vendored tree should stay untouched unless it is asked for.
+#
+# What happens without it, on Xcode 15.4 and any current WebKit:
+#
+#   src/libANGLE/ResourceMap.h:463:9: error: static assertion failed
+#                                       due to requirement 'kNeedsLock'
+#
+# ResourceMap gained a lazily allocated second flat-resource array,
+# mAdditionalFlatResources, published with a release store and read with an
+# acquire load. It is guarded by
+#
+#     if constexpr (kAdditionalFlatResourcesSize > 0) {
+#         static_assert(kNeedsLock);
+#
+# ANGLE_ENABLE_SHARE_CONTEXT_LOCK is *not* defined for this build -- it is in
+# neither GCC_PREPROCESSOR_DEFINITIONS nor the xcconfig -- so the #else branch
+# of the class body is live, and there kAdditionalFlatResourcesSize is the
+# literal 0. The condition is therefore the compile-time constant `0 > 0`, the
+# branch is a *discarded statement*, and a static_assert(false) inside a
+# discarded statement is well formed and must not be diagnosed. Apple clang 15
+# diagnoses it anyway.
+#
+# Removing the line is behaviour-preserving here, and not only because the
+# branch is dead: the invariant it re-checks is already asserted at class scope
+# a few hundred lines earlier --
+#
+#     static_assert(kAdditionalFlatResourcesSize == 0 || kNeedsLock,
+#                   "kAdditionalFlatResourcesSize > 0 requires kNeedsLock ...");
+#
+# so the function-level assert is redundant. Nothing that can affect codegen is
+# removed.
+#
+# The bug only fires where assignAboveCurrentFlatSize is actually instantiated,
+# which is two files: renderer/metal/mtl_utils.mm and mtl_state_cache.mm. The
+# other 163 translation units compile clean, which is why this reads as one bad
+# line rather than a tree that does not build.
+#
+# The alternative is pinning WEBKIT_COMMIT to a 2024 tree, where the feature
+# does not exist. That throws away a tree that is otherwise 92% compatible with
+# this toolchain and may trade this error for others in the files that never
+# got to compile, so the patch is the cheaper experiment.
+ANGLE_PATCH_RESOURCEMAP="${ANGLE_PATCH_RESOURCEMAP:-0}"
+if [ "$ANGLE_PATCH_RESOURCEMAP" != "0" ]; then
+    rm_header="$WK/Source/ThirdParty/ANGLE/src/libANGLE/ResourceMap.h"
+    if [ ! -f "$rm_header" ]; then
+        echo "::warning::ANGLE_PATCH_RESOURCEMAP is on but $rm_header is absent; nothing to patch"
+    elif grep -q '^[[:space:]]*static_assert(kNeedsLock);$' "$rm_header"; then
+        # BSD sed: the -i suffix is a separate argument, not attached. '|' as the
+        # delimiter so the slashes in the replacement need no escaping.
+        sed -i '' 's|^\([[:space:]]*\)static_assert(kNeedsLock);$|\1// Husk patch: see scripts/build_angle_ios.sh|' \
+            "$rm_header"
+        echo "==> patched ResourceMap.h: dropped the redundant static_assert(kNeedsLock)"
+    else
+        echo "==> ResourceMap.h needs no patch (already applied, or the line is gone)"
+    fi
+fi
+
 # Configurations and Tools/ccache are not optional: the ANGLE xcconfigs include
 # ../../../../Tools/ccache/ccache.xcconfig, and the build fails to even start
 # without it.
@@ -66,11 +132,12 @@ cd "$WK/Source/ThirdParty/ANGLE"
 # hiding, all of the form "MTLPixelFormatBC1_RGBA is only available on iOS
 # 16.4". Those are enum constants, harmless to compile in; the one call that
 # matters, supportsBCTextureCompression, sits behind @available, so the warning
-# is turned off rather than the target raised. Husk deploys to 15.0, and ANGLE
-# must not sit ABOVE that: dyld refuses to load a dylib whose LC_BUILD_VERSION
+# is turned off rather than the target raised. Husk deploys to 15.0 (14.0 in
+# the iOS 14 experiment, IOS14-EXPERIMENT.md), and ANGLE
+# must not sit ABOVE it: dyld refuses to load a dylib whose LC_BUILD_VERSION
 # minos exceeds the running OS, so an ANGLE left at 15.5 would break the GL stack
 # on 15.0-15.4. If WebKit's ANGLE xcconfigs refuse to go this low, raise both
-# this and src/app/project.yml to 15.5 together -- never one without the other.
+# this and src/app/project.yml together -- never one without the other.
 #
 # The -Wno-error=thread-safety-* pair is newer, and is not about the deployment
 # target at all. ANGLE's src/common/SimpleMutex.h annotates its methods
