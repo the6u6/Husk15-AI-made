@@ -106,6 +106,7 @@ struct VirtualPadView: UIViewRepresentable {
     }
     func updateUIView(_ view: PadView, context: Context) { update(view) }
 
+    @MainActor
     private func update(_ view: PadView) {
         view.alpha = editing ? max(opacity, 0.85) : opacity
         view.hapticsEnabled = haptics

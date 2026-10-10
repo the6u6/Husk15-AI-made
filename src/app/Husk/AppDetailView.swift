@@ -139,10 +139,11 @@ Button(action: { confirmUninstall = true }) {
                     message: "Its data goes with it. Save Android afterwards or the change "
                             + "is lost on the next launch.",
                     isPresented: $confirmUninstall,
-                    primary: "Uninstall", primaryDestructive: true) {
+                    primary: "Uninstall", primaryDestructive: true,
+                    secondary: "Cancel") {
             host.uninstall(app.name)
             huskPM.wrappedValue.dismiss()
-        } secondary: "Cancel"
+        }
     }
 
     // MARK: pieces

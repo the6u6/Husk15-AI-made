@@ -141,10 +141,11 @@ struct ContentView: View {
                         get: { updates.available != nil && !showOnboarding
                               && !showWhatsNew && crash.pending == nil },
                         set: { if !$0 { updates.dismiss() } }),
-                    primary: "View Release") {
+                    primary: "View Release", secondary: "Not Now",
+                    secondaryAction: { updates.dismiss() }) {
             if let page = updates.available?.page { UIApplication.shared.open(page) }
             updates.dismiss()
-        } secondary: "Not Now"
+        }
         // .task is iOS 15. onAppear + Task is the same thing with the
         // cancellation thrown away; there is nothing to cancel here.
         .onAppear { Task { await updates.check() } }
@@ -160,8 +161,8 @@ struct ContentView: View {
                             + "Would you like to download the updates?",
                     isPresented: Binding(get: { showcase.shouldAsk && !showOnboarding },
                                          set: { if !$0 { showcase.asked() } }),
-                    primary: "Download") { showcase.downloadUpdates() }
-        secondary: "Not Now" { showcase.asked() }
+                    primary: "Download", secondary: "Not Now",
+                    secondaryAction: { showcase.asked() }) { showcase.downloadUpdates() }
         // An APK shared to Husk: where does it go?
         .sheet(isPresented: Binding(get: { !incoming.waiting.isEmpty },
                                     set: { if !$0 { incoming.discard() } })) {
@@ -189,8 +190,8 @@ struct ContentView: View {
                     isPresented: Binding(
                         get: { guest.update.isSomething },
                         set: { if !$0 { guest.dismissUpdate() } }),
-                    primary: "Download") { guest.applyUpdate() }
-        secondary: "Not now" { guest.dismissUpdate() }
+                    primary: "Download", secondary: "Not now",
+                    secondaryAction: { guest.dismissUpdate() }) { guest.applyUpdate() }
         .onAppear {
             crash.checkPreviousRun()
             if crash.pending == nil { router.resumeSwitch() }

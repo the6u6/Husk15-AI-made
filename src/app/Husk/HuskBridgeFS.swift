@@ -1180,13 +1180,18 @@ final class AndroidHost: ObservableObject {
         } }
         guard !safe.isEmpty else { return }
 
-        let script = "for p in " + safe.joined(separator: " ") + "; do "
-                   + "echo \"#P $p\"; "
-                   + "dumpsys package \"$p\" 2>/dev/null | grep -E "
-                   + "\"versionName=|primaryCpuAbi=|categoryHint=|appCategory=\" | head -8; "
-                   + "echo \"#K\"; "
-                   + "pm path \"$p\" 2>/dev/null | sed 's/^package://' | "
-                   + "while read a; do stat -c %s \"$a\" 2>/dev/null; done; done"
+        // A multi-line literal rather than a nine-term concatenation chain:
+        // the type checker times out on the chain, and this is easier to read.
+        // Newlines separate commands in a shell exactly as the semicolons did.
+        let script = """
+            for p in \(safe.joined(separator: " ")); do
+                echo "#P $p";
+                dumpsys package "$p" 2>/dev/null | grep -E "versionName=|primaryCpuAbi=|categoryHint=|appCategory=" | head -8;
+                echo "#K";
+                pm path "$p" 2>/dev/null | sed 's/^package://' |
+                    while read a; do stat -c %s "$a" 2>/dev/null; done
+            done
+            """
 
         guard let text = try? GuestBridge.shared.shell(script, timeout: 180) else {
             HuskLog.log("bridge", "could not read app details")
@@ -1197,7 +1202,7 @@ final class AndroidHost: ObservableObject {
         var current: String?
         var inSizes = false
         for raw in text.split(separator: "\n", omittingEmptySubsequences: false) {
-            let line = raw.trimmingCharacters(in: .whitespaces)
+            let line = raw.trimmingCharacters(in: CharacterSet.whitespaces)
             if line.hasPrefix("#P ") {
                 current = String(line.dropFirst(3))
                 inSizes = false

@@ -102,10 +102,10 @@ struct DirectoryView: View {
                     message: "Android installs it from where it already is — nothing is copied.",
                     isPresented: Binding(get: { installing != nil },
                                          set: { if !$0 { installing = nil } }),
-                    primary: "Install") {
+                    primary: "Install", secondary: "Cancel") {
             if let apk = installing { host.installFromGuest(apk.path, name: apk.name) }
             installing = nil
-        } secondary: "Cancel"
+        }
         // .task(id:) and .refreshable are both iOS 15. There is no
         // pull-to-refresh before that, so refreshing is manual: the
         // directory reloads when it changes or appears.

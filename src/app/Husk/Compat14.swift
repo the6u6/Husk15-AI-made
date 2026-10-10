@@ -109,10 +109,15 @@ extension View {
     /// because it is not that control rendered differently: on iOS 14 this is
     /// a centred dialog where a sheet would have come from the bottom. The
     /// name is meant to make that visible at the call site.
+    /// `secondary` is a Cancel: the system writes `false` through `isPresented`
+    /// when it is tapped, so it takes no action of its own. `primaryAction` is
+    /// declared last, which is what lets the caller pass it as a trailing
+    /// closure -- a trailing closure always binds to the final parameter, so any
+    /// parameter after the action would be unreachable at the call site.
     func huskDialog(title: String, message: String, isPresented: Binding<Bool>,
                     primary: String, primaryDestructive: Bool = false,
-                    primaryAction: @escaping () -> Void,
-                    secondary: String) -> some View {
+                    secondary: String,
+                    primaryAction: @escaping () -> Void) -> some View {
         alert(isPresented: isPresented, content: {
             Alert(title: Text(title),
                   message: Text(message),
@@ -120,6 +125,23 @@ extension View {
                       ? .destructive(Text(primary), action: primaryAction)
                       : .default(Text(primary), action: primaryAction),
                   secondaryButton: .cancel(Text(secondary)))
+        })
+    }
+
+    /// The same, for a secondary that does its own work rather than just
+    /// dismissing. Distinguished from the overload above by `secondaryAction`
+    /// having no default, so the two can never both match.
+    func huskDialog(title: String, message: String, isPresented: Binding<Bool>,
+                    primary: String, primaryDestructive: Bool = false,
+                    secondary: String, secondaryAction: @escaping () -> Void,
+                    primaryAction: @escaping () -> Void) -> some View {
+        alert(isPresented: isPresented, content: {
+            Alert(title: Text(title),
+                  message: Text(message),
+                  primaryButton: primaryDestructive
+                      ? .destructive(Text(primary), action: primaryAction)
+                      : .default(Text(primary), action: primaryAction),
+                  secondaryButton: .default(Text(secondary), action: secondaryAction))
         })
     }
 

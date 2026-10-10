@@ -62,7 +62,10 @@ extension View {
         onChange(of: isPresented.wrappedValue) { shown in
             guard shown else { return }
             isPresented.wrappedValue = false
-            HuskFilePicker.present(types: types, multiple: multiple, onPick: onPick)
+            // HuskFilePicker is @MainActor and an onChange closure is not.
+            Task { @MainActor in
+                HuskFilePicker.present(types: types, multiple: multiple, onPick: onPick)
+            }
         }
     }
 }

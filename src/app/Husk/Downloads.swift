@@ -504,7 +504,7 @@ final class Downloads: ObservableObject {
         return values?.volumeAvailableCapacityForImportantUsage
     }
 
-    static func bytes(_ n: Int64) -> String { ByteCountFormatter.string(fromByteCount: n, countStyle: .file) }
+    nonisolated static func bytes(_ n: Int64) -> String { ByteCountFormatter.string(fromByteCount: n, countStyle: .file) }
 
     // MARK: iOS 26
 

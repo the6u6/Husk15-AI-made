@@ -301,7 +301,10 @@ private final class ResourceTable {
     func string(for id: UInt32) -> String? {
         let found = entries(for: id).filter { $0.dataType == 0x03 }
         guard !found.isEmpty else { return nil }
-        let best = found.first { $0.locale == 0 } ?? found[0]
+        // `found[0]` reads as non-optional and the compiler disagrees, so the
+        // intent is stated rather than indexed: prefer the default locale, else
+        // the first entry. The array is non-empty here, so this cannot fail.
+        guard let best = found.first { $0.locale == 0 } ?? found.first else { return nil }
         return values.string(Int(best.data))
     }
 

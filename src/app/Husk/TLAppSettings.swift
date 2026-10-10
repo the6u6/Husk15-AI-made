@@ -255,11 +255,12 @@ Button(action: { confirmReset = true }) {
         .huskDialog(title: "Reset the data of \(app.label)?",
                     message: "Saves, settings and caches the game made here are deleted.",
                     isPresented: $confirmReset,
-                    primary: "Reset Game Data", primaryDestructive: true) {
+                    primary: "Reset Game Data", primaryDestructive: true,
+                    secondary: "Cancel") {
             for dir in dataDirs { try? FileManager.default.removeItem(at: dir) }
             HuskLog.log("tl", "reset the data of \(app.label)")
             Task { dataSize = await Self.measure(dataDirs) }
-        } secondary: "Cancel"
+        }
     }
 
     @ViewBuilder
