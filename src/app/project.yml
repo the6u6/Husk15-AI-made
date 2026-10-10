@@ -1,5 +1,22 @@
 name: Husk
 options:
+  # xcode15_3 -> objectVersion 63. XcodeGen's default is xcode16_0, which emits
+  # objectVersion 77 and a preferredProjectObjectVersion attribute; Xcode 15.4
+  # cannot open that at all:
+  #
+  #   Unable to read project 'Husk.xcodeproj' ... it is in a future Xcode project
+  #   file format (77). Adjust the project format using a compatible version.
+  #
+  # This is unconditional rather than tied to the iOS 14 experiment, because it
+  # is strictly the more portable choice: Xcode 26 opens an objectVersion 63
+  # project without complaint, while a 77 project is only readable by Xcode 16+.
+  # The one spec feature gated on xcode16_0 is `syncedFolder`, and this spec does
+  # not use it -- every source below is a plain group or folder.
+  #
+  # The checked-in Husk.xcodeproj/project.pbxproj is a build artefact and still
+  # says 77 until someone runs `xcodegen generate`. package_ipa.sh does that
+  # automatically when xcodegen is installed, which is what CI does.
+  projectFormat: xcode15_3
   bundleIdPrefix: com.husk
   deploymentTarget:
     # EXPERIMENTAL iOS 14 floor. Not proven to build; see IOS14-EXPERIMENT.md.
