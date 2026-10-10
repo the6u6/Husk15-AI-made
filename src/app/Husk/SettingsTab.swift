@@ -20,7 +20,7 @@ struct SettingsTab: View {
                 }
 
                 Section(header: Text("General")) {
-                    row(DiscoverView(), "sparkle.magnifyingglass",Color(.systemMint), "Discover", "Find apps in F-Droid and other repositories")
+                    row(DiscoverView(), "sparkle.magnifyingglass",Color(.systemMintFallback), "Discover", "Find apps in F-Droid and other repositories")
                     row(LibrarySettings(), "square.grid.2x2.fill", .blue, "Library", "Your apps and their icons")
                     row(PerformanceSettings(), "speedometer", .orange, "Performance", "Renderer, sound")
                     row(AppearanceSettings(), "paintbrush.fill", .pink, "Appearance", "Light or dark, accent colour, app icon")
@@ -616,15 +616,11 @@ Button(action: { askWhichToDelete = true }) {
         }
         .huskForm()
         .navigationTitle("Saved machine")
-        .confirmationDialog(String("Which saved machine?"), isPresented: $askWhichToDelete,
-                            titleVisibility: .visible) {
-Button("GPU machine") { forget("gl", "GPU") }
-            .foregroundColor(Color.red)
-Button("Software machine") { forget("sw", "software") }
-            .foregroundColor(Color.red)
-Button("Cancel") { }
-        } message: {
-            Text("Android will boot from cold once, then save a new one.")
+        .sheet(isPresented: $askWhichToDelete) {
+            SavedMachineChooser(
+                note: "Android will boot from cold once, then save a new one.",
+                onGPU: { forget("gl", "GPU") },
+                onSoftware: { forget("sw", "software") })
         }
     }
 
@@ -807,5 +803,42 @@ extension Bundle {
     }
     var commit: String {
         (infoDictionary?["HuskBuildCommit"] as? String) ?? "?"
+    }
+}
+
+
+/// Which saved machine to delete.
+///
+/// This was a `confirmationDialog` with three actions. `Alert` -- the only
+/// dialog that exists below iOS 15 -- has a primary and a secondary button and
+/// no third, so it could not be spelled any other way; the substitute is a
+/// sheet rather than another overload. It suits the question better anyway:
+/// "which one?" is a list.
+private struct SavedMachineChooser: View {
+    let note: String
+    let onGPU: () -> Void
+    let onSoftware: () -> Void
+
+    @Environment(\.presentationMode) private var huskpM
+
+    var body: some View {
+        NavigationView {
+            List {
+                Section {
+                    Button(action: { huskpM.wrappedValue.dismiss(); onGPU() }) {
+                        Label("GPU machine", systemImage: "cpu")
+                    }
+                    .foregroundColor(Color.red)
+                    Button(action: { huskpM.wrappedValue.dismiss(); onSoftware() }) {
+                        Label("Software machine", systemImage: "desktopcomputer")
+                    }
+                    .foregroundColor(Color.red)
+                } footer: {
+                    Text(note)
+                }
+            }
+            .navigationTitle("Which saved machine?")
+            .navigationBarTitleDisplayMode(.inline)
+        }
     }
 }

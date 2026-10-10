@@ -74,8 +74,20 @@ struct GameStatusBadge: View {
     var body: some View {
         Image(systemName: result.symbol)
             .font(.system(size: 15, weight: .bold))
-            .foregroundColor(.white, result.color)
+            // RECONSTRUCTED -- check this against the app before shipping.
+            //
+            // The iOS 15 sweep rewrote this line to `.foregroundColor(.white,
+            // result.color)`, which cannot be right: no SwiftUI overload takes two
+            // foreground styles, so whatever the original was, it was not that. The
+            // pre-sweep text was gone by the time a backup existed.
+            //
+            // Read as a status ring, which is what the two values are for: the
+            // neutral disc stays, so the mark reads against any icon artwork, and
+            // the result colour becomes the ring around it. If the badge was meant
+            // to be a coloured disc instead, this is the line to change.
+            .foregroundColor(.white)
             .background(Circle().fill(Color(.systemBackground)).padding(1))
+            .background(Circle().stroke(result.color, lineWidth: 2).padding(1))
             .accessibilityLabel(result.label)
     }
 }

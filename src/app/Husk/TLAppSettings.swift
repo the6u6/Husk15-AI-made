@@ -252,17 +252,14 @@ Button(action: { confirmReset = true }) {
         .onDisappear { rename() }
         // .task is iOS 15.
         .onAppear { Task { dataSize = await Self.measure(dataDirs) } }
-        .confirmationDialog(String("Reset the data of \(app.label)?"), isPresented: $confirmReset, titleVisibility: .visible) {
-Button("Reset Game Data") {
-                for dir in dataDirs { try? FileManager.default.removeItem(at: dir) }
-                HuskLog.log("tl", "reset the data of \(app.label)")
-                Task { dataSize = await Self.measure(dataDirs) }
-            }
-            .foregroundColor(Color.red)
-Button("Cancel") { }
-        } message: {
-            Text("Saves, settings and caches the game made here are deleted.")
-        }
+        .huskDialog(title: "Reset the data of \(app.label)?",
+                    message: "Saves, settings and caches the game made here are deleted.",
+                    isPresented: $confirmReset,
+                    primary: "Reset Game Data", primaryDestructive: true) {
+            for dir in dataDirs { try? FileManager.default.removeItem(at: dir) }
+            HuskLog.log("tl", "reset the data of \(app.label)")
+            Task { dataSize = await Self.measure(dataDirs) }
+        } secondary: "Cancel"
     }
 
     @ViewBuilder

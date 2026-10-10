@@ -992,7 +992,6 @@ final class AndroidHost: ObservableObject {
             }
 
             // `labels` is a var built above; a @Sendable closure may not read one.
-            let labelMap = labels
             // `labels` is a var built above; a @Sendable closure may not read one.
             let labelMap = labels
             await MainActor.run {

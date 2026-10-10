@@ -220,33 +220,33 @@ Button(action: { confirmRemove = true }) {
         .sheet(item: Binding(get: { backupFile.map(IdentifiedURL.init) }, set: { backupFile = $0?.url })) { f in
             ShareSheet(items: [f.url])
         }
-        .confirmationDialog(String("Replace \(app.label)'s saves?"), isPresented: Binding(get: { confirmRestore != nil }, set: { if !$0 { confirmRestore = nil } }),
-                            titleVisibility: .visible) {
-Button("Replace") { if let url = confirmRestore { restore(url) } }
-            .foregroundColor(Color.red)
-        } message: {
-            Text("What \(app.label) has saved now is replaced by the backup. Back up first if you want to keep it.")
+        .huskDialog(title: "Replace \(app.label)'s saves?",
+                    message: "What \(app.label) has saved now is replaced by the backup. "
+                            + "Back up first if you want to keep it.",
+                    isPresented: Binding(get: { confirmRestore != nil },
+                                         set: { if !$0 { confirmRestore = nil } }),
+                    dismiss: "Replace", dismissDestructive: true) {
+            if let url = confirmRestore { restore(url) }
         }
-        .confirmationDialog(String("Close Husk?"), isPresented: $confirmQuit, titleVisibility: .visible) {
-            Button("Close Husk") {
-                // The game that is loaded is closed with Husk, which is the normal way out for it, not a crash; and this
-                // one starts by itself when Husk is opened again.
-                Router.shared.switchTo(app.id)
-                CrashReport.gameEnded()
-                HuskLog.flushNow()
-                exit(0)
-            }
-        } message: {
-            Text("\(blockedBy ?? "The other game") is still loaded and only one game can run per session. Husk closes; open it again and \(app.label) starts by itself.")
+        .huskDialog(title: "Close Husk?",
+                    message: "\(blockedBy ?? "The other game") is still loaded and only one game "
+                            + "can run per session. Husk closes; open it again and \(app.label) "
+                            + "starts by itself.",
+                    isPresented: $confirmQuit,
+                    dismiss: "Close Husk") {
+            // The game that is loaded is closed with Husk, which is the normal way out for it, not a crash; and this
+            // one starts by itself when Husk is opened again.
+            Router.shared.switchTo(app.id)
+            CrashReport.gameEnded()
+            HuskLog.flushNow()
+            exit(0)
         }
-        .confirmationDialog(String("Remove \(app.label)?"), isPresented: $confirmRemove, titleVisibility: .visible) {
-Button("Remove") {
-                huskPM.wrappedValue.dismiss()
-                store.remove(app)
-            }
-            .foregroundColor(Color.red)
-        } message: {
-            Text("The game and everything it saved here are deleted from Husk.")
+        .huskDialog(title: "Remove \(app.label)?",
+                    message: "The game and everything it saved here are deleted from Husk.",
+                    isPresented: $confirmRemove,
+                    dismiss: "Remove", dismissDestructive: true) {
+            huskPM.wrappedValue.dismiss()
+            store.remove(app)
         }
         .id(jit.attachGeneration)
         .onAppear {
@@ -416,14 +416,11 @@ Button(action: { confirmUninstall = true }) {
         .listStyle(.insetGrouped)
         .navigationTitle(live.label)
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog(String("Uninstall \(live.label)?"), isPresented: $confirmUninstall, titleVisibility: .visible) {
-Button("Uninstall") {
-                host.uninstall(app.name)
-                huskPM.wrappedValue.dismiss()
-            }
-            .foregroundColor(Color.red)
-        } message: {
-            Text("Its data goes with it.")
+        .huskDialog(title: "Uninstall \(live.label)?", message: "Its data goes with it.",
+                    isPresented: $confirmUninstall,
+                    dismiss: "Uninstall", dismissDestructive: true) {
+            host.uninstall(app.name)
+            huskPM.wrappedValue.dismiss()
         }
     }
 

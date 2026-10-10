@@ -134,17 +134,17 @@ struct ContentView: View {
             WhatsNewSheet { WhatsNew.markSeen(); showWhatsNew = false }
         }
         // A newer Husk is on GitHub.
-        .alert(String("Husk \(updates.available?.version ?? "") Is Available"), isPresented: Binding(
-                get: { updates.available != nil && !showOnboarding && !showWhatsNew && crash.pending == nil },
-                set: { if !$0 { updates.dismiss() } })) {
-            Button("View Release") {
-                if let page = updates.available?.page { UIApplication.shared.open(page) }
-                updates.dismiss()
-            }
-Button("Not Now") { updates.dismiss() }
-        } message: {
-            Text("You have \(AppUpdates.current). The new version's IPA is on its release page.")
-        }
+        .huskDialog(title: "Husk \(updates.available?.version ?? "") Is Available",
+                    message: "You have \(AppUpdates.current). The new version's IPA is on "
+                            + "its release page.",
+                    isPresented: Binding(
+                        get: { updates.available != nil && !showOnboarding
+                              && !showWhatsNew && crash.pending == nil },
+                        set: { if !$0 { updates.dismiss() } }),
+                    primary: "View Release") {
+            if let page = updates.available?.page { UIApplication.shared.open(page) }
+            updates.dismiss()
+        } secondary: "Not Now"
         // .task is iOS 15. onAppear + Task is the same thing with the
         // cancellation thrown away; there is nothing to cancel here.
         .onAppear { Task { await updates.check() } }
@@ -154,14 +154,14 @@ Button("Not Now") { updates.dismiss() }
         // spelled out.
         .onAppear { showcase.refresh(for: showcasePackages) }
         .onChange(of: showcasePackages) { _ in showcase.refresh(for: showcasePackages) }
-        .alert(String("Metadata Updated"), isPresented: Binding(get: { showcase.shouldAsk && !showOnboarding },
-                                                         set: { if !$0 { showcase.asked() } })) {
-            Button("Download") { showcase.downloadUpdates() }
-Button("Not Now") { showcase.asked() }
-        } message: {
-            let n = showcase.updates.count
-            Text("Metadata for \(n) of your app\(n == 1 ? "" : "s") has been updated. Would you like to download the updates?")
-        }
+        .huskDialog(title: "Metadata Updated",
+                    message: "Metadata for \(showcase.updates.count) of your app"
+                            + "\(showcase.updates.count == 1 ? "" : "s") has been updated. "
+                            + "Would you like to download the updates?",
+                    isPresented: Binding(get: { showcase.shouldAsk && !showOnboarding },
+                                         set: { if !$0 { showcase.asked() } }),
+                    primary: "Download") { showcase.downloadUpdates() }
+        secondary: "Not Now" { showcase.asked() }
         // An APK shared to Husk: where does it go?
         .sheet(isPresented: Binding(get: { !incoming.waiting.isEmpty },
                                     set: { if !$0 { incoming.discard() } })) {
@@ -185,14 +185,12 @@ Button("Not Now") { showcase.asked() }
         .onChange(of: jit.attachGeneration) { _ in evaluate() }
         // Asking rather than downloading. Two gigabytes over someone's cellular
         // connection is not a decision to make on their behalf.
-        .alert(guest.update.title, isPresented: Binding(
-                get: { guest.update.isSomething },
-                set: { if !$0 { guest.dismissUpdate() } })) {
-            Button("Download") { guest.applyUpdate() }
-Button("Not now") { guest.dismissUpdate() }
-        } message: {
-            Text(guest.update.detail)
-        }
+        .huskDialog(title: guest.update.title, message: guest.update.detail,
+                    isPresented: Binding(
+                        get: { guest.update.isSomething },
+                        set: { if !$0 { guest.dismissUpdate() } }),
+                    primary: "Download") { guest.applyUpdate() }
+        secondary: "Not now" { guest.dismissUpdate() }
         .onAppear {
             crash.checkPreviousRun()
             if crash.pending == nil { router.resumeSwitch() }
@@ -557,7 +555,7 @@ struct LogView: View {
             return .red
         }
         if line.contains("[husk-jit]") { return .green }
-        if line.contains("[husk-dpy]") { return Color(.systemCyan) }
+        if line.contains("[husk-dpy]") { return Color(.cyan) }
         if line.contains("[guest]")    { return .yellow }
         return .primary
     }

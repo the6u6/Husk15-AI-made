@@ -135,18 +135,14 @@ Button(action: { confirmUninstall = true }) {
         .navigationTitle(live.label)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .topBarTrailing) { menu } }
-        .confirmationDialog(String("Uninstall \(live.label)?"), isPresented: $confirmUninstall,
-                            titleVisibility: .visible) {
-Button("Uninstall") {
-                host.uninstall(app.name)
-                huskPM.wrappedValue.dismiss()
-            }
-            .foregroundColor(Color.red)
-Button("Cancel") { }
-        } message: {
-            Text("Its data goes with it. Save Android afterwards or the change is "
-               + "lost on the next launch.")
-        }
+        .huskDialog(title: "Uninstall \(live.label)?",
+                    message: "Its data goes with it. Save Android afterwards or the change "
+                            + "is lost on the next launch.",
+                    isPresented: $confirmUninstall,
+                    primary: "Uninstall", primaryDestructive: true) {
+            host.uninstall(app.name)
+            huskPM.wrappedValue.dismiss()
+        } secondary: "Cancel"
     }
 
     // MARK: pieces

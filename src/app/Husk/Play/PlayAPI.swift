@@ -774,7 +774,7 @@ enum PlayAPI {
             }
 
             let fileDest = tempDir.appendingPathComponent(item.name)
-            let (tempLocalURL, resp) = try await URLSession.shared.download(for: req)
+            let (tempLocalURL, resp) = try await URLSession.shared.huskDownload(for: req)
             guard (resp as? HTTPURLResponse)?.statusCode == 200 else {
                 throw PlayError("Failed to download \(item.name) (HTTP \((resp as? HTTPURLResponse)?.statusCode ?? 0))")
             }

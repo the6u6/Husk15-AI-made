@@ -23,9 +23,14 @@ struct DownloadsTab: View {
                     }
                     ForEach(downloads.jobs) { job in
                         DownloadRow(job: job, speed: downloads.speed)
-                            .swipeActions {
-Button(action: { downloads.remove(job.id) }) { Label("Remove", systemImage: "trash") }
-                                    .foregroundColor(Color.red)
+                            // swipeActions is iOS 15. contextMenu is iOS 13 and
+                            // is the only pre-15 way to reveal an action on a
+                            // row; the trade is long-press for swipe.
+                            .contextMenu {
+                                Button(action: { downloads.remove(job.id) }) {
+                                    Label("Remove", systemImage: "trash")
+                                }
+                                .foregroundColor(Color.red)
                             }
                     }
                 } header: {

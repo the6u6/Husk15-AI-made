@@ -5,7 +5,7 @@ import WebKit
 /// Sheet hosting WKWebView pointing to https://accounts.google.com/EmbeddedSetup to sign in.
 /// Intercepts cookies to extract oauth_token and user email.
 struct GoogleSignInSheet: View {
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.presentationMode) private var huskPM
     @ObservedObject var manager = PlayStoreManager.shared
 
     @State private var webLoading = true
@@ -24,7 +24,7 @@ struct GoogleSignInSheet: View {
                         intercepted = true
                         Task {
                             await manager.signIn(email: email, oauthToken: token)
-                            dismiss()
+                            huskPM.wrappedValue.dismiss()
                         }
                     }
                 )
@@ -52,7 +52,7 @@ struct GoogleSignInSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
-                        dismiss()
+                        huskPM.wrappedValue.dismiss()
                     }
                     .disabled(manager.isLoading)
                 }

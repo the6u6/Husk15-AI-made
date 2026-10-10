@@ -23,10 +23,12 @@ struct StoreView: View {
                     storeContent
                 }
             }
+            // .searchable is iOS 15; see DiscoverTab for why this goes above
+            // the navigation modifiers rather than below them.
+            .huskSearchBar(text: $searchText, prompt: "Search Google Play")
             .background(Theme.backdrop)
             .navigationTitle("Store")
             .navigationBarTitleDisplayMode(.large)
-            .searchable(text: $searchText, prompt: "Search Google Play")
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     if manager.isSignedIn {
@@ -39,11 +41,12 @@ struct StoreView: View {
                                 }
                                 Divider()
                             }
-                            Button(role: .destructive) {
+Button(action: {
                                 manager.signOut()
-                            } label: {
+                            }) {
                                 Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
                             }
+                                .foregroundColor(Color.red)
                         } label: {
                             Image(systemName: manager.session?.isAnonymous == true ? "person.badge.shield.checkmark" : "person.crop.circle")
                                 .font(.system(size: 18))
@@ -78,14 +81,12 @@ struct StoreView: View {
             // sleep has to finish first, so a fast typist waits it out.
             .onAppear { runSearch() }
             .onChange(of: searchText) { _ in runSearch() }
-            .alert("Error", isPresented: Binding(
-                get: { manager.errorMessage != nil },
-                set: { if !$0 { manager.errorMessage = nil } }
-            )) {
-                Button("OK", role: .cancel) { manager.errorMessage = nil }
-            } message: {
-                Text(manager.errorMessage ?? "")
-            }
+            .huskDialog(title: "Error", message: manager.errorMessage ?? "",
+                        isPresented: Binding(
+                            get: { manager.errorMessage != nil },
+                            set: { if !$0 { manager.errorMessage = nil } }
+                        ),
+                        dismiss: "OK") { manager.errorMessage = nil }
         }
     }
 
@@ -230,7 +231,7 @@ struct StoreView: View {
             } label: {
                 HStack(spacing: 14) {
                     // App Icon
-                    AsyncImage(url: URL(string: app.iconURL ?? "")) { phase in
+                    HuskAsyncImage(url: URL(string: app.iconURL ?? "")) { phase in
                         if let image = phase.image {
                             image.resizable().aspectRatio(contentMode: .fit)
                         } else if phase.error != nil {
@@ -314,7 +315,7 @@ struct StoreView: View {
 
 struct PlayAppDetailSheet: View {
     let app: PlayAPI.PlayApp
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.presentationMode) private var huskPM
     @ObservedObject private var manager = PlayStoreManager.shared
 
     var body: some View {
@@ -323,7 +324,7 @@ struct PlayAppDetailSheet: View {
                 VStack(alignment: .leading, spacing: 20) {
                     // Header: Icon, Title, Developer, Get Button
                     HStack(spacing: 16) {
-                        AsyncImage(url: URL(string: app.iconURL ?? "")) { phase in
+                        HuskAsyncImage(url: URL(string: app.iconURL ?? "")) { phase in
                             if let image = phase.image {
                                 image.resizable().aspectRatio(contentMode: .fit)
                             } else {
@@ -377,7 +378,7 @@ struct PlayAppDetailSheet: View {
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 12) {
                                     ForEach(app.screenshotURLs, id: \.self) { url in
-                                        AsyncImage(url: URL(string: url)) { phase in
+                                        HuskAsyncImage(url: URL(string: url)) { phase in
                                             if let image = phase.image {
                                                 image.resizable().aspectRatio(contentMode: .fit)
                                             } else {
@@ -413,7 +414,7 @@ struct PlayAppDetailSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
+                    Button("Done") { huskPM.wrappedValue.dismiss() }
                 }
             }
         }
@@ -434,7 +435,7 @@ struct PlayAppDetailSheet: View {
             } else {
                 Button {
                     manager.downloadAndInstall(app: app)
-                    dismiss()
+                    huskPM.wrappedValue.dismiss()
                 } label: {
                     Text(app.isFree ? "GET" : app.formattedPrice)
                         .font(.headline)

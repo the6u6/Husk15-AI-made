@@ -88,6 +88,61 @@ extension View {
     }
 }
 
+// MARK: - UIColours that are themselves iOS 15
+
+extension UIColor {
+    /// `UIColor.systemMint` is iOS 15, so substituting it for `Color.mint` moves
+    /// the problem rather than solving it. These two are the closest iOS 13
+    /// equivalents: UIColor.systemCyan does not exist at any version, but plain
+    /// `.cyan` does and is what a system palette entry would have rendered.
+    static let systemCyanFallback = UIColor.cyan
+    static let systemMintFallback = UIColor(red: 0.40, green: 0.90, blue: 0.70, alpha: 1.0)
+}
+
+// MARK: - alert / confirmationDialog (iOS 15.0)
+
+extension View {
+    /// Two actions. `primaryDestructive` maps to `Alert.Button.destructive`,
+    /// which is what the iOS 15 `role:` was doing.
+    ///
+    /// Named `huskDialog` rather than after the control it stands in for,
+    /// because it is not that control rendered differently: on iOS 14 this is
+    /// a centred dialog where a sheet would have come from the bottom. The
+    /// name is meant to make that visible at the call site.
+    func huskDialog(title: String, message: String, isPresented: Binding<Bool>,
+                    primary: String, primaryDestructive: Bool = false,
+                    primaryAction: @escaping () -> Void,
+                    secondary: String) -> some View {
+        alert(isPresented: isPresented, content: {
+            Alert(title: Text(title),
+                  message: Text(message),
+                  primaryButton: primaryDestructive
+                      ? .destructive(Text(primary), action: primaryAction)
+                      : .default(Text(primary), action: primaryAction),
+                  secondaryButton: .cancel(Text(secondary)))
+        })
+    }
+
+    /// One action, for the dialogs that only ever had one.
+    func huskDialog(title: String, message: String, isPresented: Binding<Bool>,
+                    dismiss: String, dismissDestructive: Bool = false,
+                    dismissAction: @escaping () -> Void) -> some View {
+        alert(isPresented: isPresented, content: {
+            Alert(title: Text(title), message: Text(message),
+                  dismissButton: dismissDestructive
+                      ? .destructive(Text(dismiss), action: dismissAction)
+                      : .default(Text(dismiss), action: dismissAction))
+        })
+    }
+}
+
+// SettingsTab's "Which saved machine?" has three actions -- GPU machine,
+// Software machine, Cancel. Alert has two button slots and no third, so it
+// cannot be expressed here at all. It needs a sheet of its own rather than a
+// third overload of this, and that is a UI decision rather than a porting one.
+// Left as the iOS 15 call, which means the file will not compile at 14.0 until
+// someone writes that sheet.
+
 // MARK: - AsyncImage (iOS 15.0)
 
 /// `AsyncImage`'s phase, so call sites keep reading the same shape.
@@ -141,7 +196,7 @@ struct HuskAsyncImage<Content: View>: View {
                     phase = .failure(HuskAsyncError.notAnImage)
                     return
                 }
-                phase = .success(image)
+                phase = .success(Image(uiImage: image))
             } catch {
                 phase = .failure(error)
             }
