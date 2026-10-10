@@ -31,7 +31,7 @@ struct JITSetupFlow: View {
                 if let step = step { stepView(step) } else { choose }
             }
         }
-        .tint(Theme.accent)
+        .accentColor(Theme.accent)
         .fileImporter(isPresented: $importing, allowedContentTypes: [.propertyList, .data]) { result in
             switch result {
             case .success(let url): jit.importPairingFile(url)
@@ -195,7 +195,7 @@ Button("Cancel pairing") { pairing.cancel() }
         case .waiting:
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 10) {
-                    ProgressView().tint(Theme.accent)
+                    ProgressView().accentColor(Theme.accent)
                     Text("Waiting for your \(device)…").font(.system(size: 15, weight: .semibold))
                         .foregroundColor(Theme.text)
                 }
@@ -297,7 +297,7 @@ Button("Cancel pairing") { pairing.cancel() }
 
             if jit.busy {
                 HStack(spacing: 11) {
-                    ProgressView().tint(Theme.accent)
+                    ProgressView().accentColor(Theme.accent)
                     Text(jit.status ?? "Working…").font(.system(size: 14)).foregroundColor(Theme.text)
                     Spacer(minLength: 0)
                 }

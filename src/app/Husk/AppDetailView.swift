@@ -125,7 +125,7 @@ struct AppDetailView: View {
                 }
                 .disabled(!canOpen)
 Button(action: { confirmUninstall = true }) {
-                    Label(           , systemImage:        )
+                    Label("Uninstall", systemImage: "trash")
                 }
                     .foregroundColor(Color.red)
                 .disabled(!canOpen)
@@ -162,7 +162,7 @@ Button("Cancel") { }
             .disabled(!canOpen)
             Divider()
 Button(action: { confirmUninstall = true }) {
-                Label(           , systemImage:        )
+                Label("Uninstall", systemImage: "trash")
             }
                 .foregroundColor(Color.red)
             .disabled(!canOpen)

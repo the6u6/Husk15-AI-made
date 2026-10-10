@@ -167,7 +167,7 @@ struct OnboardingView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
-            Toggle("", isOn: isOn).labelsHidden().tint(Theme.accent)
+            Toggle("", isOn: isOn).labelsHidden().accentColor(Theme.accent)
         }
         .padding(16)
         .huskCard()

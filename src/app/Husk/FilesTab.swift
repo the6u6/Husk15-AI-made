@@ -218,10 +218,13 @@ Button("Cancel") { installing = nil }
             do { rows = try AndroidHost.shared.list(where_) }
             catch { why = error.localizedDescription }
             let s = AndroidHost.shared.freeSpace(at: where_)
+            // `rows` and `why` are vars; capturing them in the @Sendable body of
+            // MainActor.run is the same diagnostic as capturing self. Snapshot them.
+            let foundRows = rows, foundWhy = why
             await MainActor.run {
-                entries = rows
+                entries = foundRows
                 space = s
-                failure = rows.isEmpty ? why : nil
+                failure = foundRows.isEmpty ? foundWhy : nil
                 loading = false
             }
         }

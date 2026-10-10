@@ -30,8 +30,8 @@ final class AppTheme: ObservableObject {
         Preset(id: "orange", name: "Orange", color: .orange),
         Preset(id: "yellow", name: "Yellow", color: .yellow),
         Preset(id: "green", name: "Green", color: .green),
-        Preset(id: "teal", name: "Teal", color: .teal),
-        Preset(id: "mint", name: "Mint", color: .mint),
+        Preset(id: "teal", name: "Teal", color: Color(.systemTeal)),
+        Preset(id: "mint", name: "Mint", color: Color(.systemMint)),
     ]
 
     @Published var accentColor: Color {

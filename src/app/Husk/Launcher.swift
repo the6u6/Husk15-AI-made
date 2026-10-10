@@ -653,7 +653,7 @@ struct BusyStrip: View {
 struct SearchField: View {
     @Binding var text: String
     let prompt: String
-    @State private var focused: Bool
+    @State private var focused: Bool = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -664,7 +664,7 @@ struct SearchField: View {
                 TextField(prompt, text: $text)
                     .onAppear { focused = true }
                     .autocorrectionDisabled()
-                    .autocapitalization(.never)
+                    .autocapitalization(.none)
                 if !text.isEmpty {
                     Button { text = "" } label: {
                         Image(systemName: "xmark.circle.fill").foregroundColor(Color(UIColor.tertiaryLabel))

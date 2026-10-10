@@ -78,9 +78,11 @@ final class IncomingFiles: ObservableObject {
                     HuskLog.log("ui", "could not take in \(url.lastPathComponent): \(error.localizedDescription)")
                 }
             }
+            // `copies` is a var; snapshot it before the @Sendable closure.
+            let taken = copies
             await MainActor.run {
                 self.preparing = nil
-                if !copies.isEmpty { then(copies) }
+                if !taken.isEmpty { then(taken) }
             }
         }
     }

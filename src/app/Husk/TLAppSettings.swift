@@ -230,7 +230,7 @@ struct TLAppSettingsView: View {
             Section {
                 DetailRow(label: "Saved by the game", value: dataSize, mono: false)
 Button(action: { confirmReset = true }) {
-                    Label(                 , systemImage:                         )
+                    Label("Reset Game Data", systemImage: "arrow.counterclockwise")
                 }
                     .foregroundColor(Color.red)
                 .disabled(inUse || dataDirs.isEmpty)

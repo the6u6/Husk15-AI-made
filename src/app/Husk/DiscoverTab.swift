@@ -181,7 +181,7 @@ struct DiscoverView: View {
             Form {
                 Section {
                     TextField("https://f-droid.org/repo/index-v1.json", text: $newSourceURL)
-                        .keyboardType(.URL).autocapitalization(.never).autocorrectionDisabled()
+                        .keyboardType(.URL).autocapitalization(.none).autocorrectionDisabled()
                 } header: {
                     Text("Source URL")
                 } footer: {

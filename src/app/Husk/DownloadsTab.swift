@@ -24,7 +24,7 @@ struct DownloadsTab: View {
                     ForEach(downloads.jobs) { job in
                         DownloadRow(job: job, speed: downloads.speed)
                             .swipeActions {
-Button(action: { downloads.remove(job.id) }) { Label(        , systemImage:        ) }
+Button(action: { downloads.remove(job.id) }) { Label("Remove", systemImage: "trash") }
                                     .foregroundColor(Color.red)
                             }
                     }
@@ -137,7 +137,7 @@ private struct AddDownloadSheet: View {
                 Section {
                     TextField("https://… or http://192.168.1.20:8642/", text: $link)
                         .keyboardType(.URL)
-                        .autocapitalization(.never)
+                        .autocapitalization(.none)
                         .autocorrectionDisabled()
                 } footer: {
                     if let problem = downloads.problem { Text(problem).foregroundColor(.orange) }

@@ -68,6 +68,7 @@ import UserNotifications
     private var registration: DNSServiceRef?
     // Was a BGContinuedProcessingTask. Kept so `pairing.continued == nil` still
     // compiles and reads the same; always nil now. See the note on submitContinued.
+    private var continued: AnyObject?
     private var registered: String?
     private var grace: UIBackgroundTaskIdentifier = .invalid
     private var deadline: Timer?

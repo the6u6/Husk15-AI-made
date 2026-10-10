@@ -20,16 +20,16 @@ struct SettingsTab: View {
                 }
 
                 Section(header: Text("General")) {
-                    row(DiscoverView(), "sparkle.magnifyingglass", .mint, "Discover", "Find apps in F-Droid and other repositories")
+                    row(DiscoverView(), "sparkle.magnifyingglass",Color(.systemMint), "Discover", "Find apps in F-Droid and other repositories")
                     row(LibrarySettings(), "square.grid.2x2.fill", .blue, "Library", "Your apps and their icons")
                     row(PerformanceSettings(), "speedometer", .orange, "Performance", "Renderer, sound")
                     row(AppearanceSettings(), "paintbrush.fill", .pink, "Appearance", "Light or dark, accent colour, app icon")
                 }
 
                 Section(header: Text("Emulator")) {
-                    row(InputSettings(), "hand.tap.fill", .indigo, "Input", "Screen, touch, keyboard")
+                    row(InputSettings(), "hand.tap.fill",Color(.systemIndigo), "Input", "Screen, touch, keyboard")
                     row(NetworkSettings(), "globe", .green, "Network", "Internet and saved sessions")
-                    row(SavedMachineSettings(), "externaldrive.fill", .teal, "Saved Machine", "Snapshots and automatic saving")
+                    row(SavedMachineSettings(), "externaldrive.fill",Color(.systemTeal), "Saved Machine", "Snapshots and automatic saving")
                 }
             }
             .listStyle(.insetGrouped)
@@ -581,7 +581,7 @@ struct SavedMachineSettings: View {
 
             Section {
 Button(action: { askWhichToDelete = true }) {
-                    Label(                      , systemImage:        )
+                    Label("Delete saved machine", systemImage: "trash")
                 }
                     .foregroundColor(Color.red)
                 .disabled(!QemuRunner.shared.hasSnapshot)

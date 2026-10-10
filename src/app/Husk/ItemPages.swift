@@ -208,7 +208,7 @@ struct GamePage: View {
 
             Section {
 Button(action: { confirmRemove = true }) {
-                    Label(             , systemImage:        )
+                    Label("Remove Game", systemImage: "trash")
                 }
                     .foregroundColor(Color.red)
             }
@@ -405,7 +405,7 @@ struct AndroidAppPage: View {
 
             Section {
 Button(action: { confirmUninstall = true }) {
-                    Label(           , systemImage:        )
+                    Label("Uninstall", systemImage: "trash")
                 }
                     .foregroundColor(Color.red)
                 .disabled(!canOpen)

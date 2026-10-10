@@ -98,7 +98,13 @@ final class TLUnityUIView: UIView, UIKeyInput {
             husk_unity_set_paused(true)
         }
         NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
-            if self?.window != nil { husk_unity_set_paused(false) }
+                // The weak capture makes `self` a var, and this closure is
+                // @Sendable, so every closure nested inside it is too. An
+                // immutable alias is not a var capture. See the note on
+                // IOS14-EXPERIMENT.md for why this is an alias and not a
+                // `guard let self`.
+                let huskSelf = self
+            if huskSelf?.window != nil { husk_unity_set_paused(false) }
         }
     }
 
@@ -395,7 +401,13 @@ final class TLUnityModel: ObservableObject {
     func start() {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.poll() }
+                // The weak capture makes `self` a var, and this closure is
+                // @Sendable, so every closure nested inside it is too. An
+                // immutable alias is not a var capture. See the note on
+                // IOS14-EXPERIMENT.md for why this is an alias and not a
+                // `guard let self`.
+                let huskSelf = self
+            Task { @MainActor in huskSelf?.poll() }
         }
     }
 
@@ -672,7 +684,7 @@ Button("Reset All") { padLayout = PadLayout(); padSelected = nil; padLayout.save
                         Label(editingPad ? "Done" : "Edit pad", systemImage: "slider.horizontal.below.square.and.square.filled")
                             .font(.system(size: 12, weight: .semibold))
                     }
-                    .tint(editingPad ? .yellow : .white)
+                    .accentColor(editingPad ? .yellow : .white)
                 }
             }
             if settings.showStats, model.state == Int32(HUSK_UNITY_RUNNING) {

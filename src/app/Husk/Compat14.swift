@@ -97,11 +97,16 @@ extension View {
 /// `if let image = phase.image` / `else if phase.error != nil`. An enum would
 /// have meant rewriting all four of them for no benefit.
 struct HuskAsyncPhase {
-    var image: UIImage?
+    /// A SwiftUI `Image`, not a `UIImage`. Every call site does
+    /// `image.resizable()`, which only exists on `Image` -- carrying a UIImage
+    /// here produced "value of type 'UIImage' has no member 'resizable'" at all
+    /// four sites. SwiftUI's own `AsyncImagePhase` holds an `Image` for the same
+    /// reason.
+    var image: Image?
     var error: Error?
 
     static let empty = HuskAsyncPhase()
-    static func success(_ image: UIImage) -> HuskAsyncPhase { .init(image: image) }
+    static func success(_ image: Image) -> HuskAsyncPhase { .init(image: image) }
     static func failure(_ error: Error) -> HuskAsyncPhase { .init(error: error) }
 }
 

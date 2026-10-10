@@ -107,7 +107,7 @@ struct ContentView: View {
             }
 
         }
-        .tint(theme.accentColor)
+        .accentColor(theme.accentColor)
         // The user's appearance: the system's, unless they pinned one. Set on the
         // window rather than with .preferredColorScheme — see Theme.apply.
         .onAppear { Theme.apply(appearance) }
@@ -557,7 +557,7 @@ struct LogView: View {
             return .red
         }
         if line.contains("[husk-jit]") { return .green }
-        if line.contains("[husk-dpy]") { return .cyan }
+        if line.contains("[husk-dpy]") { return Color(.systemCyan) }
         if line.contains("[guest]")    { return .yellow }
         return .primary
     }

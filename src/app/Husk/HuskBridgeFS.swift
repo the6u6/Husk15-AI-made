@@ -51,7 +51,13 @@ final class HuskBridgeFS: ObservableObject {
         guard timer == nil else { return }
         HuskLog.log("bridge", "watching \(catalog.path)")
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.poll() }
+                // The weak capture makes `self` a var, and this closure is
+                // @Sendable, so every closure nested inside it is too. An
+                // immutable alias is not a var capture. See the note on
+                // IOS14-EXPERIMENT.md for why this is an alias and not a
+                // `guard let self`.
+                let huskSelf = self
+            Task { @MainActor in huskSelf?.poll() }
         }
     }
 
@@ -910,6 +916,12 @@ final class AndroidHost: ObservableObject {
         polling = true
         status = "Starting Android…"
         Task.detached { [weak self] in
+                // The weak capture makes `self` a var, and this closure is
+                // @Sendable, so every closure nested inside it is too. An
+                // immutable alias is not a var capture. See the note on
+                // IOS14-EXPERIMENT.md for why this is an alias and not a
+                // `guard let self`.
+                let huskSelf = self
             var attempt = 0
             while true {
                 attempt += 1
@@ -928,9 +940,9 @@ final class AndroidHost: ObservableObject {
                         .trimmingCharacters(in: .whitespacesAndNewlines)
                     if booted == "1" {
                         await MainActor.run {
-                            self?.isReady = true
-                            self?.status = "Android is ready"
-                            self?.polling = false
+                            huskSelf?.isReady = true
+                            huskSelf?.status = "Android is ready"
+                            huskSelf?.polling = false
                         }
                         HuskLog.log("bridge", "guest is ready after \(attempt) attempts")
                         // Take the connection now and never let go. New
@@ -938,17 +950,20 @@ final class AndroidHost: ObservableObject {
                         // the last session and not afterwards, so the moment the
                         // guest first answers is the moment to claim one.
                         GuestBridge.shared.holdConnection()
-                        await self?.quietAbsentHardware()
-                        await self?.refreshPackages()
-                        await MainActor.run { self?.dumpDiagnostics() }
+                        await huskSelf?.quietAbsentHardware()
+                        await huskSelf?.refreshPackages()
+                        await MainActor.run { huskSelf?.dumpDiagnostics() }
                         return
                     }
-                    await MainActor.run { self?.status = "Android is booting…" }
+                    await MainActor.run { huskSelf?.status = "Android is booting…" }
                 } catch {
                     GuestBridge.shared.disconnect()
+                    // `attempt` is a var in this detached task; snapshot it before the
+                    // @Sendable body of MainActor.run reads it.
+                    let tries = attempt
                     await MainActor.run {
-                        self?.status = attempt < 4 ? "Starting Android…"
-                                                   : "Waiting for Android (\(attempt * 3)s)…"
+                        huskSelf?.status = tries < 4 ? "Starting Android…"
+                                                   : "Waiting for Android (\(tries * 3)s)…"
                     }
                 }
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
@@ -976,6 +991,10 @@ final class AndroidHost: ObservableObject {
                 try? icon.write(to: dest)
             }
 
+            // `labels` is a var built above; a @Sendable closure may not read one.
+            let labelMap = labels
+            // `labels` is a var built above; a @Sendable closure may not read one.
+            let labelMap = labels
             await MainActor.run {
                 guard !names.isEmpty || self.packages.isEmpty
                         || self.guestListedPackages else {
@@ -995,7 +1014,7 @@ final class AndroidHost: ObservableObject {
                         $0 == Self.pretty(name) ? nil : $0
                     }
                     return Package(name: name,
-                                   label: labels[name] ?? resolved ?? Self.pretty(name),
+                                   label: labelMap[name] ?? resolved ?? Self.pretty(name),
                                    iconPath: FileManager.default.fileExists(atPath: cached.path)
                                              ? cached.path : nil)
                 }
@@ -1206,9 +1225,11 @@ final class AndroidHost: ObservableObject {
         HuskLog.log("bridge", "details for \(found.count) app(s); "
                             + "\(named) categorised by Android")
 
+        // `found` is a var; snapshot it for the @Sendable closure.
+        let rows = found
         await MainActor.run {
             for i in self.packages.indices {
-                guard let row = found[self.packages[i].name] else { continue }
+                guard let row = rows[self.packages[i].name] else { continue }
                 self.packages[i].version = row.version
                 self.packages[i].abi = row.abi
                 self.packages[i].category = row.category
@@ -1397,10 +1418,12 @@ final class AndroidHost: ObservableObject {
 
             let gotIcon = FileManager.default.fileExists(atPath: dest.path)
             guard label != nil || gotIcon else { return }
+            // `label` is a var; snapshot it for the @Sendable closure.
+            let resolvedLabel = label
             await MainActor.run {
                 guard let i = self.packages.firstIndex(where: { $0.name == package })
                 else { return }
-                if let label, !haveLabel { self.packages[i].label = label }
+                if let resolvedLabel, !haveLabel { self.packages[i].label = resolvedLabel }
                 if gotIcon { self.packages[i].iconPath = dest.path }
                 // Written through, so both are on the next launch's first
                 // screen rather than only after the guest has booted again.
@@ -1464,6 +1487,12 @@ final class AndroidHost: ObservableObject {
         guard !files.isEmpty else { return }
         busy = "Sending \(files.count == 1 ? files[0].lastPathComponent : "\(files.count) files")…"
         Task.detached { [weak self] in
+                // The weak capture makes `self` a var, and this closure is
+                // @Sendable, so every closure nested inside it is too. An
+                // immutable alias is not a var capture. See the note on
+                // IOS14-EXPERIMENT.md for why this is an alias and not a
+                // `guard let self`.
+                let huskSelf = self
             var sent = 0
             for file in files {
                 let name = file.lastPathComponent
@@ -1489,7 +1518,7 @@ final class AndroidHost: ObservableObject {
                         "mkdir -p \(Self.quote(directory))")
                     try GuestBridge.shared.push(file, to: "'\(remote)'") { p in
                         Task { @MainActor in
-                            self?.busy = "Sending \(name) — \(Int(p * 100))%"
+                            huskSelf?.busy = "Sending \(name) — \(Int(p * 100))%"
                         }
                     }
                     // Without this the file exists and no app can see it: the
@@ -1501,18 +1530,18 @@ final class AndroidHost: ObservableObject {
                     sent += 1
                 } catch {
                     await MainActor.run {
-                        self?.busy = "Could not send \(name): \(error.localizedDescription)"
+                        huskSelf?.busy = "Could not send \(name): \(error.localizedDescription)"
                     }
                     try? await Task.sleep(nanoseconds: 4_000_000_000)
-                    await MainActor.run { self?.busy = nil }
+                    await MainActor.run { huskSelf?.busy = nil }
                     return
                 }
             }
             let n = sent
             let where_ = (directory as NSString).lastPathComponent
             await MainActor.run {
-                self?.busy = nil
-                self?.say(n == 1 ? "File sent" : "\(n) files sent",
+                huskSelf?.busy = nil
+                huskSelf?.say(n == 1 ? "File sent" : "\(n) files sent",
                           "In Android's \(where_) folder.")
             }
         }
@@ -1531,15 +1560,21 @@ final class AndroidHost: ObservableObject {
     func installFromGuest(_ path: String, name: String) {
         busy = "Installing \(name)…"
         Task.detached { [weak self] in
+                // The weak capture makes `self` a var, and this closure is
+                // @Sendable, so every closure nested inside it is too. An
+                // immutable alias is not a var capture. See the note on
+                // IOS14-EXPERIMENT.md for why this is an alias and not a
+                // `guard let self`.
+                let huskSelf = self
             let out = (try? GuestBridge.shared.shell(
                 "pm install -r \(AndroidHost.quote(path))", timeout: 900)) ?? ""
             let ok = out.contains("Success")
             HuskLog.log("bridge", "install \(name) from guest: "
                       + out.trimmingCharacters(in: .whitespacesAndNewlines))
-            await self?.refreshPackages()
+            await huskSelf?.refreshPackages()
             await MainActor.run {
-                self?.busy = nil
-                self?.say(ok ? "APK installed" : "Install failed",
+                huskSelf?.busy = nil
+                huskSelf?.say(ok ? "APK installed" : "Install failed",
                           ok ? "\(name) is ready to launch."
                              : String(out.prefix(120))
                                  .trimmingCharacters(in: .whitespacesAndNewlines),
@@ -1551,6 +1586,12 @@ final class AndroidHost: ObservableObject {
     func uninstall(_ package: String) {
         busy = "Removing \(package)…"
         Task.detached { [weak self] in
+                // The weak capture makes `self` a var, and this closure is
+                // @Sendable, so every closure nested inside it is too. An
+                // immutable alias is not a var capture. See the note on
+                // IOS14-EXPERIMENT.md for why this is an alias and not a
+                // `guard let self`.
+                let huskSelf = self
             var out = (try? GuestBridge.shared.shell("pm uninstall \(package)",
                                                      timeout: 300)) ?? ""
             // As root, `pm` has no user of its own to act for, and some builds
@@ -1567,12 +1608,12 @@ final class AndroidHost: ObservableObject {
             HuskLog.log("bridge", "uninstall \(package): "
                       + out.trimmingCharacters(in: .whitespacesAndNewlines))
             let label = await MainActor.run {
-                self?.packages.first { $0.name == package }?.label ?? package
+                huskSelf?.packages.first { $0.name == package }?.label ?? package
             }
-            await self?.refreshPackages()
+            await huskSelf?.refreshPackages()
             await MainActor.run {
-                self?.busy = nil
-                self?.say(ok ? "Uninstalled" : "Could not uninstall",
+                huskSelf?.busy = nil
+                huskSelf?.say(ok ? "Uninstalled" : "Could not uninstall",
                           ok ? "\(label) is gone from Android." : label,
                           good: ok)
             }
@@ -1597,6 +1638,12 @@ final class AndroidHost: ObservableObject {
                                    : "\(apks.count) APKs (\(first.lastPathComponent))"
         busy = "Installing \(name)…"
         Task.detached { [weak self] in
+                // The weak capture makes `self` a var, and this closure is
+                // @Sendable, so every closure nested inside it is too. An
+                // immutable alias is not a var capture. See the note on
+                // IOS14-EXPERIMENT.md for why this is an alias and not a
+                // `guard let self`.
+                let huskSelf = self
             // /data/local/tmp is the one directory the shell user owns outright,
             // and the one pm will read an APK from.
             let remotes = (0..<apks.count).map { "/data/local/tmp/husk-install-\($0).apk" }
@@ -1641,7 +1688,7 @@ final class AndroidHost: ObservableObject {
                         : "\(url.lastPathComponent) (\(i + 1)/\(apks.count))"
                     try GuestBridge.shared.push(url, to: remotes[i]) { p in
                         Task { @MainActor in
-                            self?.busy = "Copying \(label) — \(Int(p * 100))%"
+                            huskSelf?.busy = "Copying \(label) — \(Int(p * 100))%"
                         }
                     }
                     // Confirm the whole file landed before asking pm to parse it.
@@ -1658,7 +1705,7 @@ final class AndroidHost: ObservableObject {
                     expected += size
                 }
 
-                await MainActor.run { self?.busy = "Installing \(name)…" }
+                await MainActor.run { huskSelf?.busy = "Installing \(name)…" }
                 // Installing is dex2oat's work and it is emulated, so minutes
                 // rather than seconds for anything large. -t allows test-signed
                 // APKs, which most sideloaded builds are.
@@ -1682,7 +1729,7 @@ final class AndroidHost: ObservableObject {
                               + "(select every .apk together) or the build has no "
                               + "arm64-v8a library and this guest is 64-bit only")
                 }
-                await self?.refreshPackages()
+                await huskSelf?.refreshPackages()
 
                 // Persist it, or it is gone on the next launch.
                 //
@@ -1703,8 +1750,8 @@ final class AndroidHost: ObservableObject {
                         guard QemuRunner.autoSaveEnabled else {
                             HuskLog.log("bridge", "\(name) installed; not saving, "
                                       + "automatic saves are off")
-                            self?.busy = nil
-                            self?.say("APK installed",
+                            huskSelf?.busy = nil
+                            huskSelf?.say("APK installed",
                                       "Save Android to keep it past this session.")
                             return
                         }
@@ -1715,15 +1762,15 @@ final class AndroidHost: ObservableObject {
                         // install was already lost, which is worse than saying
                         // nothing -- it is a true-sounding statement that is no
                         // longer true.
-                        self?.busy = "Saving Android — the screen will freeze briefly"
+                        huskSelf?.busy = "Saving Android — the screen will freeze briefly"
                         QemuRunner.shared.saveState(reason: "installed \(name)") { saved in
-                            self?.busy = nil
+                            huskSelf?.busy = nil
                             if saved {
-                                self?.say("APK installed", "Ready to launch.")
+                                huskSelf?.say("APK installed", "Ready to launch.")
                             } else {
                                 HuskLog.log("bridge", "\(name) is installed but the machine "
                                           + "was not saved; it will be gone next launch")
-                                self?.say("Installed, but not saved",
+                                huskSelf?.say("Installed, but not saved",
                                           "It will be gone on the next launch.",
                                           good: false)
                             }
@@ -1731,8 +1778,8 @@ final class AndroidHost: ObservableObject {
                     }
                 } else {
                     await MainActor.run {
-                        self?.busy = nil
-                        self?.say("Install failed",
+                        huskSelf?.busy = nil
+                        huskSelf?.say("Install failed",
                                   String(out.prefix(120)).trimmingCharacters(
                                       in: .whitespacesAndNewlines),
                                   good: false)
@@ -1740,9 +1787,9 @@ final class AndroidHost: ObservableObject {
                 }
             } catch {
                 HuskLog.log("bridge", "install failed: \(error.localizedDescription)")
-                await MainActor.run { self?.busy = "Install failed: \(error.localizedDescription)" }
+                await MainActor.run { huskSelf?.busy = "Install failed: \(error.localizedDescription)" }
                 Task { try? await Task.sleep(nanoseconds: 5_000_000_000)
-                       await MainActor.run { self?.busy = nil } }
+                       await MainActor.run { huskSelf?.busy = nil } }
             }
         }
     }
@@ -1850,8 +1897,14 @@ final class AndroidHost: ObservableObject {
     func setRenderScale(_ scale: Double, then: @escaping () -> Void = {}) {
         busy = scale >= 1 ? "Restoring full resolution…" : "Reducing render size…"
         Task.detached { [weak self] in
+                // The weak capture makes `self` a var, and this closure is
+                // @Sendable, so every closure nested inside it is too. An
+                // immutable alias is not a var capture. See the note on
+                // IOS14-EXPERIMENT.md for why this is an alias and not a
+                // `guard let self`.
+                let huskSelf = self
             let base = GuestImage.shared.snapshotPins
-            defer { Task { @MainActor in self?.busy = nil; then() } }
+            defer { Task { @MainActor in huskSelf?.busy = nil; then() } }
 
             // Physical density, so the override keeps the same physical scale.
             let densityOut = (try? GuestBridge.shared.shell("wm density")) ?? ""
@@ -1903,10 +1956,16 @@ final class AndroidHost: ObservableObject {
         markLaunched(pkg)
         busy = "Opening…"
         Task.detached { [weak self] in
+                // The weak capture makes `self` a var, and this closure is
+                // @Sendable, so every closure nested inside it is too. An
+                // immutable alias is not a var capture. See the note on
+                // IOS14-EXPERIMENT.md for why this is an alias and not a
+                // `guard let self`.
+                let huskSelf = self
             let out = (try? GuestBridge.shared.shell(
                 "monkey -p \(pkg) -c android.intent.category.LAUNCHER 1", timeout: 60)) ?? ""
             HuskLog.log("bridge", "launch \(pkg): \(out.split(separator: "\n").last ?? "")")
-            await MainActor.run { self?.busy = nil; then() }
+            await MainActor.run { huskSelf?.busy = nil; then() }
         }
     }
 }
