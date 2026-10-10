@@ -540,48 +540,200 @@ registered in it by hand.
 Build configuration:
 
 - `src/app/project.yml` -- floor 15.0 -> 14.0; `HuskJITHelper` target and its
-  `dependencies:` entry removed; `postBuildScripts` (Embed StikJIT) removed
+  `dependencies:` entry removed; `postBuildScripts` (Embed StikJIT) removed;
+  the libqemu dependency and the "Stage guest image" prebuild removed;
+  `projectFormat` pinned to `xcode15_3` unconditionally
 - `scripts/build_ios.sh`, `scripts/build_angle_ios.sh`,
   `scripts/build_rppairing_ios.sh` -- 15.0 -> 14.0
+- `scripts/build_angle_ios.sh` -- the `HUSK_CLANG15_PATCHES` source patch for
+  the discarded-branch Clang bug (section 3). One env var gates it.
+- `scripts/build_gpu_ios.sh` -- the `HUSK_CLANG15_PATCHES` virglrenderer patch
+  for label-before-declaration (C23 N2508, clang 18). One env var gates it.
+- `scripts/ci_build.sh` -- the QEMU and guest-image stages removed
+- `scripts/package_ipa.sh` -- the libqemu staleness check and guest-file
+  validation removed
 
 Swift:
 
 - `src/app/Husk/Compat14.swift` -- **new**. The iOS 15 stand-ins: background,
-  overlay, and the three button styles.
-- **27 existing Swift files** edited for the section 4 sweep:
-  `AppDetailView`, `AppIcon`, `BootScreen`, `ContentView`, `CrashReport`,
-  `DiscoverTab`, `DownloadsTab`, `FilesTab`, `GameStatus`, `HuskKeyboard`,
-  `IncomingFiles`, `ItemPages`, `JITCard`, `JITSetupView`, `Launcher`,
-  `OnboardingView`, `SettingsTab`, `Showcase`, `TechnicalDetails`,
-  `TLAppSettings`, `TLUnityView`, `Theme`, `TranslationLayer`, `WhatsNew`,
-  `HuskDownloadsWidget/DownloadsWidget`, `Play/GoogleSignInSheet`,
-  `Play/StoreView`.
-  `Compat15.swift` is untouched and still required: iOS 14 lacks everything
-  iOS 16 and 17 added as well.
+  overlay, the three button styles, `HuskAsyncImage`, search bar, date
+  formatting, `URLSession.huskDownload`, `huskDialog`, and the two `UIColor`
+  values (`systemMintFallback`, `systemCyanFallback`) that are themselves iOS 15.
+- **33 existing Swift files** edited for the sweeps. All paths below are
+  relative to `src/app/`; the bare names are in `Husk/`:
+  `Husk/AppDetailView`, `Husk/AppIcon`, `Husk/AppTheme`, `Husk/BootScreen`,
+  `Husk/ContentView`, `Husk/CrashReport`, `Husk/DiscoverTab`, `Husk/Downloads`,
+  `Husk/DownloadsTab`, `Husk/FilesTab`, `Husk/GameStatus`, `Husk/HuskBridgeFS`,
+  `Husk/HuskKeyboard`, `Husk/IncomingFiles`, `Husk/ItemPages`, `Husk/JITCard`,
+  `Husk/JITPairing`, `Husk/JITSetupView`, `Husk/Launcher`,
+  `Husk/OnboardingView`, `Husk/SettingsTab`, `Husk/Showcase`,
+  `Husk/TechnicalDetails`, `Husk/TLAppSettings`, `Husk/TLUnityView`,
+  `Husk/Theme`, `Husk/TranslationLayer`, `Husk/VirtualPad`, `Husk/WhatsNew`,
+  `Husk/Play/GoogleSignInSheet`, `Husk/Play/PlayAPI`, `Husk/Play/StoreView`,
+  `HuskDownloadsWidget/DownloadsWidget`.
+  `Husk/Compat15.swift` is untouched and still required: iOS 14 lacks
+  everything iOS 16 and 17 added as well.
 - `.github/workflows/build.yml` -- the `validate` job's banned-API list extended
   to cover the iOS 15 families, and `Compat14.swift` excluded alongside
-  `Compat15.swift`.
+  `Compat15.swift`; `workflow_dispatch` inputs added for `runner-image`,
+  `xcode-version`, `clang15-patches` and `webkit-commit`; job-level env, cache
+  key and a preflight guard added; `qemu` uninstall and the `guests/phase0`
+  cache removed. **The defaults reproduce the working 15.0 build untouched** --
+  `inputs` is empty on `push` and `release`, so those fall back to
+  `macos-26`/`26.6` silently. Check the preflight's `::notice::trigger=` line to
+  confirm which path a run took.
+
+## 4a. Round 6: the last iOS 15 families
+
+Xcode 15.4 on `macos-14`, `HUSK_CLANG15_PATCHES=1`, all four gates from
+sections 3, 3b and 3c passing. First real compile of the tree: **~90 errors**.
+The third round closed all but four families.
+
+### The `HuskBridgeFS` concurrency cluster: 40 errors, all gone
+
+The largest single block in the build. `Task.detached`'s body and
+`MainActor.run`'s body are both `@Sendable`; the weak `[weak self]` capture
+makes `self` a var, and a var may not be read from inside a `@Sendable` body.
+The fix throughout is an immutable alias taken before the closure:
+
+```swift
+let huskSelf = self          // an immutable let, not a var capture
+Task.detached { huskSelf?.load() }
+```
+
+An immutable alias is not a var capture, which is why this works where
+`guard let self else { return }` was rejected earlier -- that inserts a `return`
+and changes the inferred `Success` of a fire-and-forget `Task.detached`, which
+cannot be checked without a compiler.
+
+Eight aliases in `HuskBridgeFS`, two in `TLUnityView`, and snapshots for
+`attempt`, `labels`, `found`, `rows`/`why`, `copies`.
+
+**Why these fire only at 14.0 and not at 15.0 is still unexplained.**
+`SWIFT_VERSION` is `5.0` in both configurations, and this diagnostic is normally
+a warning in Swift 5. The Xcode 26 log for `HuskBridgeFS.swift` would settle
+it. If the cause is toolchain-shaped rather than availability-shaped, the whole
+40-site rewrite is churn the 15.0 build never needed -- so it is worth reading
+that log before accepting the rewrite as *correct* rather than merely working.
+
+### Dialogs: the family that resisted two attempts
+
+`alert(_:isPresented:actions:message:)` and
+`confirmationDialog(_:isPresented:titleVisibility:actions:message:)` are iOS 15.
+Passing `String(...)` instead of a literal does **not** help: it does not change
+which overload the compiler picks, and the build kept reporting 15.0 both times.
+Apple's documentation only ever exposes the current signature, which is why the
+titled pre-15 overloads were hard to find.
+
+The one form that is unambiguously iOS 13 is `alert(isPresented:content:)`,
+whose `content` returns an **`Alert` value** rather than a view. That is what
+`huskDialog` wraps. Two consequences, both real:
+
+- `Alert` has a primary and a secondary button and **no third**. A dialog with
+  three actions cannot be expressed this way at all.
+- A `confirmationDialog` rendered as an `Alert` is a centred dialog on iOS 14,
+  not a sheet from the bottom. Hence the name: it is not that control rendered
+  differently, and the name is meant to make that visible at each call site.
+
+Eleven call sites converted. One behavioural accident worth noting: the
+secondary button is `Alert.Button.cancel`, which dismisses by writing `false`
+through `isPresented` rather than by running an action. Every converted site
+already had a `set:` clause that did exactly what its old `role: .cancel` button
+did -- `updates.dismiss()`, `showcase.asked()`, `guest.dismissUpdate()` -- so
+the cancel paths are unchanged. That was luck, not design, and a twelfth site
+with an inert `set:` would not be so lucky.
+
+`SettingsTab`'s "Which saved machine?" has three actions. It became a sheet
+(`SavedMachineChooser`) listing the two machines. A sheet is the better fit for
+"which one?" anyway, and `Button(action:label:)` plus `.foregroundColor` are
+both fine at 13.
+
+### Three that were mine, and one that was not
+
+- `Compat14.swift` changed `HuskAsyncPhase` to carry `Image` but the
+  `.success(...)` call site still passed a `UIImage`; the replacement string had
+  the wrong indentation and silently matched nothing.
+- `HuskBridgeFS.swift:997` declared `let labelMap = labels` twice. The script
+  that inserts it has **no idempotency guard**, and it ran twice -- once to
+  apply, once inside a verification step. Scripts in `%TEMP%` that rewrite
+  source need a guard for this reason, not just a good pattern.
+- `UIColor.systemMint` and `.systemCyan` are **themselves iOS 15**. Substituting
+  the UIColor palette for the SwiftUI one moved the problem rather than solving
+  it; `systemTeal` and `systemIndigo` are iOS 13, which is why only two of the
+  four errored. Now explicit values in `Compat14.swift`.
+- `DownloadsTab` used `swipeActions`, which is iOS 15 and which no inventory
+  here had caught -- it reached the compiler first. iOS 14 has no swipe actions;
+  `contextMenu` is the closest affordance and the trade is long-press for swipe.
+
+**`GameStatus.swift:77` is reconstructed and must be checked by eye.** Round 1
+rewrote a line to `.foregroundColor(.white, result.color)`, and no SwiftUI
+overload takes two foreground styles -- so whatever the original was, it was not
+that. The pre-sweep text was gone before any backup existed. It is read as a
+status ring: the neutral disc stays, so the mark reads against any icon
+artwork, and the result colour becomes the ring around it. The reasoning is in a
+comment at the site.
+
+### One bug the brace walk caught
+
+The `Close Husk` conversion's match pattern covered only the dialog header and
+the `Button("Close Husk") {` line. Replacing that removed the Button's opening
+brace while leaving its body, its closing brace, and the `} message: { ... }`
+block -- which had by then become a duplicate of the `message:` argument already
+in the `huskDialog` call. Net: one stray `}`.
+
+It compiled nowhere near as many other conversion mistakes have, because a stray
+brace often still balances by accident. What caught it was walking brace depth
+per line and reporting the first line that dropped below the level it opened
+at -- and confirming against the pre-round-2 snapshot that the imbalance was new
+rather than inherited. Every other conversion matched the full block to the
+closing brace of the message closure, which is why it was one and not four.
+
+Two false positives worth recording so they are not re-investigated:
+`Launcher.swift:455` matches "comma inside `foregroundColor`" because the comma
+is inside `Color(red:green:blue:)`; `GameStatus.swift:79` because the comma is
+in the reconstruction comment. And `verify_conc.py`'s FilesTab complaint is a
+known over-broad check -- the `var`s it flags are local declarations *inside* a
+`Task.detached` body, capturing nothing, and the snapshot is taken on the next
+line.
+
+### Also removed
+
+`BGContinuedProcessingTask` is **iOS 26.0** and absent from the iOS 17.5 SDK
+entirely, so no `#available` can rescue it. `Downloads.swift` lost 94 lines and
+`JITPairing.swift` three functions; both had fallbacks already.
+
+The VM build pipeline is gone: QEMU stages in `ci_build.sh`, the libqemu
+dependency and guest-image prebuild in `project.yml`, guest validation in
+`package_ipa.sh`, and the `qemu` uninstall plus `guests/phase0` cache in
+`build.yml`. `AndroidHost` stays -- it is the shared package model the
+translator uses, not VM code. Only `QemuRunner.swift` (99 KB),
+`GuestImage.swift` (52 KB) and `GuestManifest.swift` (7 KB) are pure VM, and
+their ~250 Swift references are still to be swept.
 
 ## 7. If you continue
 
-In order, because each step can end it cheaply:
-
-1. `WEBKIT_COMMIT` for a 2024-era WebKit, then `build_angle_ios.sh` on a macOS
-   14 Mac. **This is the experiment**; everything else is downstream. If ANGLE
-   fails you do not get a build error, you get a *slow* one -- no EGL/GLES, so
-   the software renderer. "It works but everything crawls" means this failed
-   quietly.
-2. If ANGLE builds, regenerate the project and build the app target. Expect
-   deprecation warnings (fine, and documented in `Compat14.swift`) plus some
-   genuine availability errors from APIs neither section 4 nor the checker knew
-   about. That compiler output is the real inventory; it is better than any
-   grep of mine.
-3. Then decide about Built-in JIT. Removing it costs the on-device pairing flow
+1. **Push, and check what CI actually has.** The build that produced the round
+   6 error list was compiling a stale `src/app/Husk/Play/`: `StoreView`,
+   `PlayAPI` and `GoogleSignInSheet` all reported errors at lines this tree had
+   already fixed. The line numbers prove it -- CI's `StoreView:29` is this
+   tree's line 31, so it is three lines short and does not have the `searchable`
+   conversion at all. Fix that before reading another error list.
+2. **Delete the VM Swift.** `QemuRunner.swift`, `GuestImage.swift`,
+   `GuestManifest.swift`, then sweep ~250 references across 20 files. Pure
+   deletion, and unlike everything above every miss is a compile error with no
+   mechanical rescue -- budget for reading each one.
+3. **Decide about Built-in JIT.** Removing it costs the on-device pairing flow
    (`JITPairing.swift`, `JITSetup.swift`, `JITCard`, `SettingsTab`) -- real
    surface area to delete for a feature that could never load at 14.0 anyway.
    Or leave it out and let StikDebug, TrollStore or a jailbreak carry JIT,
    which is what a 14.x user would have regardless.
+4. **Read the Xcode 26 log for `HuskBridgeFS.swift`** before shipping the
+   concurrency rewrite. See 4a.
 
 Section 2 still applies to all of it: the only GitHub-hosted image that can run
 Xcode 15.4 is `macos-14`, unsupported from 2026-11-02. These builds have to
 happen on a local or self-hosted macOS 14 machine.
+
+Nothing in this experiment has been compiled on a machine with a Swift compiler
+other than CI. Every check here is brace balance, regex residue, mask audits
+and reading.
