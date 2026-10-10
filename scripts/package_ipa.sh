@@ -144,13 +144,15 @@ for f in ; do
     fi
 done
 
-# Built-in StikJIT's helper (without it the app still installs and runs with
-# StikDebug, but its JIT setup would offer a method that can only fail), and the
-# widget that draws the download Live Activity.
-for f in "$APP/PlugIns/HuskJITHelper.appex/HuskJITHelper" \
-         "$APP/PlugIns/HuskDownloadsWidget.appex/HuskDownloadsWidget" \
-         "$APP/Frameworks/StikJIT.framework/StikJIT" \
-         "$APP/Frameworks/StikJIT.framework/Info.plist"; do
+# The widget that draws the download Live Activity.
+#
+# EXPERIMENTAL (iOS 14): Built-in StikJIT's helper (HuskJITHelper.appex) and
+# StikJIT.framework are no longer built, so they are no longer validated here --
+# checking for them rejected a correct bundle. The target had a 26.0 deployment
+# target, which no Xcode shipping an iOS 17.5 SDK can build at all, and the
+# "Embed StikJIT" phase went with it. JIT is carried by StikDebug or a
+# jailbreak instead. See IOS14-EXPERIMENT.md.
+for f in "$APP/PlugIns/HuskDownloadsWidget.appex/HuskDownloadsWidget"; do
     if [ ! -f "$f" ]; then
         echo "  MISSING  ${f#$APP/}" >&2
         rc=1
