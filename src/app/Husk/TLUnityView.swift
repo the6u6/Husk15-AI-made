@@ -467,7 +467,8 @@ struct TLCocosAttemptView: View {
     /// Where the player has put the pad's controls in this game, and whether they are moving them now.
     @State private var padLayout = PadLayout()
     @State private var editingPad = false
-    @State private var padSelected: String?
+    // Never set in init and never given a default, in the original too.
+    @State private var padSelected: String? = nil
     /// This game's own settings (TLAppSettings), read once as the screen opens.
     @State private var settings: TLAppSettings
     /// Nothing over the picture. Starts as the game's "Hide the interface" setting says, and three fingers tapped together flip it.

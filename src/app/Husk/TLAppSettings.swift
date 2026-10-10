@@ -126,7 +126,9 @@ struct TLAppSettingsView: View {
     @State private var name: String
     @State private var dataSize: String = "…"
     @State private var confirmReset = false
-    @State private var nameFocused: Bool
+    // @FocusState carried a default; @State does not, and the init below
+    // was written against that default. Named here so the init is complete.
+    @State private var nameFocused: Bool = false
 
     init(app: TLApp) {
         self.app = app
