@@ -40,24 +40,24 @@ on:
         # macos-14 is unsupported by GitHub from 2026-11-02.
         description: "Runner image. Must match the Xcode below"
         type: choice
-        default: macos-26
-        options: [macos-26, macos-15, macos-14]
+        default: macos-14
+        options: [macos-14]
       xcode-version:
         description: "Xcode version. Pinned, not latest-stable, so CI stays reproducible. Use 15.4 for the iOS 14 experiment."
         type: string
-        default: "26.6"
+        default: "15.4"
       # The iOS 14 experiment needs three inputs set together: macos-14,
       # xcode-version 15.4, and angle-patch yes. These three are the whole
       # experiment; the defaults are the working 15.0 build.
       angle-patch:
         description: "Patch ANGLE's redundant static_assert for Apple clang 15. Required with Xcode 15.x; see build_angle_ios.sh"
         type: choice
-        default: "no"
+        default: "yes"
         options: ["no", "yes"]
       webkit-commit:
         description: "Pin WebKit to this commit instead of tracking main. Only needed if the ANGLE patch does not get past the build; a 2024-era sha works because the feature does not exist there"
         type: string
-        default: ""
+        default: "1da41fe0a9805d4710519d5409492a557fbde951"
       cache:
         description: "Use the dependency/QEMU caches"
         type: boolean
@@ -291,7 +291,7 @@ jobs:
       - name: select Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: ${{ inputs['xcode-version'] || github.event.inputs['xcode-version'] || '26.6' }}
+          xcode-version: ${{ inputs['xcode-version'] || github.event.inputs['xcode-version'] || '15.4' }}
 
       - name: preflight
         run: |
@@ -308,7 +308,7 @@ jobs:
           echo "::notice::trigger=$event"
           echo "::notice::inputs.runner-image='${{ inputs['runner-image'] }}'  github.event.inputs.runner-image='${{ github.event.inputs['runner-image'] }}'"
           echo "::notice::inputs.xcode-version='${{ inputs['xcode-version'] }}'  github.event.inputs.xcode-version='${{ github.event.inputs['xcode-version'] }}'"
-          echo "::notice::ANGLE_PATCH_RESOURCEMAP=${ANGLE_PATCH_RESOURCEMAP:-unset}  WEBKIT_COMMIT=${WEBKIT_COMMIT:-1da41fe0a9805d4710519d5409492a557fbde951}"
+          echo "::notice::ANGLE_PATCH_RESOURCEMAP=${ANGLE_PATCH_RESOURCEMAP:-unset}  WEBKIT_COMMIT=${WEBKIT_COMMIT:-unset}"
           if [ "$event" != "workflow_dispatch" ]; then
             echo "::warning::this is a '$event' run, so the workflow_dispatch inputs are empty and the runner and Xcode fell back to their defaults. Use the 'Run workflow' button to choose a runner image."
           fi
