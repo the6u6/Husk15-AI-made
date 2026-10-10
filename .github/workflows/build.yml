@@ -40,12 +40,12 @@ on:
         # macos-14 is unsupported by GitHub from 2026-11-02.
         description: "Runner image. Must match the Xcode below"
         type: choice
-        default: macos-26
-        options: [macos-26, macos-15, macos-14]
+        default: macos-14
+        options: [macos-14]
       xcode-version:
         description: "Xcode version. Pinned, not latest-stable, so CI stays reproducible. Use 15.4 for the iOS 14 experiment."
         type: string
-        default: "26.6"
+        default: "15.4"
       # The iOS 14 experiment needs three inputs set together: macos-14,
       # xcode-version 15.4, and angle-patch yes. These three are the whole
       # experiment; the defaults are the working 15.0 build.
@@ -77,7 +77,7 @@ jobs:
   # touches no iOS SDK.
   validate:
     name: validate project and iOS 15 floor
-    runs-on: macos-15
+    runs-on: macos-14
     if: github.event_name == 'pull_request'
     timeout-minutes: 15
 
@@ -439,7 +439,7 @@ jobs:
             build/ios-arm64/sysroot
             build/ios-arm64/lib
             guests/phase0
-          key: husk-macos-arm64-${{ inputs['xcode-version'] || github.event.inputs['xcode-version'] || '26.6' }}-${{ steps.floor.outputs.value }}-angle${{ inputs['angle-patch'] == 'yes' && '-patch' || '' }}${{ inputs['webkit-commit'] || 'main' }}-${{ hashFiles('scripts/sources.sh') }}
+          key: husk-macos-arm64-${{ inputs['xcode-version'] || github.event.inputs['xcode-version'] || '15.4' }}-${{ steps.floor.outputs.value }}-angle${{ inputs['angle-patch'] == 'yes' && '-patch' || '' }}${{ inputs['webkit-commit'] || 'main' }}-${{ hashFiles('scripts/sources.sh') }}
 
       - name: invalidate the QEMU stamp
         run: |
