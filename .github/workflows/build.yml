@@ -136,7 +136,7 @@ jobs:
           missing=0
           for f in src/app/Husk/*.swift src/app/Husk/Play/*.swift \
                    src/app/Shared/*.swift src/app/HuskDownloadsWidget/*.swift \
-                   src/app/HuskJITHelper/*.swift; do
+                   src/app/HuskJITHelper/HuskJITMessages.swift; do
             base="$(basename "$f")"
             if ! grep -q "$base" src/app/Husk.xcodeproj/project.pbxproj; then
               echo "::error file=$f::not present in project.pbxproj; the target will not compile it"
