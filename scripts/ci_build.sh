@@ -48,6 +48,31 @@ fi
 step "on-device pairing (Rust)"
 ./scripts/build_rppairing_ios.sh
 
+# Translation-layer resources that go in the bundle as resources rather than as
+# code: Android's CA certificates and system fonts for Flutter, and Husk's
+# Dalvik runtime for Java apps. Both are derived from the Lineage guest image,
+# which build_android_system.sh and build_java_runtime.sh expect to already be
+# unpacked somewhere -- historically a path on someone's external drive, and in
+# no CI at all until now.
+#
+# Optional by design: without them the app still builds and every engine except
+# Java and Flutter works, so a failure here warns rather than stopping the build.
+# Set HUSK_SKIP_TRANSLATION_RESOURCES=1 to skip the ~1.1 GB image download
+# entirely, which is the right call for a pull-request build.
+if [ "${HUSK_SKIP_TRANSLATION_RESOURCES:-0}" != "1" ]; then
+    step "translation-layer resources (CA certs, fonts, Java runtime)"
+    # download the guest image and r8.jar into build/, which the workflow caches
+    ./scripts/fetch_translation_resources.sh || echo "warning: resource fetch failed; continuing without" >&2
+    # CA certificates + system fonts, for Flutter and for TLS
+    [ -d build/android-system ] || ./scripts/build_android_system.sh build/lineage-vda.qcow2 \
+        || echo "warning: android-system failed; Flutter apps will have no system fonts" >&2
+    # libcore, ICU, tzdata, conscrypt and Husk's Java framework, for Java apps
+    ./scripts/build_java_runtime_ci.sh build/lineage-vda.qcow2 \
+        || echo "warning: java-runtime failed; Java apps will not start" >&2
+else
+    echo "==> HUSK_SKIP_TRANSLATION_RESOURCES=1: skipping CA certs, fonts and the Java runtime"
+fi
+
 step "app + IPA"
 mkdir -p "$(dirname "$OUT")"
 ./scripts/package_ipa.sh "$OUT"

@@ -447,14 +447,20 @@ jobs:
       - name: install build tools
         run: |
           set -euo pipefail
-          # meson and ninja for the QEMU and virglrenderer cross builds,
-          # pkg-config for their .pc files, xcodegen to regenerate the project
-          # from project.yml, and qemu purely for qemu-img, which the app
-          # target's pre-build phase calls to create the two blank disk seeds.
-          # qemu is NOT installed: it was here only for qemu-img, which made the
-          # two blank disk seeds the VM booted from. Both the seed step and QEMU
-          # itself are gone (VM removal).
-          brew install meson ninja pkg-config xcodegen
+          # meson and ninja for the virglrenderer cross build, pkg-config for
+          # its .pc files, xcodegen to regenerate the project from project.yml.
+          #
+          # qemu is back, but only for qemu-img: it was removed when the VM went,
+          # because the only thing needing qemu-img was the pre-build phase that
+          # made the VM's two blank disk seeds. Those are gone, and qemu-img is
+          # needed again for an unrelated reason -- converting the Lineage guest
+          # image to raw so its system partition can be unpacked for the
+          # translation layer's CA certificates, fonts and Java runtime.
+          #
+          # e2fsprogs is for debugfs, which reads that partition. openjdk is for
+          # src/java-framework/build.sh, which compiles and dexes Husk's Java
+          # framework.
+          brew install meson ninja pkg-config xcodegen qemu e2fsprogs openjdk
 
       - name: install the Rust toolchain
         run: |
@@ -484,6 +490,19 @@ jobs:
           echo "app deployment floor: $v"
           echo "value=$v" >> "$GITHUB_OUTPUT"
 
+      - name: restore the guest image
+        # Deliberately its own cache, and deliberately keyed on nothing but the
+        # release asset: the image is a 1.1 GB fixed download, and folding it
+        # into the cache key below -- which varies with Xcode version, the
+        # deployment floor and the ANGLE patch -- would store one copy per
+        # configuration. Everything derived from it goes in the cache below.
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/lineage-vda.qcow2
+            build/r8.jar
+          key: husk-guest-image-${{ hashFiles('scripts/fetch_translation_resources.sh') }}
+
       - name: restore caches
         # Deliberately does NOT cache QEMU's meson build directory. The
         # dependency stages stamp themselves in build/stamps, so restoring that
@@ -500,6 +519,14 @@ jobs:
             build/stamps
             build/ios-arm64/sysroot
             build/ios-arm64/lib
+            # Translation-layer resources: the unpacked system partition and
+            # everything built from it. Re-unpacking is a multi-minute read of
+            # 1.1 GB, and it is deterministic, so caching it is safe.
+            build/system.img
+            build/java-apex-root
+            build/java-framework-files
+            build/android-system
+            build/java-runtime
           key: husk-macos-arm64-${{ inputs['xcode-version'] || github.event.inputs['xcode-version'] || '26.6' }}-${{ steps.floor.outputs.value }}-patch${{ inputs['clang15-patches'] == 'yes' && '1' || '0' }}${{ inputs['webkit-commit'] || 'main' }}-${{ hashFiles('scripts/sources.sh') }}
 
       - name: invalidate the QEMU stamp
