@@ -166,6 +166,7 @@ done
 #   android-system/  CA certificates and system fonts. Flutter needs both.
 #   java-runtime/    libcore, ICU, tzdata, conscrypt and Husk's Java framework.
 #                    Java apps (libGDX and the like) cannot start without it.
+missing_resources=0
 for d in android-system java-runtime; do
     if [ -d "$APP/$d" ]; then
         printf "  ok       %-28s %s\n" "$d/" "$(du -sh "$APP/$d" | cut -f1)"
@@ -175,12 +176,16 @@ for d in android-system java-runtime; do
             android-system) echo "            Flutter apps will have no CA certs or system fonts" >&2 ;;
             java-runtime)   echo "            Java apps (libGDX and the like) will not start" >&2 ;;
         esac
-        if [ "${HUSK_REQUIRE_TRANSLATION_RESOURCES:-0}" = "1" ]; then
-            echo "error: HUSK_REQUIRE_TRANSLATION_RESOURCES=1 and $d/ is absent" >&2
-            rc=1
-        fi
+        missing_resources=1
     fi
 done
+
+# Its own message, and its own exit: `rc` below means installability, and a
+# bundle missing the Java runtime installs fine.
+[ "${HUSK_REQUIRE_TRANSLATION_RESOURCES:-0}" = "1" ] && [ "$missing_resources" = 1 ] && {
+    echo "error: HUSK_REQUIRE_TRANSLATION_RESOURCES=1 and android-system/ or java-runtime/ is absent" >&2
+    exit 1
+}
 
 [ $rc -eq 0 ] || { echo "==> bundle is not installable; refusing to package" >&2; exit 1; }
 
