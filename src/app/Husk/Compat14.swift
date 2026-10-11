@@ -165,6 +165,25 @@ extension View {
 // Left as the iOS 15 call, which means the file will not compile at 14.0 until
 // someone writes that sheet.
 
+// MARK: - One alert per view
+
+extension View {
+    /// The one alert this view shows, chosen by `make`.
+    ///
+    /// Chaining several `.alert(isPresented:)` modifiers on a single view does
+    /// not work on iOS 13/14: SwiftUI presents only the last one and drops the
+    /// rest, with no diagnostic and no build error. A button that sets a
+    /// `@State` which only a dropped alert reads therefore does nothing, ever,
+    /// and the code around it still compiles and still type-checks.
+    ///
+    /// So the count is one by construction. Which one is carried by state --
+    /// the idea behind `.alert(_:isPresented:presenting:)`, backported here.
+    func huskOneAlert(isPresented: Binding<Bool>,
+                      alert make: @escaping () -> Alert) -> some View {
+        alert(isPresented: isPresented, content: make)
+    }
+}
+
 // MARK: - AsyncImage (iOS 15.0)
 
 /// `AsyncImage`'s phase, so call sites keep reading the same shape.

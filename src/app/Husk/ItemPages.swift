@@ -94,12 +94,15 @@ struct GamePage: View {
     @ObservedObject private var jit = JITCoordinator.shared
     @Environment(\.presentationMode) private var huskPM
     @State private var playing = false
-    @State private var confirmRemove = false
     @State private var backupFile: URL?
     @State private var savesBusy = false
     @State private var savesMessage: String?
-    @State private var confirmRestore: URL?
-    @State private var confirmQuit = false
+    /// Which dialog is showing. One `.alert` per view on iOS 13/14 -- see
+    /// huskOneAlert -- and these three used to be three separate modifiers,
+    /// of which only the last could ever be presented. "Close Husk to Play"
+    /// was one of the two that silently did nothing.
+    @State private var dialog: Dialog? = nil
+    private enum Dialog { case quit, remove, restore(URL) }
 
     private var runs: Bool { app.report?.canRun == true }
 
@@ -224,7 +227,7 @@ struct GamePage: View {
             }
 
             Section {
-Button(action: { confirmRemove = true }) {
+Button(action: { dialog = .remove }) {
                     Label("Remove Game", systemImage: "trash")
                 }
                     .foregroundColor(Color.red)
@@ -237,33 +240,44 @@ Button(action: { confirmRemove = true }) {
         .sheet(item: Binding(get: { backupFile.map(IdentifiedURL.init) }, set: { backupFile = $0?.url })) { f in
             ShareSheet(items: [f.url])
         }
-        .huskDialog(title: "Replace \(app.label)'s saves?",
-                    message: "What \(app.label) has saved now is replaced by the backup. "
-                            + "Back up first if you want to keep it.",
-                    isPresented: Binding(get: { confirmRestore != nil },
-                                         set: { if !$0 { confirmRestore = nil } }),
-                    dismiss: "Replace", dismissDestructive: true) {
-            if let url = confirmRestore { restore(url) }
-        }
-        .huskDialog(title: "Close Husk?",
-                    message: "\(blockedBy ?? "The other game") is still loaded and only one game "
-                            + "can run per session. Husk closes; open it again and \(app.label) "
-                            + "starts by itself.",
-                    isPresented: $confirmQuit,
-                    dismiss: "Close Husk") {
-            // The game that is loaded is closed with Husk, which is the normal way out for it, not a crash; and this
-            // one starts by itself when Husk is opened again.
-            Router.shared.switchTo(app.id)
-            CrashReport.gameEnded()
-            HuskLog.flushNow()
-            exit(0)
-        }
-        .huskDialog(title: "Remove \(app.label)?",
-                    message: "The game and everything it saved here are deleted from Husk.",
-                    isPresented: $confirmRemove,
-                    dismiss: "Remove", dismissDestructive: true) {
-            huskPM.wrappedValue.dismiss()
-            store.remove(app)
+        .huskOneAlert(isPresented: Binding(get: { dialog != nil },
+                                          set: { if !$0 { dialog = nil } })) {
+            switch dialog {
+            case .quit:
+                return Alert(
+                    title: Text("Close Husk?"),
+                    message: Text("\(blockedBy ?? "The other game") is still loaded and only one "
+                                  + "game can run per session. Husk closes; open it again and "
+                                  + "\(app.label) starts by itself."),
+                    dismissButton: .default(Text("Close Husk")) {
+                        // The game that is loaded is closed with Husk, which is
+                        // the normal way out for it, not a crash; and this one
+                        // starts by itself when Husk is opened again.
+                        Router.shared.switchTo(app.id)
+                        CrashReport.gameEnded()
+                        HuskLog.flushNow()
+                        exit(0)
+                    })
+            case .remove:
+                return Alert(
+                    title: Text("Remove \(app.label)?"),
+                    message: Text("The game and everything it saved here are deleted from Husk."),
+                    dismissButton: .destructive(Text("Remove")) {
+                        huskPM.wrappedValue.dismiss()
+                        store.remove(app)
+                    })
+            case .restore(let url):
+                return Alert(
+                    title: Text("Replace \(app.label)'s saves?"),
+                    message: Text("What \(app.label) has saved now is replaced by the backup. "
+                                  + "Back up first if you want to keep it."),
+                    dismissButton: .destructive(Text("Replace")) { restore(url) })
+            case .none:
+                // Unreachable: the modifier only presents when `dialog` is set.
+                // Exists because the compiler cannot know that, and a blank
+                // alert beats a crash if it ever were.
+                return Alert(title: Text(""), dismissButton: .cancel(Text("")))
+            }
         }
         .id(jit.attachGeneration)
         .onAppear {
@@ -320,7 +334,7 @@ Button(action: { confirmRemove = true }) {
 
     private func pickRestore() {
         HuskFilePicker.present(types: [.zip], multiple: false) { urls in
-            if let url = urls.first { confirmRestore = url }
+            if let url = urls.first { dialog = .restore(url) }
         } onFail: { savesMessage = $0 }
     }
 
@@ -359,7 +373,7 @@ Button(action: { confirmRemove = true }) {
                 BigButton(title: "Add Geometry Dash First", systemImage: "plus", prominent: false) { }.disabled(true)
             }
         } else if blockedBy != nil {
-            BigButton(title: "Close Husk to Play", systemImage: "xmark.circle", prominent: false) { confirmQuit = true }
+            BigButton(title: "Close Husk to Play", systemImage: "xmark.circle", prominent: false) { dialog = .quit }
         } else if !Launcher.jitOn {
             if jit.busy {
                 HStack(spacing: 10) { ProgressView(); Text(jit.status ?? "Turning on JIT…").foregroundColor(.secondary) }

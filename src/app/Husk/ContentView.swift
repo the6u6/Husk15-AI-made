@@ -36,6 +36,41 @@ struct ContentView: View {
     @ObservedObject private var updates = AppUpdates.shared
     @State private var showWhatsNew = false
 
+    /// Which of the three dialogs this view can show, if any.
+    ///
+    /// iOS 13/14 presents only the LAST `.alert(isPresented:)` chained on a
+    /// view and drops the rest with no diagnostic -- see huskOneAlert. These
+    /// three used to be three separate modifiers, so "Husk is available" and
+    /// "Metadata Updated" were never reachable and only the guest update
+    /// appeared.
+    ///
+    /// They are derived from outside state rather than set by a button, so this
+    /// stays computed rather than becoming a stored enum. The order is the
+    /// order the modifiers were in, which is the only tie-break that was ever
+    /// meaningful -- the update prompt was the only one that ever worked.
+    private var activeDialog: ContentDialog? {
+        if updates.available != nil && !showOnboarding && !showWhatsNew && crash.pending == nil {
+            return .huskUpdate
+        }
+        if showcase.shouldAsk && !showOnboarding { return .metadata }
+        if guest.update.isSomething { return .guestUpdate }
+        return nil
+    }
+
+    private enum ContentDialog { case huskUpdate, metadata, guestUpdate }
+
+    /// The alert's own dismiss path: SwiftUI writes false through `isPresented`
+    /// for every way out of an Alert, including the buttons, so each case has to
+    /// put the underlying state back the way it was.
+    private func dismissActiveDialog() {
+        switch activeDialog {
+        case .huskUpdate: updates.dismiss()
+        case .metadata: showcase.asked()
+        case .guestUpdate: guest.dismissUpdate()
+        case .none: break
+        }
+    }
+
     var body: some View {
         ZStack {
             // The tabs, and the guest on top of them.
@@ -134,19 +169,8 @@ struct ContentView: View {
         .fullScreenCover(isPresented: $showWhatsNew) {
             WhatsNewSheet { WhatsNew.markSeen(); showWhatsNew = false }
         }
-        // A newer Husk is on GitHub.
-        .huskDialog(title: "Husk \(updates.available?.version ?? "") Is Available",
-                    message: "You have \(AppUpdates.current). The new version's IPA is on "
-                            + "its release page.",
-                    isPresented: Binding(
-                        get: { updates.available != nil && !showOnboarding
-                              && !showWhatsNew && crash.pending == nil },
-                        set: { if !$0 { updates.dismiss() } }),
-                    primary: "View Release", secondary: "Not Now",
-                    secondaryAction: { updates.dismiss() }) {
-            if let page = updates.available?.page { UIApplication.shared.open(page) }
-            updates.dismiss()
-        }
+        // The alert itself is further down the chain: one per view on iOS
+        // 13/14, and this view has three. See huskOneAlert.
         // .task is iOS 15. onAppear + Task is the same thing with the
         // cancellation thrown away; there is nothing to cancel here.
         .onAppear { Task { await updates.check() } }
@@ -157,14 +181,6 @@ struct ContentView: View {
         // spelled out.
         .onAppear { showcase.refresh(for: showcasePackages) }
         .onChange(of: showcasePackages) { _ in showcase.refresh(for: showcasePackages) }
-        .huskDialog(title: "Metadata Updated",
-                    message: "Metadata for \(showcase.updates.count) of your app"
-                            + "\(showcase.updates.count == 1 ? "" : "s") has been updated. "
-                            + "Would you like to download the updates?",
-                    isPresented: Binding(get: { showcase.shouldAsk && !showOnboarding },
-                                         set: { if !$0 { showcase.asked() } }),
-                    primary: "Download", secondary: "Not Now",
-                    secondaryAction: { showcase.asked() }) { showcase.downloadUpdates() }
         // An APK shared to Husk: where does it go?
         .sheet(isPresented: Binding(get: { !incoming.waiting.isEmpty },
                                     set: { if !$0 { incoming.discard() } })) {
@@ -188,12 +204,42 @@ struct ContentView: View {
         .onChange(of: jit.attachGeneration) { _ in evaluate() }
         // Asking rather than downloading. Two gigabytes over someone's cellular
         // connection is not a decision to make on their behalf.
-        .huskDialog(title: guest.update.title, message: guest.update.detail,
-                    isPresented: Binding(
-                        get: { guest.update.isSomething },
-                        set: { if !$0 { guest.dismissUpdate() } }),
-                    primary: "Download", secondary: "Not now",
-                    secondaryAction: { guest.dismissUpdate() }) { guest.applyUpdate() }
+        //
+        // All three of this view's dialogs are here, in one modifier, because
+        // iOS 13/14 presents only the last .alert(isPresented:) on a view. Only
+        // this one -- the last of the three -- could appear before; "Husk is
+        // available" and "Metadata Updated" have never been reachable.
+        .huskOneAlert(isPresented: Binding(get: { activeDialog != nil },
+                                          set: { if !$0 { dismissActiveDialog() } })) {
+            switch activeDialog {
+            case .huskUpdate:
+                return Alert(
+                    title: Text("Husk \(updates.available?.version ?? "") Is Available"),
+                    message: Text("You have \(AppUpdates.current). The new version's IPA is "
+                                  + "on its release page."),
+                    primaryButton: .default(Text("View Release")) {
+                        if let page = updates.available?.page { UIApplication.shared.open(page) }
+                        updates.dismiss()
+                    },
+                    secondaryButton: .cancel(Text("Not Now")))
+            case .metadata:
+                return Alert(
+                    title: Text("Metadata Updated"),
+                    message: Text("Metadata for \(showcase.updates.count) of your app"
+                                  + "\(showcase.updates.count == 1 ? "" : "s") has been "
+                                  + "updated. Would you like to download the updates?"),
+                    primaryButton: .default(Text("Download")) { showcase.downloadUpdates() },
+                    secondaryButton: .cancel(Text("Not Now")) { showcase.asked() })
+            case .guestUpdate:
+                return Alert(
+                    title: Text(guest.update.title),
+                    message: Text(guest.update.detail),
+                    primaryButton: .default(Text("Download")) { guest.applyUpdate() },
+                    secondaryButton: .cancel(Text("Not now")) { guest.dismissUpdate() })
+            case .none:
+                return Alert(title: Text(""), dismissButton: .cancel(Text("")))
+            }
+        }
         .sheet(isPresented: $massTest.shareResults) { ShareSheet(items: [MassTest.resultsURL]) }
         .onAppear {
             crash.checkPreviousRun()
