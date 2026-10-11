@@ -154,20 +154,48 @@ PY
 fi
 
 # ---- 3. the APEX modules, and the two /system/framework files -------------------
+# build_java_runtime.sh reads an "APEX root": one directory per module, each
+# holding that module's mounted layout (com.android.art/javalib, and so on).
 MODULES="com.android.art com.android.i18n com.android.tzdata com.android.conscrypt"
 echo "==> extracting $MODULES"
 rm -rf "$APEX_OUT"; mkdir -p "$APEX_OUT"
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
 
+# What the image holds, so a miss is a report rather than a shrug.
+apex_listing() {
+  for d in /system/apex /apex; do
+    echo "    $d:" >&2
+    "$DEBUGFS" -R "ls -p $d" "$SYS_IMG" 2>/dev/null | tr -s ' ' '\n' | grep -v '^/$' | head -40 >&2 \
+      || echo "      (absent)" >&2
+  done
+}
+
 for m in $MODULES; do
-  if ! "$DEBUGFS" -R "dump /system/apex/$m.capex $WORK/$m.capex" "$SYS_IMG" 2>/dev/null; then
-    warn "$m.capex not in the image; java-runtime will be incomplete"
+  # Where a module can be. Partition-backed APEXes are .capex, file-backed ones
+  # .apex, and the two live in different directories depending on the build --
+  # assuming one path is what produced FileNotFoundError from zipfile.
+  found=""
+  for root in /system/apex /apex; do
+    for ext in capex apex; do
+      p="$root/$m.$ext"
+      if "$DEBUGFS" -R "dump $p $WORK/$m.zip" "$SYS_IMG" 2>/dev/null && [ -s "$WORK/$m.zip" ]; then
+        found="$p"; break 2
+      fi
+    done
+  done
+  if [ -z "$found" ]; then
+    warn "$m is not in the image at any known root"
+    echo "    tried: /system/apex/$m.{capex,apex} and /apex/$m.{capex,apex}" >&2
+    apex_listing
     continue
   fi
+  echo "    $m <- $found"
+  rm -f "$WORK/$m.zip"
+
   # A capex is a zip that wraps either apex_payload.img directly or an
   # `original_apex` zip holding it. build_android_system.sh unwraps both shapes;
   # so does this.
-  python3 - "$WORK/$m.capex" "$WORK/$m.img" <<'PY'
+  python3 - "$WORK/$m.zip" "$WORK/$m.img" <<'PY'
 import sys, zipfile
 src, dst = sys.argv[1], sys.argv[2]
 z = zipfile.ZipFile(src)
@@ -175,8 +203,14 @@ if 'original_apex' in z.namelist():
     z = zipfile.ZipFile(z.open('original_apex'))
 open(dst, 'wb').write(z.read('apex_payload.img'))
 PY
+  # rdump of / produces $WORK/<m>/<contents>, so the module's own directory has
+  # to be made here. Copying straight into $APEX_OUT puts javalib/ and lib64/
+  # at the apex root, and build_java_runtime.sh looks for
+  # com.android.art/javalib/core-oj.jar.
+  mkdir -p "$WORK/$m" "$APEX_OUT/$m"
   "$DEBUGFS" -R "rdump / $WORK/$m" "$WORK/$m.img" 2>/dev/null
-  [ -d "$WORK/$m" ] && cp -R "$WORK/$m/." "$APEX_OUT/" && rm -rf "$WORK/$m"
+  cp -R "$WORK/$m/." "$APEX_OUT/$m/" 2>/dev/null
+  [ -n "$(ls -A "$APEX_OUT/$m" 2>/dev/null)" ] || { rm -rf "$APEX_OUT/$m"; warn "$m extracted to nothing"; }
 done
 
 echo "==> /system/framework"
@@ -186,12 +220,53 @@ for f in org.apache.http.legacy.jar framework-res.apk; do
     || warn "$f not in the image"
 done
 
-# ---- 4. Husk's own Java framework, then the runtime ----------------------------
-echo "==> building husk-framework.dex"
-HUSK_JDK="$JDK" HUSK_D8="$D8" "$ROOT/src/java-framework/build.sh" \
-    "$OUT/husk-framework.dex" || die "src/java-framework/build.sh failed"
+# ---- 4. preflight, then assemble ----------------------------------------------
+# Every file build_java_runtime.sh copies, and every file it copies without
+# asking. Checked here so the report names the files instead of leaving the
+# first `cp` to fail on one of them and take the rest of the list down with it.
+REQUIRED="
+com.android.art/javalib/core-oj.jar
+com.android.art/javalib/core-libart.jar
+com.android.art/javalib/okhttp.jar
+com.android.art/javalib/bouncycastle.jar
+com.android.art/javalib/apache-xml.jar
+com.android.art/lib64/libandroidio.so
+com.android.art/lib64/libbase.so
+com.android.art/lib64/libc++.so
+com.android.art/lib64/libexpat.so
+com.android.art/lib64/libjavacore.so
+com.android.art/lib64/libnativehelper.so
+com.android.art/lib64/libopenjdk.so
+com.android.i18n/javalib/core-icu4j.jar
+com.android.i18n/etc/icu
+com.android.tzdata/etc
+com.android.conscrypt/javalib/conscrypt.jar
+com.android.conscrypt/lib64/libjavacrypto.so
+com.android.conscrypt/lib64/libcrypto.so
+com.android.conscrypt/lib64/libssl.so
+"
 
+missing=0
+for f in $REQUIRED; do
+  [ -e "$APEX_OUT/$f" ] || { echo "  absent from the apex root: $f" >&2; missing=$((missing+1)); }
+done
+for f in "$FRAMEWORK_OUT/org.apache.http.legacy.jar" "$FRAMEWORK_OUT/framework-res.apk"; do
+  [ -e "$f" ] || { echo "  absent from the image: ${f##*/}" >&2; missing=$((missing+1)); }
+done
+
+if [ "$missing" -gt 0 ]; then
+  echo "error: $missing required file(s) missing; the apex root is not what build_java_runtime.sh expects" >&2
+  echo "       what was extracted:" >&2
+  find "$APEX_OUT" -maxdepth 2 >&2 2>/dev/null | head -30
+  die "see the list above"
+fi
+
+# build_java_runtime.sh calls src/java-framework/build.sh itself, after
+# `rm -rf "$OUT"` -- so building the dex here would only be deleted again. What
+# it does not do is pass the JDK through: build.sh defaults both to
+# /Volumes/GTAV/husk2. Exported, so the internal call inherits them.
 echo "==> assembling $OUT"
+export HUSK_JDK="$JDK" HUSK_D8="$D8"
 HTTP_LEGACY="$FRAMEWORK_OUT/org.apache.http.legacy.jar" \
 FRAMEWORK_RES="$FRAMEWORK_OUT/framework-res.apk" \
   "$ROOT/scripts/build_java_runtime.sh" "$APEX_OUT" || die "build_java_runtime.sh failed"
