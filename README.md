@@ -1,5 +1,5 @@
-# You should only use this build if you're on iOS 15.0-15.8.X.
-# The built-in VM doesn't work!
+# You should only use this build if you're on iOS 14.0-15.8.X.
+# The built-in VM was removed!
 # Husk
 
 <p align="center">
