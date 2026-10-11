@@ -457,10 +457,23 @@ jobs:
           # image to raw so its system partition can be unpacked for the
           # translation layer's CA certificates, fonts and Java runtime.
           #
-          # e2fsprogs is for debugfs, which reads that partition. openjdk is for
-          # src/java-framework/build.sh, which compiles and dexes Husk's Java
-          # framework.
+          # e2fsprogs is for debugfs, which reads that partition. Homebrew
+          # installs it keg-only, so sbin never joins PATH on its own and a bare
+          # `debugfs` does not resolve -- it has to be put there explicitly.
+          # openjdk is for src/java-framework/build.sh, which compiles and dexes
+          # Husk's Java framework.
           brew install meson ninja pkg-config xcodegen qemu e2fsprogs openjdk
+
+          # Both prefixes, because which one exists depends on the runner's
+          # architecture. Only the one that exists gets written.
+          for p in /opt/homebrew/opt/e2fsprogs/sbin /usr/local/opt/e2fsprogs/sbin; do
+            [ -d "$p" ] && echo "$p" >> "$GITHUB_PATH"
+          done
+          # Not a bare `command -v debugfs`: $GITHUB_PATH only affects later
+          # steps, so it cannot resolve in this one. And it needs the `||`
+          # because this block runs under `set -e`, where an unresolved lookup
+          # would fail the step for no reason.
+          command -v debugfs || ls -l /opt/homebrew/opt/e2fsprogs/sbin/debugfs
 
       - name: install the Rust toolchain
         run: |

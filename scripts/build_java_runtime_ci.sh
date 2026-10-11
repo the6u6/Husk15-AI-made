@@ -28,11 +28,27 @@ die()  { echo "error: $*" >&2; exit 1; }
 # ---- 1. inputs -----------------------------------------------------------------
 [ -f "$IMG" ] || die "guest image not found: $IMG (see scripts/fetch_translation_resources.sh)"
 
-for t in qemu-img debugfs python3 unzip; do
+# Homebrew installs e2fsprogs keg-only, so its sbin is not on PATH and a bare
+# `debugfs` does not resolve. build_android_system.sh works around this with a
+# hardcoded /opt/homebrew path, which is right on Apple Silicon and wrong on
+# Intel; try PATH first, then both prefixes.
+DEBUGFS="$(command -v debugfs || true)"
+if [ -z "$DEBUGFS" ]; then
+  for c in /opt/homebrew/opt/e2fsprogs/sbin/debugfs \
+           /usr/local/opt/e2fsprogs/sbin/debugfs \
+           /opt/homebrew/bin/debugfs /usr/local/bin/debugfs; do
+    [ -x "$c" ] && DEBUGFS="$c" && break
+  done
+fi
+# Prepended so anything nested -- a helper, a subshell -- resolves it too,
+# but only once there is something to put there.
+[ -n "$DEBUGFS" ] && export PATH="$(dirname "$DEBUGFS"):$PATH"
+
+for t in qemu-img python3 unzip; do
   command -v "$t" >/dev/null 2>&1 || warn "$t not found; java-runtime will be skipped"
 done
-command -v qemu-img  >/dev/null 2>&1 || exit 0
-command -v debugfs  >/dev/null 2>&1 || exit 0
+command -v qemu-img >/dev/null 2>&1 || exit 0
+[ -n "$DEBUGFS" ] || { warn "debugfs not found (brew install e2fsprogs); java-runtime will be skipped"; exit 0; }
 
 JDK="${HUSK_JDK:-}"
 if [ -z "$JDK" ]; then
@@ -124,7 +140,7 @@ rm -rf "$APEX_OUT"; mkdir -p "$APEX_OUT"
 WORK="$(mktemp -d)"; trap 'rm -rf "$WORK"' EXIT
 
 for m in $MODULES; do
-  if ! debugfs -R "dump /system/apex/$m.capex $WORK/$m.capex" "$SYS_IMG" 2>/dev/null; then
+  if ! "$DEBUGFS" -R "dump /system/apex/$m.capex $WORK/$m.capex" "$SYS_IMG" 2>/dev/null; then
     warn "$m.capex not in the image; java-runtime will be incomplete"
     continue
   fi
@@ -139,14 +155,14 @@ if 'original_apex' in z.namelist():
     z = zipfile.ZipFile(z.open('original_apex'))
 open(dst, 'wb').write(z.read('apex_payload.img'))
 PY
-  debugfs -R "rdump / $WORK/$m" "$WORK/$m.img" 2>/dev/null
+  "$DEBUGFS" -R "rdump / $WORK/$m" "$WORK/$m.img" 2>/dev/null
   [ -d "$WORK/$m" ] && cp -R "$WORK/$m/." "$APEX_OUT/" && rm -rf "$WORK/$m"
 done
 
 echo "==> /system/framework"
 mkdir -p "$FRAMEWORK_OUT"
 for f in org.apache.http.legacy.jar framework-res.apk; do
-  debugfs -R "dump /system/framework/$f $FRAMEWORK_OUT/$f" "$SYS_IMG" 2>/dev/null \
+  "$DEBUGFS" -R "dump /system/framework/$f $FRAMEWORK_OUT/$f" "$SYS_IMG" 2>/dev/null \
     || warn "$f not in the image"
 done
 
