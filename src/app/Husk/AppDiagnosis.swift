@@ -242,16 +242,15 @@ struct AppStoppedOverlay: View {
                 AppDiagnosisCard(diagnosis: diagnosis, showsEvidence: true)
                 HStack(spacing: 10) {
                     if let report {
-                        // Not `Button { a } label: { b }`: at 14 that resolves
-                        // against a Label-returning overload, and a Label with
-                        // .frame() on it is not one.
+                        // `.huskBordered()` and `.huskBorderedProminent()` are
+                        // functions, not static style properties -- see below.
                         Button(action: { sharingReport = true }) {
                             Label("Share Report", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity)
                         }
-                            .huskBordered
+                            .huskBordered()
                     }
                     Button(action: close) { Text("Close").frame(maxWidth: .infinity) }
-                        .huskBorderedProminent
+                        .huskBorderedProminent()
                 }
             }
             .padding(18)
