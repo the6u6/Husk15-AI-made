@@ -178,6 +178,12 @@ for m in $MODULES; do
   for root in /system/apex /apex; do
     for ext in capex apex; do
       p="$root/$m.$ext"
+      # Cleared before each attempt, never after: a dump that fails partway can
+      # leave a partial file, and `-s` is the only thing deciding whether the
+      # module is really at this path. Removing it *after* a successful dump
+      # deleted the file that had just been verified, and every module then
+      # failed in zipfile with the dump having worked perfectly.
+      rm -f "$WORK/$m.zip"
       if "$DEBUGFS" -R "dump $p $WORK/$m.zip" "$SYS_IMG" 2>/dev/null && [ -s "$WORK/$m.zip" ]; then
         found="$p"; break 2
       fi
@@ -189,8 +195,7 @@ for m in $MODULES; do
     apex_listing
     continue
   fi
-  echo "    $m <- $found"
-  rm -f "$WORK/$m.zip"
+  echo "    $m <- $found ($(du -h "$WORK/$m.zip" | cut -f1))"
 
   # A capex is a zip that wraps either apex_payload.img directly or an
   # `original_apex` zip holding it. build_android_system.sh unwraps both shapes;
@@ -198,9 +203,17 @@ for m in $MODULES; do
   python3 - "$WORK/$m.zip" "$WORK/$m.img" <<'PY'
 import sys, zipfile
 src, dst = sys.argv[1], sys.argv[2]
-z = zipfile.ZipFile(src)
-if 'original_apex' in z.namelist():
-    z = zipfile.ZipFile(z.open('original_apex'))
+try:
+    z = zipfile.ZipFile(src)
+except zipfile.BadZipFile as e:
+    raise SystemExit('%s is not a zip archive (%s); first bytes: %r'
+                     % (src, e, open(src, 'rb').read(8)))
+if 'apex_payload.img' not in z.namelist():
+    if 'original_apex' in z.namelist():
+        z = zipfile.ZipFile(z.open('original_apex'))
+    else:
+        raise SystemExit('%s holds no apex_payload.img; it has %s'
+                         % (src, ', '.join(z.namelist()) or 'nothing'))
 open(dst, 'wb').write(z.read('apex_payload.img'))
 PY
   # rdump of / produces $WORK/<m>/<contents>, so the module's own directory has
