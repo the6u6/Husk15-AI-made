@@ -58,8 +58,8 @@ final class WebAppHostView: UIView {
 /// A web app full screen: a thin bar to leave it by, and the page below the status bar, in the colour the app asked for.
 struct WebAppScreenView: View {
     let app: TLApp
-    @Environment(\.presentationMode) private var huskPM private var dismiss
-    @State private var color: Color = Color(uiColor: .systemBackground)
+    @Environment(\.presentationMode) private var huskPM
+    @State private var color: Color = Color(.systemBackground)
 
     private var portrait: Bool { app.apks.first.map { husk_apk_orientation($0) != 0 } ?? true }
 
@@ -75,7 +75,7 @@ struct WebAppScreenView: View {
             }
             .padding(.horizontal, 14)
             .frame(height: 30)
-            .background(Color(uiColor: .systemBackground))
+            .background(Color(.systemBackground))
             WebAppSurface(app: app)
         }
         .background(color.ignoresSafeArea())
@@ -90,6 +90,11 @@ struct WebAppScreenView: View {
         .onReceive(NotificationCenter.default.publisher(for: WebAppRuntime.chromeChanged)) { _ in refreshColor() }
     }
 
+    // WebAppRuntime is @MainActor and a View's own methods are not. The
+    // call sites in .onAppear and .onReceive are already main-actor --
+    // WebAppRuntime.close(app) two lines above needed no annotation -- so
+    // only this method did.
+    @MainActor
     private func refreshColor() {
         if let hex = WebAppRuntime.runtime(for: app)?.chromeColor, let c = Color(hexString: hex) { color = c }
     }

@@ -215,7 +215,7 @@ private struct AppWindow: View {
         }
         .padding(.horizontal, 10)
         .frame(height: Self.bar)
-        .background(Color(uiColor: .secondarySystemBackground))
+        .background(Color(.secondarySystemBackground))
         .contentShape(Rectangle())
         .gesture(windows.maximized ? nil : moveGesture)
         .onTapGesture(count: 2) { windows.toggleMaximized() }
@@ -251,7 +251,7 @@ private struct AppWindow: View {
             .font(.system(size: 10, weight: .bold))
             .foregroundColor(.white.opacity(0.8))
             .frame(width: 22, height: 22)
-            .background(Color.black.opacity(0.45), in: Circle())
+            .huskBackground(Color.black.opacity(0.45), in: Circle())
             .frame(width: 44, height: 44)
             .contentShape(Rectangle())
             .gesture(
@@ -287,7 +287,7 @@ private struct WindowDock: View {
         let y = min(max(windows.dockY * container.height, size), container.height - size)
         ItemIcon(item: .game(app), size: size - 12)
             .padding(6)
-            .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .huskBackground(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5))
             .shadow(color: .black.opacity(0.3), radius: 10, y: 4)
             .position(x: x + drag.width, y: y + drag.height)

@@ -57,7 +57,7 @@ struct SettingsTab: View {
                 }
 
                 Section(header: Text("Emulator")) {
-                    row(InputSettings(), "hand.tap.fill", .indigo, "Input", "Screen, touch, keyboard")
+                    row(InputSettings(), "hand.tap.fill", Color(.systemIndigo), "Input", "Screen, touch, keyboard")
                     row(NetworkSettings(), "globe", .green, "Network", "Internet and saved sessions")
                     row(SavedMachineSettings(), "externaldrive.fill",Color(.systemTeal), "Saved Machine", "Snapshots and automatic saving")
                 }

@@ -215,7 +215,7 @@ struct AppDiagnosisCard: View {
                 Text(diagnosis.detail).font(.footnote).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
                 if showsEvidence, let e = diagnosis.evidence {
                     Text(e).font(.system(size: 10.5, design: .monospaced)).foregroundColor(.secondary)
-                        .lineLimit(4).textSelection(.enabled).padding(.top, 2)
+                        .lineLimit(4).padding(.top, 2)
                 }
             }
             Spacer(minLength: 0)
@@ -242,7 +242,10 @@ struct AppStoppedOverlay: View {
                 AppDiagnosisCard(diagnosis: diagnosis, showsEvidence: true)
                 HStack(spacing: 10) {
                     if let report {
-                        Button { sharingReport = true } label: {
+                        // Not `Button { a } label: { b }`: at 14 that resolves
+                        // against a Label-returning overload, and a Label with
+                        // .frame() on it is not one.
+                        Button(action: { sharingReport = true }) {
                             Label("Share Report", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity)
                         }
                             .huskBordered

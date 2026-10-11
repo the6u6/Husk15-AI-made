@@ -106,7 +106,12 @@ enum AppClip {
     }
 
     private static func topController() -> UIViewController? {
-        var top = UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first?.rootViewController
+        // UIWindowScene.keyWindow is iOS 15. Same lookup as
+        // HuskFilePicker.topController(), which was ported already.
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let window = scenes.flatMap { $0.windows }.first { $0.isKeyWindow }
+            ?? scenes.flatMap { $0.windows }.first
+        var top = window?.rootViewController
         while let next = top?.presentedViewController { top = next }
         return top
     }

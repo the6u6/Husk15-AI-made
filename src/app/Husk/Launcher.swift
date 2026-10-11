@@ -205,7 +205,7 @@ struct HomeView: View {
             .padding(.bottom, 32)
             .id(jit.attachGeneration)
         }
-        .background(Color(uiColor: .systemBackground).ignoresSafeArea())
+        .background(Color(.systemBackground).ignoresSafeArea())
         .navigationBarHidden(true)
     }
 }
@@ -219,7 +219,7 @@ private struct Tile<Content: View>: View {
         content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .huskBackground(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .huskBackground(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 }
 
@@ -284,7 +284,7 @@ private struct LeadTile: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
         }
-        .background(Color(uiColor: .secondarySystemBackground))
+        .background(Color(.secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
@@ -358,7 +358,7 @@ private struct DownloadsTile: View {
         Button { router.showDownloads = true } label: {
             Tile {
                 VStack(alignment: .leading, spacing: 18) {
-                    TileGlyph(systemImage: "arrow.down", color: .indigo)
+                    TileGlyph(systemImage: "arrow.down", color: Color(.systemIndigo))
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Downloads").font(.headline).foregroundColor(.primary)
                         Text(status).font(.footnote).foregroundColor(.secondary).lineLimit(1)
@@ -399,7 +399,7 @@ private struct AndroidTile: View {
                         .foregroundColor(.primary)
                         .padding(.horizontal, 14)
                         .frame(height: 34)
-                        .huskBackground(Color(uiColor: .tertiarySystemFill), in: Capsule())
+                        .huskBackground(Color(.tertiarySystemFill), in: Capsule())
                 }
                 .buttonStyle(CardButtonStyle())
             }
@@ -448,7 +448,7 @@ private struct WelcomeCard: View {
             .buttonStyle(PrimaryButtonStyle())
         }
         .padding(20)
-        .huskBackground(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .huskBackground(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 }
 
@@ -472,7 +472,7 @@ private struct ShelfHeader: View {
 /// under a dark fade so text on it reads. Android icons are all most apps carry, and this is what makes them big.
 struct IconBackdrop: View {
     let path: String?
-    var fallback: Color = Color(uiColor: .secondarySystemBackground)
+    var fallback: Color = Color(.secondarySystemBackground)
 
     var body: some View {
         ZStack {
@@ -496,7 +496,7 @@ struct IconBackdrop: View {
 struct ItemBackdrop: View {
     let item: LibraryItem
     var pixels: Int = 1200
-    var fallback: Color = Color(uiColor: .secondarySystemBackground)
+    var fallback: Color = Color(.secondarySystemBackground)
     @ObservedObject private var showcase = ShowcaseStore.shared
 
     var body: some View {
@@ -612,8 +612,7 @@ struct LibraryScreen: View {
             .padding(.top, 8)
             .padding(.bottom, 32)
         }
-        .scrollDismissesKeyboard(.immediately)
-        .background(Color(uiColor: .systemBackground).ignoresSafeArea())
+        .background(Color(.systemBackground).ignoresSafeArea())
         .navigationBarHidden(true)
     }
 
@@ -716,7 +715,7 @@ struct HeaderButton: View {
                 .font(.system(size: 16, weight: .bold))
                 .foregroundColor(enabled ? Color.accentColor : Color.secondary)
                 .frame(width: 38, height: 38)
-                .huskBackground(Color(uiColor: .tertiarySystemFill), in: Circle())
+                .huskBackground(Color(.tertiarySystemFill), in: Circle())
         }
         .buttonStyle(.plain)
     }
@@ -733,7 +732,7 @@ struct BusyStrip: View {
             Spacer(minLength: 0)
         }
         .padding(14)
-        .huskBackground(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .huskBackground(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -760,7 +759,7 @@ struct SearchField: View {
                 TextField(prompt, text: $text)
                 if !text.isEmpty {
                     Button { text = "" } label: {
-                        Image(systemName: "xmark.circle.fill").foregroundColor(.tertiary)
+                        Image(systemName: "xmark.circle.fill").foregroundColor(Color(.tertiaryLabel))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Clear")
@@ -768,7 +767,7 @@ struct SearchField: View {
             }
             .padding(.horizontal, 10)
             .frame(height: 38)
-            .huskBackground(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .huskBackground(Color(.tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
     }
 }
