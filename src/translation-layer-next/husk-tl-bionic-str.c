@@ -620,7 +620,21 @@ static locale_t b_newlocale(int mask, const char *name, locale_t base)
     if (mask & 8)  dm |= LC_COLLATE_MASK;
     if (mask & 16) dm |= LC_MONETARY_MASK;
     if (mask & 32) dm |= LC_MESSAGES_MASK;
-    TL_ERRNO_BEGIN(); locale_t l = newlocale(dm, name, base); TL_ERRNO_END();
+    /* bionic's locales are "", C, POSIX, C.UTF-8 and en_US.UTF-8, nothing else. iOS has no C.UTF-8 (macOS does), and libc++'s
+       collate_byname("C.UTF-8") throwing ended games on the phone; so these are the host's C, with a UTF-8 character type where
+       it has one, and any other name is refused as bionic refuses it. */
+    const char *n = name ? name : "";
+    bool c = !*n || !strcmp(n, "C") || !strcmp(n, "POSIX"), utf8 = !strcmp(n, "C.UTF-8") || !strcmp(n, "C.utf8") || !strcmp(n, "en_US.UTF-8") || !strcmp(n, "en_US.utf8");
+    if (!c && !utf8) { tl_set_guest_errno(2 /* ENOENT */); return NULL; }
+    TL_ERRNO_BEGIN();
+    locale_t l = newlocale(dm, "C", base);
+    if (l && utf8 && (dm & LC_CTYPE_MASK)) {
+        locale_t u = newlocale(LC_CTYPE_MASK, "UTF-8", l);
+        if (!u) u = newlocale(LC_CTYPE_MASK, "en_US.UTF-8", l);
+        if (u) l = u;
+    }
+    TL_ERRNO_END();
+    if (!l) tl_set_guest_errno(2);
     return l;
 }
 

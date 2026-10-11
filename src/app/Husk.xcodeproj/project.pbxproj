@@ -942,6 +942,7 @@
 /* Begin PBXShellScriptBuildPhase section */
 		5A0E300C59B0E0810122711E /* Stage guest image */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);

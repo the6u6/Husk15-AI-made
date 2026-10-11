@@ -217,6 +217,9 @@ targets:
           else
             echo "warning: build/java-runtime missing (scripts/build_java_runtime.sh): Java apps will not start" >&2
           fi
+        # Every build: the Java runtime this copies changes without Xcode knowing -- the
+        # phase has outputs and no inputs, so dependency analysis skips it once the
+        # outputs exist, and the IPA carries a day-old runtime (upstream build 102).
         basedOnDependencyAnalysis: false
 
     # EXPERIMENTAL (iOS 14): postBuildScripts and the HuskJITHelper target are
