@@ -60,12 +60,22 @@ def build_disk(path):
 
     def entry(idx, first, last, name):
         e = bytearray(128)
-        struct.pack_into("<QQ", e, 0, first, last)
-        e[56:56 + len(name)] = name.encode()
+        # Per UEFI 2.x 5.2.2: starting/ending LBA at offset 32, after the two
+        # 16-byte GUIDs, and a UTF-16LE name of up to 36 characters in the 72
+        # bytes at offset 56. The name encoding is the point of this fixture --
+        # writing it as ASCII agrees with an ASCII parser and hides the bug.
+        struct.pack_into("<QQ", e, 32, first, last)
+        e[56:128] = name.encode("utf-16-le").ljust(72, b"\x00")
         entries[idx * 128:(idx + 1) * 128] = e
 
+    # super is deliberately NOT the second partition. build_android_system.sh
+    # falls back to "the second one", so a fixture that puts super second is
+    # satisfied by a parser that cannot read names at all -- which is how this
+    # test passed against the ASCII parser that had just failed in CI. slot 1 is
+    # padding the fallback lands on; only a correct UTF-16LE decode reaches 2.
     entry(0, 1, 33, "EFI")
-    entry(1, SUPER_LBA, SUPER_LBA + 200, "super")
+    entry(1, SUPER_LBA + 300, SUPER_LBA + 400, "oem")
+    entry(2, SUPER_LBA, SUPER_LBA + 200, "super")
     buf[2 * SECTOR:2 * SECTOR + len(entries)] = entries
 
     base = SUPER_LBA * SECTOR

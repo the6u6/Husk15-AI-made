@@ -88,15 +88,35 @@ with open(raw, 'rb') as f:
     entry_lba, n, sz = struct.unpack_from('<QII', hdr, 72)
     f.seek(entry_lba * 512)
     entries = f.read(n * sz)
+    # A GPT entry's 72-byte name field is UTF-16LE (UEFI 2.x, 5.2.2), 36
+    # characters -- not ASCII. Read as bytes, "super" is b's\x00u\x00p\x00e\x00r\x00',
+    # splitting on NUL leaves b's', and the match below can never succeed.
+    def entry_name(e):
+        return e[56:128].decode('utf-16-le', 'ignore').split('\x00')[0]
+
+    parts = []
     base = None
     for i in range(n):
         e = entries[i * sz:(i + 1) * sz]
-        first, last = struct.unpack_from('<QQ', e, 0)
-        name = e[56:128].split(b'\0')[0].decode()
+        first, last = struct.unpack_from('<QQ', e, 32)   # starting/ending LBA
+        name = entry_name(e)
+        if not name and not first:
+            continue                                    # unused slot
+        parts.append('%d:%s[%d..%d]' % (i, name, first, last))
         if name == 'super' and first:
             base = first * 512
-            break
-    assert base is not None, 'no super partition'
+    if base is None:
+        # build_android_system.sh locates the super partition by position, not by
+        # name -- "the second one", as its comment says. A conventional Android
+        # layout puts it there, so fall back to that rather than to an error.
+        used = [i for i in range(n)
+                if entries[i * sz + 56:i * sz + 128].decode('utf-16-le', 'ignore').split('\x00')[0]]
+        if len(used) > 1:
+            e = entries[used[1] * sz:used[1] * sz + sz]
+            base = struct.unpack_from('<Q', e, 32)[0] * 512
+            print('    no partition named super; using the second one: %s'
+                  % entry_name(e))
+    assert base is not None, 'no super partition; the image has: %s' % (', '.join(parts) or 'none')
     f.seek(base + 12288)
     h = f.read(256)
     magic, _, _, hsize = struct.unpack_from('<IHHI', h, 0)
