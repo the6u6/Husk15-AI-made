@@ -22,7 +22,7 @@ struct DownloadActivityWidget: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Image(systemName: stateIcon(context.state)).font(.title2).foregroundStyle(stateTint(context.state))
+                    Image(systemName: stateIcon(context.state)).font(.title2).foregroundColor(stateTint(context.state))
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     Text(statePercent(context.state)).font(.headline.monospacedDigit())
@@ -32,18 +32,18 @@ struct DownloadActivityWidget: Widget {
                         Text(context.state.title).font(.subheadline.weight(.semibold)).lineLimit(1)
                         Bar(state: context.state)
                         HStack {
-                            Text(stateDetail(context.state)).font(.caption).foregroundStyle(.secondary)
+                            Text(stateDetail(context.state)).font(.caption).foregroundColor(.secondary)
                             Spacer()
                             TimeLeft(state: context.state)
                         }
                     }
                 }
             } compactLeading: {
-                Image(systemName: stateIcon(context.state)).foregroundStyle(stateTint(context.state))
+                Image(systemName: stateIcon(context.state)).foregroundColor(stateTint(context.state))
             } compactTrailing: {
                 Text(statePercent(context.state)).font(.caption.monospacedDigit())
             } minimal: {
-                Image(systemName: stateIcon(context.state)).foregroundStyle(stateTint(context.state))
+                Image(systemName: stateIcon(context.state)).foregroundColor(stateTint(context.state))
             }
         }
     }
@@ -55,19 +55,19 @@ private struct LockScreenView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Image(systemName: stateIcon(state)).foregroundStyle(stateTint(state))
+                Image(systemName: stateIcon(state)).foregroundColor(stateTint(state))
                 Text(state.title).font(.headline).lineLimit(1)
                 Spacer()
                 Text(statePercent(state)).font(.headline.monospacedDigit())
             }
             Bar(state: state)
             HStack {
-                Text(stateDetail(state)).font(.caption).foregroundStyle(.secondary)
+                Text(stateDetail(state)).font(.caption).foregroundColor(.secondary)
                 Spacer()
                 TimeLeft(state: state)
             }
         }
-        .foregroundStyle(.white)
+        .foregroundColor(.white)
     }
 }
 
@@ -78,10 +78,10 @@ private struct Bar: View {
     var body: some View {
         if !state.finished, !state.failed, let end = state.finishBy, end > Date() {
             ProgressView(timerInterval: Date()...end, countsDown: false) { EmptyView() } currentValueLabel: { EmptyView() }
-                .tint(.accentColor)
+                .accentColor(.accentColor)
         } else {
             ProgressView(value: state.total > 0 ? min(1, Double(state.received) / Double(state.total)) : (state.finished ? 1 : 0))
-                .tint(state.failed ? .orange : state.finished ? .green : .accentColor)
+                .accentColor(state.failed ? .orange : state.finished ? .green : .accentColor)
         }
     }
 }
@@ -92,7 +92,7 @@ private struct TimeLeft: View {
     let state: HuskDownloadAttributes.ContentState
     var body: some View {
         if !state.finished, !state.failed, let end = state.finishBy, end > Date() {
-            Text(timerInterval: Date()...end, countsDown: true).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            Text(timerInterval: Date()...end, countsDown: true).font(.caption.monospacedDigit()).foregroundColor(.secondary)
                 .multilineTextAlignment(.trailing).frame(maxWidth: 70, alignment: .trailing)
         }
     }
