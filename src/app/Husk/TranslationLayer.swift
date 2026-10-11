@@ -52,15 +52,32 @@ struct TLReport: Decodable {
 extension TLReport {
     /// The engine the native runtime drives this app with, if it can: Unity (IL2CPP) games and cocos2d-x games.
     var nativeEngine: TLNativeEngine? {
-        guard ok, !abis.isEmpty, abis.contains("arm64-v8a") else { return nil }
+        guard ok else { return nil }
+        // Native code for other CPUs only (32-bit ARM, x86): nothing here can run it
+        if !abis.isEmpty && !abis.contains("arm64-v8a") { return nil }
+        // An app with Java code and no native code at all runs on Husk's own Java runtime
+        if abis.isEmpty { return dexCount > 0 && webKind == nil ? .java : nil }
+        // Unity 6 runs through its own Java activity (UnityPlayerForActivityOrService), on the Java runtime
+        if engine == "Unity 6" { return .java }
         if engine?.hasPrefix("Unity") == true { return .unity }
-        if engine == "Cocos" { return .cocos }
+        // the cocos2d-x driver is Geometry Dash's (FMOD, RobTop's activity); other cocos2d-x games run their Java activity on the Java runtime
+        if engine == "Cocos" { return libraries.contains(where: { $0.name == "libfmod.so" }) ? .cocos : .java }
         if engine == "Minecraft" { return .minecraft }
-        if engine == "SDL" { return .sdl }
+        // SDL games run their own Java activity on the Java runtime: many prepare their data there first (Wesnoth unpacks it, OpenTTD
+        // and Luanti copy theirs, launchers come before the game) and SDLActivity's Java drives the native side as on a phone.
+        // python-for-android's bootstrap still goes through the SDL driver.
+        if engine == "SDL" { return .java }
+        if engine == "Python" { return .sdl }
         if engine == "Unreal Engine" { return .ue4 }
         if engine == "Rockstar" { return .gta }
         if engine == "Godot" { return .godot }
         if engine == "NativeActivity" { return .nativeactivity }
+        if engine == "Flutter" { return .flutter }
+        if engine == "GameMaker" { return .gamemaker }
+        // Everything else with Java code: libGDX games, ordinary apps, React Native and the like, and games whose engine is their
+        // own library behind a Java activity (Hill Climb Racing, Supercell's games)
+        if engine == "libGDX" || engine == "Java" || engine == "React Native" || engine == ".NET / Xamarin" { return .java }
+        if engine == nil, dexCount > 0 { return .java }
         return nil
     }
 
@@ -70,15 +87,19 @@ extension TLReport {
     var runsOnNativeRuntime: Bool { nativeEngine != nil }
 
     /// "Unity" or "Cocos2d-x", for words on screen.
-    var nativeEngineName: String { nativeEngine == .cocos ? "Cocos2d-x" : nativeEngine == .minecraft ? "Minecraft" : nativeEngine == .sdl ? "SDL" : nativeEngine == .ue4 ? "Unreal Engine" : nativeEngine == .gta ? "Rockstar" : nativeEngine == .godot ? "Godot" : nativeEngine == .nativeactivity ? "NativeActivity" : "Unity" }
+    var nativeEngineName: String { engine == "Python" ? "Python (Kivy)" : nativeEngine == .cocos ? "Cocos2d-x" : nativeEngine == .minecraft ? "Minecraft" : nativeEngine == .sdl ? "SDL" : nativeEngine == .ue4 ? "Unreal Engine" : nativeEngine == .gta ? "Rockstar" : nativeEngine == .godot ? "Godot" : nativeEngine == .nativeactivity ? "NativeActivity" : nativeEngine == .flutter ? "Flutter" : nativeEngine == .gamemaker ? "GameMaker" : nativeEngine == .java ? (engine == "libGDX" ? "libGDX" : engine == "SDL" ? "SDL" : "Android") : "Unity" }
 
     var displaySummary: String {
         guard runsOnNativeRuntime else { return summary }
         let flagged = libraries.filter { $0.abi == "arm64-v8a" && $0.status != "ok" }.count
         let total = libraries.filter { $0.abi == "arm64-v8a" }.count
-        var text = "A \(nativeEngineName) game. It runs through Husk's native runtime, which loads its \(total) arm64 libraries itself."
+        var text = nativeEngine == .flutter
+            ? "A Flutter app. Its engine and its compiled Dart run natively through Husk's translation layer, which loads its \(total) arm64 libraries itself."
+            : nativeEngine == .java && engine != "libGDX"
+            ? "An Android app. Husk runs its code on its own Java runtime" + (total > 0 ? " and loads its \(total) arm64 libraries itself." : ".")
+            : "A \(nativeEngineName) game. It runs through Husk's native runtime, which loads its \(total) arm64 libraries itself."
         if nativeEngine == .cocos || nativeEngine == .minecraft || nativeEngine == .ue4 || nativeEngine == .gta { text += " It is a landscape game: Husk turns the screen for it." }
-        else if nativeEngine == .sdl || nativeEngine == .nativeactivity || nativeEngine == .godot { text += " Husk turns the screen the way the game asks for." }
+        else if nativeEngine == .sdl || nativeEngine == .nativeactivity || nativeEngine == .godot || nativeEngine == .gamemaker { text += " Husk turns the screen the way the game asks for." }
         if flagged > 0 {
             text += " \(flagged) of them use tricks the older loader could not handle; the native runtime handles those too, "
                   + "except for optional anti-tamper code, which it leaves out."
@@ -138,6 +159,10 @@ struct TLApp: Identifiable {
     var lastPlayed: Date? = nil
     /// Its Android package name, once read from the APK.
     var packageName: String? = nil
+
+    /// Whether its manifest files it as a game (android:appCategory="game" or isGame): read for Flutter apps, which are apps
+    /// unless they say otherwise.
+    var isGameCategory: Bool { apks.first.map { husk_apk_is_game($0) != 0 } ?? false }
 }
 
 // MARK: - Store
@@ -158,7 +183,7 @@ final class TranslationLayerStore: ObservableObject {
 
     /// Which reading of an app's libraries its report came from. A newer Husk that recognises more (an engine, a kind of game) reads
     /// the apps it already holds again, so they are not left with what the old one knew.
-    nonisolated static let scanVersion = 4
+    nonisolated static let scanVersion = 8
     private var rescanning = false
 
     func reload() {
@@ -238,6 +263,16 @@ final class TranslationLayerStore: ObservableObject {
 
     /// Keep a copy of one app -- one APK, or a base APK and its splits,
     /// picked together -- and report on it.
+    /// One app's APKs (a base and its splits, or a bundle) copied in (the originals stay where they are), and the new app's folder name: the developer mass test takes its APKs
+    /// from a folder of the user's this way, one per launch of Husk.
+    nonisolated static func importCopy(_ urls: [URL]) -> String? {
+        let fm = FileManager.default
+        let before = Set((try? fm.contentsOfDirectory(atPath: TranslationLayer.root.path)) ?? [])
+        guard !urls.isEmpty, ingest(urls, move: false) == nil else { return nil }
+        let after = Set((try? fm.contentsOfDirectory(atPath: TranslationLayer.root.path)) ?? [])
+        return after.subtracting(before).first
+    }
+
     func add(_ urls: [URL], move: Bool = false) {
         guard !urls.isEmpty, busy == nil else { return }
         busy = urls.count == 1 ? "Adding \(urls[0].lastPathComponent)…"
@@ -710,7 +745,9 @@ struct TLAttemptView: View {
     @ViewBuilder
     private var content: some View {
         // Every game the native runtime drives -- Unity included -- gets the same full-screen game screen.
-        if app.report?.runsOnNativeRuntime == true {
+        if app.report?.webKind != nil {
+            WebAppScreenView(app: app)
+        } else if app.report?.runsOnNativeRuntime == true {
             TLCocosAttemptView(app: app)
         } else {
             TLClassicAttemptView(app: app)

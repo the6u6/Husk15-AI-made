@@ -8,7 +8,9 @@
  * the link as glUniform1i / glUniformBlockBinding. What 3.1 really adds (compute, images, buffers) is not there.
  */
 static bool g_es31_shim;
+static int g_es3_minor = 1;                                 /* the minor version told: 1, or 2 for an app whose manifest needs 3.2 */
 void tl_egl_es31_shim(bool on) { g_es31_shim = on; }
+void tl_egl_es3_claim(int minor) { if (minor >= 1) { g_es31_shim = true; g_es3_minor = minor > 2 ? 2 : minor; } }
 
 typedef struct { char name[72]; int binding; bool block; } es31_bind;
 #define ES31_SHADERS 1024
@@ -25,8 +27,8 @@ static const char *es31_fix(const char *s, bool glsl)
     static char ring[8][300]; static atomic_uint k;
     char *out = ring[atomic_fetch_add(&k, 1) % 8];
     snprintf(out, 300, "%s", s);
-    if (glsl) { char *p = strstr(out, "GLSL ES 3.00"); if (p) { p[10] = '1'; p[11] = '0'; } }
-    else { char *p = strstr(out, "OpenGL ES 3.0"); if (p) p[12] = '1'; }
+    if (glsl) { char *p = strstr(out, "GLSL ES 3.00"); if (p) { p[10] = (char)('0' + g_es3_minor); p[11] = '0'; } }
+    else { char *p = strstr(out, "OpenGL ES 3.0"); if (p) p[12] = (char)('0' + g_es3_minor); }
     return out;
 }
 
@@ -38,6 +40,7 @@ static char *es31_downgrade(const char *src, size_t n, es31_bind *rec, int *nrec
     char *out = malloc(n + 4096); size_t o = 0;
     *nrec = 0;
     const char *ver = strstr(src, "#version 310 es");
+    if (!ver) ver = strstr(src, "#version 320 es");
     if (!ver) { memcpy(out, src, n); out[n] = 0; return out; }
     for (size_t i = 0; i < n;) {
         if (src + i == ver) { memcpy(out + o, "#version 300 es", 15); o += 15; i += 15; continue; }
@@ -173,7 +176,7 @@ static void (*r_glGetIntegerv)(unsigned, int *);
 static void w_glGetIntegerv(unsigned pname, int *data)
 {
     r_glGetIntegerv(pname, data);
-    if (g_es31_shim && pname == 0x821C /* GL_MINOR_VERSION */ && data && *data == 0) *data = 1;
+    if (g_es31_shim && pname == 0x821C /* GL_MINOR_VERSION */ && data && *data == 0) *data = g_es3_minor;
 }
 
 /* The storage-buffer target (a block of the game's data) is a uniform buffer here; a buffer the game made for it is grown to what the

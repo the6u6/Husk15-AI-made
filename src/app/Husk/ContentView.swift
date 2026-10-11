@@ -32,6 +32,7 @@ struct ContentView: View {
     @ObservedObject private var showcase = ShowcaseStore.shared
     @ObservedObject private var tlStore = TranslationLayerStore.shared
     @ObservedObject private var crash = CrashReport.shared
+    @ObservedObject private var massTest = MassTest.shared
     @ObservedObject private var updates = AppUpdates.shared
     @State private var showWhatsNew = false
 
@@ -59,15 +60,15 @@ struct ContentView: View {
                     .tabItem { Label("Store", systemImage: "cart.fill") }
                     .tag(HuskTab.store)
 
-                DownloadsTab()
-                    .tabItem { Label("Downloads", systemImage: "arrow.down.circle.fill") }
-                    .tag(HuskTab.downloads)
-
                 SettingsTab()
                     .tabItem { Label("Settings", systemImage: "gearshape.fill") }
                     .tag(HuskTab.settings)
             }
             .opacity(showGuestScreen && started && runner.isRunning ? 0 : 1)
+
+            // Multitasking: an app in a window over everything else in Husk (AppWindows.swift).
+            AppWindowLayer()
+                .ignoresSafeArea(.keyboard)
 
             // Outcomes, over whichever tab is showing. Above the tab bar rather
             // than over it: a message that covers the way out of the screen it
@@ -150,6 +151,7 @@ struct ContentView: View {
         // cancellation thrown away; there is nothing to cancel here.
         .onAppear { Task { await updates.check() } }
         .sheet(isPresented: $router.showFiles) { FilesTab() }
+        .sheet(isPresented: $router.showDownloads) { DownloadsTab() }
         // Pictures for the apps here: read the index on launch and whenever the
         // set of apps changes. .task(id:) is iOS 15, so the two halves are
         // spelled out.
@@ -192,9 +194,12 @@ struct ContentView: View {
                         set: { if !$0 { guest.dismissUpdate() } }),
                     primary: "Download", secondary: "Not now",
                     secondaryAction: { guest.dismissUpdate() }) { guest.applyUpdate() }
+        .sheet(isPresented: $massTest.shareResults) { ShareSheet(items: [MassTest.resultsURL]) }
         .onAppear {
             crash.checkPreviousRun()
-            if crash.pending == nil { router.resumeSwitch() }
+            // the developer mass test: the last app's fate, then the next app (it clears a crash report it has written down)
+            massTest.resume(crash: crash)
+            if crash.pending == nil, !massTest.active { router.resumeSwitch() }
             if crash.pending == nil, WhatsNew.due { showWhatsNew = true }
             router.openGuest = { showGuestScreen = true }
             router.startAndroid = { startFromLibrary() }

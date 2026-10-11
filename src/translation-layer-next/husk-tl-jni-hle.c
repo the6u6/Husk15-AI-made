@@ -411,6 +411,8 @@ static void Process_myTid(tl_jcall *c) { uint64_t t = 0; pthread_threadid_np(NUL
 static tl_lib *g_onload_done[96];
 static int g_nonload;
 static pthread_mutex_t g_onload_mu = PTHREAD_MUTEX_INITIALIZER;
+static bool load_native_library(const char *base);
+bool tl_jni_load_library(const char *base) { return load_native_library(base); }
 static bool load_native_library(const char *base)
 {
     tl_lib *L = tl_ld_load(base);
@@ -422,7 +424,16 @@ static bool load_native_library(const char *base)
     if (first && g_nonload < 96) g_onload_done[g_nonload++] = L;
     pthread_mutex_unlock(&g_onload_mu);
     if (first) {
-        int32_t (*onload)(void *vm, void *reserved) = (int32_t (*)(void *, void *))tl_ld_sym(L, "JNI_OnLoad");
+        /* found as ART's dlsym on the library's handle finds it: in the library or, failing that, in one it needs */
+        tl_lib *owner = NULL;
+        int32_t (*onload)(void *vm, void *reserved) = (int32_t (*)(void *, void *))tl_ld_sym_deep(L, "JNI_OnLoad", &owner);
+        if (onload && owner != L) {
+            /* the dependency's own, which runs once (its library may be asked for by name later) */
+            pthread_mutex_lock(&g_onload_mu);
+            for (int i = 0; i < g_nonload; i++) if (g_onload_done[i] == owner) onload = NULL;
+            if (onload && g_nonload < 96) g_onload_done[g_nonload++] = owner;
+            pthread_mutex_unlock(&g_onload_mu);
+        }
         if (onload) {
             int32_t ver = onload(tl_jni_vm(), NULL);
             tl_log_line("jni: %s JNI_OnLoad -> %#x", base, ver);
@@ -435,7 +446,8 @@ static void System_load(tl_jcall *c)
     const char *path = S(c->args[0].l);
     const char *base = strrchr(path, '/');
     base = base ? base + 1 : path;
-    if (!load_native_library(base)) {
+    struct stat st;
+    if (!load_native_library(base != path && stat(path, &st) == 0 && st.st_size > 0 ? path : base)) {
         char msg[300]; snprintf(msg, sizeof(msg), "dlopen failed: library \"%s\" not found", path);
         tl_jni_throw("java/lang/UnsatisfiedLinkError", msg);
     }

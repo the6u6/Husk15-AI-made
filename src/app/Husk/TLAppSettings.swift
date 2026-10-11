@@ -63,7 +63,22 @@ struct TLAppSettings: Codable, Equatable {
         }
     }
 
+    /// Where the app opens: full screen, or a window over Husk that can be moved, resized and minimised (Multitasking).
+    enum WindowMode: String, Codable, CaseIterable, Identifiable {
+        /// As Settings › Multitasking says for every app.
+        case auto, window, fullScreen
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .auto: return "Default"
+            case .window: return "Window"
+            case .fullScreen: return "Full Screen"
+            }
+        }
+    }
+
     var orientation: Orientation = .auto
+    var window: WindowMode = .auto
     var resolution: Resolution = .high
     /// The frames-per-second readout in the top bar.
     var showStats = true
@@ -94,6 +109,7 @@ struct TLAppSettings: Codable, Equatable {
         padOpacity = try c.decodeIfPresent(Double.self, forKey: .padOpacity) ?? 1.0
         haptics = try c.decodeIfPresent(Bool.self, forKey: .haptics) ?? true
         geode = try c.decodeIfPresent(Bool.self, forKey: .geode) ?? false
+        window = try c.decodeIfPresent(WindowMode.self, forKey: .window) ?? .auto
     }
 
     private static func url(_ id: String) -> URL {
@@ -144,7 +160,7 @@ struct TLAppSettingsView: View {
 
     private var dataDirs: [URL] {
         let dir = TranslationLayer.root.appendingPathComponent(app.id, isDirectory: true)
-        return ["unity-data", "cocos-data", "minecraft-data", "sdl-data", "ue4-data", "gta-data", "na-data"]
+        return ["unity-data", "cocos-data", "minecraft-data", "sdl-data", "ue4-data", "gta-data", "na-data", "godot-data", "flutter-data", "gm-data", "web"]
             .map { dir.appendingPathComponent($0, isDirectory: true) }
             .filter { FileManager.default.fileExists(atPath: $0.path) }
     }
@@ -190,6 +206,19 @@ struct TLAppSettingsView: View {
             }
 
             Section {
+                Picker("Open In", selection: $settings.window) {
+                    ForEach(TLAppSettings.WindowMode.allCases) { m in
+                        Text(m == .auto ? "Default (\(AppWindows.defaultWindowed ? "Window" : "Full Screen"))" : m.title).tag(m)
+                    }
+                }
+            } header: {
+                Text("Multitasking")
+            } footer: {
+                Text("In a window, \(app.label) runs over Husk: move it by its title bar, resize it from the corner, and minimise it to "
+                   + "the dock at the edge of the screen while you use the rest of Husk.")
+            }
+
+            Section {
                 Toggle("Hide the interface", isOn: $settings.cleanView)
             } header: {
                 Text("Screenshots")
@@ -227,6 +256,17 @@ struct TLAppSettingsView: View {
             } footer: {
                 Text("Automatic offers the controller for games that cannot be played without one (Unreal Engine games), when no real "
                    + "controller is connected. Always offers it for any game that understands one. A paired controller is always used.")
+            }
+
+            Section {
+                Button { AppClip.generate(for: app) } label: {
+                    Label("Generate App Clip", systemImage: "apps.iphone.badge.plus")
+                }
+            } header: {
+                Text("Home Screen")
+            } footer: {
+                Text("Puts \(app.label) on your Home Screen with its own icon. Tapping it opens Husk straight into the game. Husk "
+                   + "downloads a profile: open Settings, tap Profile Downloaded, then Install.")
             }
 
             Section {

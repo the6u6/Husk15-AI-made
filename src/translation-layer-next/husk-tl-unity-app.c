@@ -33,6 +33,11 @@ static char g_geode_zip[1024], g_geode_launcher[1024];
 #include "husk-tl-gameactivity.h"
 #include "husk-tl-gamepad.h"
 #include "husk-tl-sdl.h"
+#include "husk-tl-flutter.h"
+#include "husk-tl-flutter-text.h"
+#include "husk-tl-gamemaker.h"
+#include "husk-tl-dvm.h"
+#include "husk-tl-dvm-javaapp.h"
 #include "husk-tl-nativeactivity.h"
 #include "husk-tl-gtasa.h"
 #include "husk-tl-vulkan.h"
@@ -40,7 +45,20 @@ static char g_geode_zip[1024], g_geode_launcher[1024];
 void tl_hle_set_ca_bundle(const char *path);
 extern int tl_log_sink_fd;
 
-enum { ENGINE_UNITY = 0, ENGINE_COCOS = 1, ENGINE_GAMEACTIVITY = 2, ENGINE_SDL = 3, ENGINE_UE4 = 4, ENGINE_GTA = 5, ENGINE_GODOT = 6 };
+enum { ENGINE_UNITY = 0, ENGINE_COCOS = 1, ENGINE_GAMEACTIVITY = 2, ENGINE_SDL = 3, ENGINE_UE4 = 4, ENGINE_GTA = 5, ENGINE_GODOT = 6, ENGINE_FLUTTER = 7, ENGINE_GAMEMAKER = 8, ENGINE_JAVA = 9 };
+
+/* Where the Java runtime is: the ART, i18n, tzdata and conscrypt APEX folders and husk-framework.dex (scripts/build_java_runtime.sh). */
+static char g_java_root[1024];
+static float g_java_density = 3.0f;
+static int g_java_insets[4];
+static bool g_java_night;
+static struct {
+    void (*keyboard)(int show, int input_type, int ime_options);
+    void (*set_clipboard)(const char *utf8);
+    char *(*get_clipboard)(void);
+    void (*share)(const char *utf8);
+    void (*orientation)(int android_orientation);
+} g_java_host;
 
 static unsigned long engine_frames(void);
 
@@ -48,7 +66,7 @@ static struct {
     atomic_int state;
     int engine;
     char apk[1024], data[1024], package[160], angle[1024], ca[1024], vulkan[1024];
-    char extra[3][1024];
+    char extra[15][1024];
     int nextra;
     void *layer;
     int width, height;
@@ -164,7 +182,7 @@ static void *heartbeat_thread(void *arg)
               tl_log_line("unity: a variadic shim's implementation (%s) changed callee-saved registers (%llu times; x21 then %#llx, diff mask %#llx)",
                           nm, (unsigned long long)seen, (unsigned long long)tl_va_clobber.x21, (unsigned long long)tl_va_clobber.mask);
           } }
-        if ((A.engine == ENGINE_COCOS && tl_cocos_ended()) || (A.engine == ENGINE_GODOT && tl_godot_ended())) atomic_store(&A.state, HUSK_UNITY_ENDED);
+        if ((A.engine == ENGINE_COCOS && tl_cocos_ended()) || (A.engine == ENGINE_GODOT && tl_godot_ended()) || (A.engine == ENGINE_GAMEMAKER && tl_gm_ended()) || (A.engine == ENGINE_JAVA && tl_javaapp_ended())) atomic_store(&A.state, HUSK_UNITY_ENDED);
         if (atomic_load(&A.state) == HUSK_UNITY_ENDED || atomic_load(&A.state) == HUSK_UNITY_FAILED) return NULL;
     }
 }
@@ -223,6 +241,40 @@ static bool manifest_launcher_activity(const char *apk, const char *package, cha
     return ok;
 }
 
+/*
+ * Start the Dalvik runtime on the bundled boot class path (libcore, ICU, conscrypt and Husk's framework) and load libcore's
+ * natives. Java recursion is C recursion in the interpreter, and class initialisation runs deep, so this runs on its own
+ * thread with a big stack rather than on the launch thread.
+ */
+static void *java_boot(void *arg)
+{
+    bool *ok = arg;
+    const char *r = g_java_root;
+    static const char *const jars[] = { "core-oj", "core-libart", "okhttp", "bouncycastle", "apache-xml" };
+    static char paths[10][1200];
+    const char *boot[10]; int nb = 0;
+    for (int i = 0; i < 5; i++) { snprintf(paths[nb], sizeof(paths[nb]), "%s/com.android.art/javalib/%s.jar", r, jars[i]); boot[nb] = paths[nb]; nb++; }
+    snprintf(paths[nb], sizeof(paths[nb]), "%s/com.android.i18n/javalib/core-icu4j.jar", r); boot[nb] = paths[nb]; nb++;
+    snprintf(paths[nb], sizeof(paths[nb]), "%s/com.android.conscrypt/javalib/conscrypt.jar", r); boot[nb] = paths[nb]; nb++;
+    snprintf(paths[nb], sizeof(paths[nb]), "%s/husk-framework.dex", r); boot[nb] = paths[nb]; nb++;
+    /* Apache HttpClient, which Android gives apps that target 27 or lower (or ask for it in their manifest) */
+    snprintf(paths[nb], sizeof(paths[nb]), "%s/org.apache.http.legacy.jar", r); boot[nb] = paths[nb]; nb++;
+    char v[1200];
+    snprintf(v, sizeof(v), "%s/com.android.art", r); setenv("ANDROID_ART_ROOT", v, 1);
+    snprintf(v, sizeof(v), "%s/com.android.i18n", r); setenv("ANDROID_I18N_ROOT", v, 1);
+    snprintf(v, sizeof(v), "%s/com.android.tzdata", r); setenv("ANDROID_TZDATA_ROOT", v, 1);
+    snprintf(v, sizeof(v), "%s", A.data); setenv("ANDROID_ROOT", v, 1);
+    snprintf(v, sizeof(v), "%s", A.data); setenv("ANDROID_DATA", v, 1);
+    tl_jni_init();
+    if (!tl_dvm_start(boot, nb)) { tl_log_line("java: the runtime did not start"); *ok = false; return NULL; }
+    snprintf(v, sizeof(v), "%s/com.android.i18n/lib64", r); tl_ld_add_search_dir(v);
+    snprintf(v, sizeof(v), "%s/com.android.conscrypt/lib64", r); tl_ld_add_search_dir(v);
+    snprintf(v, sizeof(v), "%s/com.android.art/lib64", r);
+    if (!tl_dvm_load_natives(v)) tl_log_line("java: libcore's natives did not all load");
+    *ok = true;
+    return NULL;
+}
+
 static void *launch_thread(void *arg)
 {
     (void)arg;
@@ -266,6 +318,45 @@ static void *launch_thread(void *arg)
         tl_log_line("sdl: starting %s (%s) as %s, %dx%d (Vulkan: %s)", A.apk, activity, A.package, A.width, A.height, A.vulkan[0] ? "yes" : "no");
         tl_audio_install();
         ok = tl_sdl_start(&cfg, activity) && tl_sdl_run();
+    } else if (A.engine == ENGINE_FLUTTER) {
+        /* Flutter apps: no Vulkan given, so Impeller takes its OpenGL ES backend through ANGLE */
+        tl_ga_config cfg = {
+            .apk_path = A.apk, .data_dir = A.data, .package_name = A.package, .width = A.width, .height = A.height,
+            .metal_layer = A.layer, .angle_egl = A.angle, .angle_gles = NULL, .frame_dir = NULL, .frame_every = 0,
+        };
+        tl_log_line("flutter: starting %s as %s, %dx%d", A.apk, A.package, A.width, A.height);
+        tl_audio_install();
+        ok = tl_flutter_start(&cfg) && tl_flutter_run();
+    } else if (A.engine == ENGINE_GAMEMAKER) {
+        tl_gm_config cfg = {
+            .apk_path = A.apk, .data_dir = A.data, .package_name = A.package, .width = A.width, .height = A.height,
+            .metal_layer = A.layer, .angle_egl = A.angle, .angle_gles = NULL, .frame_dir = NULL, .frame_every = 0,
+        };
+        tl_log_line("gamemaker: starting %s as %s, %dx%d", A.apk, A.package, A.width, A.height);
+        tl_audio_install();
+        ok = tl_gm_start(&cfg) && tl_gm_run();
+    } else if (A.engine == ENGINE_JAVA) {
+        tl_log_line("java: starting %s as %s, %dx%d (runtime %s)", A.apk, A.package, A.width, A.height, g_java_root);
+        ok = false;
+        if (g_java_root[0]) {
+            pthread_attr_t at; pthread_attr_init(&at); pthread_attr_setstacksize(&at, 64u << 20);
+            pthread_t t;
+            if (pthread_create(&t, &at, java_boot, &ok) == 0) pthread_join(t, NULL);
+            pthread_attr_destroy(&at);
+        } else tl_log_line("java: no runtime folder given");
+        if (ok) {
+            tl_audio_install();
+            char fwres[1100];
+            snprintf(fwres, sizeof(fwres), "%s/framework-res.apk", g_java_root);
+            tl_javaapp_config cfg = {
+                .apk_path = A.apk, .data_dir = A.data, .package_name = A.package, .width = A.width, .height = A.height,
+                .density = g_java_density, .metal_layer = A.layer, .angle_egl = A.angle, .angle_gles = NULL,
+                .framework_res = fwres, .show_keyboard = g_java_host.keyboard, .set_clipboard = g_java_host.set_clipboard,
+                .get_clipboard = g_java_host.get_clipboard, .share = g_java_host.share, .set_orientation = g_java_host.orientation,
+                .insets = { g_java_insets[0], g_java_insets[1], g_java_insets[2], g_java_insets[3] }, .night_mode = g_java_night,
+            };
+            ok = tl_javaapp_start(&cfg);
+        }
     } else if (A.engine == ENGINE_GODOT) {
         tl_godot_config cfg = {
             .apk_path = A.apk, .data_dir = A.data, .package_name = A.package, .width = A.width, .height = A.height,
@@ -339,7 +430,7 @@ static bool launch(int engine, const char *apk, const char *data_dir, void *meta
     snprintf(A.angle, sizeof(A.angle), "%s", angle_dylib);
     snprintf(A.ca, sizeof(A.ca), "%s", ca_bundle ? ca_bundle : "");
     A.layer = metal_layer; A.width = width; A.height = height;
-    if (!husk_unity_package_name(apk, A.package, sizeof(A.package))) snprintf(A.package, sizeof(A.package), "%s", engine == ENGINE_GAMEACTIVITY ? "com.mojang.minecraftpe" : engine == ENGINE_GTA ? "com.rockstargames.gtasa" : engine == ENGINE_UE4 ? "com.epicgames.ue4" : engine == ENGINE_SDL ? "com.sdl.game" : engine == ENGINE_COCOS ? "com.cocos.game" : engine == ENGINE_GODOT ? "com.godot.game" : "com.unity.game");
+    if (!husk_unity_package_name(apk, A.package, sizeof(A.package))) snprintf(A.package, sizeof(A.package), "%s", engine == ENGINE_GAMEACTIVITY ? "com.mojang.minecraftpe" : engine == ENGINE_GTA ? "com.rockstargames.gtasa" : engine == ENGINE_UE4 ? "com.epicgames.ue4" : engine == ENGINE_SDL ? "com.sdl.game" : engine == ENGINE_COCOS ? "com.cocos.game" : engine == ENGINE_GODOT ? "com.godot.game" : engine == ENGINE_FLUTTER ? "com.flutter.app" : engine == ENGINE_GAMEMAKER ? "com.company.game" : engine == ENGINE_JAVA ? "com.java.app" : "com.unity.game");
     pthread_attr_t at;
     pthread_attr_init(&at);
     pthread_attr_setstacksize(&at, 4u << 20);
@@ -395,6 +486,70 @@ bool husk_ue4_launch(const char *apk, const char *data_dir, void *metal_layer, i
 {
     return launch(ENGINE_UE4, apk, data_dir, metal_layer, width, height, angle_dylib, ca_bundle);
 }
+bool husk_flutter_launch(const char *apk, const char *data_dir, void *metal_layer, int width, int height,
+                         const char *angle_dylib, const char *ca_bundle)
+{
+    return launch(ENGINE_FLUTTER, apk, data_dir, metal_layer, width, height, angle_dylib, ca_bundle);
+}
+bool husk_gamemaker_launch(const char *apk, const char *data_dir, void *metal_layer, int width, int height,
+                           const char *angle_dylib, const char *ca_bundle)
+{
+    return launch(ENGINE_GAMEMAKER, apk, data_dir, metal_layer, width, height, angle_dylib, ca_bundle);
+}
+int husk_gamemaker_orientation(const char *apk) { return tl_gm_orientation(apk); }
+bool husk_java_launch(const char *apk, const char *data_dir, void *metal_layer, int width, int height,
+                      const char *angle_dylib, const char *ca_bundle)
+{
+    return launch(ENGINE_JAVA, apk, data_dir, metal_layer, width, height, angle_dylib, ca_bundle);
+}
+void husk_java_set_runtime(const char *root, float density)
+{
+    snprintf(g_java_root, sizeof(g_java_root), "%s", root ? root : "");
+    if (density > 0) g_java_density = density;
+}
+void husk_java_set_host(void (*keyboard)(int show, int input_type, int ime_options), void (*set_clipboard)(const char *utf8),
+                        char *(*get_clipboard)(void), void (*share)(const char *utf8), void (*orientation)(int android_orientation))
+{
+    g_java_host.keyboard = keyboard; g_java_host.set_clipboard = set_clipboard; g_java_host.get_clipboard = get_clipboard;
+    g_java_host.share = share; g_java_host.orientation = orientation;
+}
+static bool java_running(void) { return atomic_load(&A.state) == HUSK_UNITY_RUNNING && A.engine == ENGINE_JAVA; }
+void husk_java_set_insets(int left, int top, int right, int bottom, int keyboard)
+{
+    g_java_insets[0] = left; g_java_insets[1] = top; g_java_insets[2] = right; g_java_insets[3] = bottom;
+    if (java_running()) tl_javaapp_set_insets(left, top, right, bottom, keyboard);
+}
+void husk_java_set_night_mode(int night) { g_java_night = night != 0; }
+void husk_java_insert_text(const char *utf8) { if (java_running()) tl_javaapp_text(utf8); }
+void husk_java_delete_backward(void) { if (java_running()) tl_javaapp_text_delete(); }
+void husk_java_text_action(void) { if (java_running()) tl_javaapp_text_action(); }
+void husk_java_keyboard_closed(void) { if (java_running()) tl_javaapp_keyboard_closed(); }
+void husk_java_back(void) { if (atomic_load(&A.state) == HUSK_UNITY_RUNNING && A.engine == ENGINE_JAVA) tl_javaapp_back(); }
+void tl_web_attach(void *screen_view, void *container, float scale, bool fresh);
+bool tl_web_hit(float x, float y);
+void husk_java_web_attach(void *screen_view, void *container, float scale, int fresh) { tl_web_attach(screen_view, container, scale, fresh != 0); }
+int husk_java_web_hit(float x, float y) { return java_running() && tl_web_hit(x, y) ? 1 : 0; }
+void husk_java_key(int android_keycode, int down) { if (atomic_load(&A.state) == HUSK_UNITY_RUNNING && A.engine == ENGINE_JAVA) tl_javaapp_key(android_keycode, down != 0); }
+int husk_flutter_is_app(const char *apk) { return tl_flutter_is_app(apk) ? 1 : 0; }
+void husk_flutter_set_pixel_ratio(float ratio) { tl_flutter_set_pixel_ratio(ratio); }
+void husk_flutter_set_insets(int top, int right, int bottom, int left) { tl_flutter_set_insets(top, right, bottom, left); }
+void husk_flutter_resize(int width, int height) { if (A.engine == ENGINE_FLUTTER) tl_flutter_resize(width, height); }
+void husk_flutter_insert_text(const char *utf8) { tl_flutter_key_insert(utf8); }
+void husk_flutter_delete_backward(void) { tl_flutter_key_delete(); }
+void husk_flutter_text_action(void) { tl_flutter_key_action(); }
+bool husk_flutter_text_multiline(void) { return tl_flutter_text_multiline(); }
+void husk_flutter_set_keyboard_inset(int bottom) { tl_flutter_set_keyboard_inset(bottom); }
+void husk_flutter_back(void) { if (A.engine == ENGINE_FLUTTER) tl_flutter_back(); }
+void husk_flutter_set_keyboard_handler(void (*fn)(int show, int kind)) { tl_flutter_text_set_keyboard_handler(fn); }
+void husk_flutter_set_close_handler(void (*fn)(void)) { tl_flutter_set_close_handler(fn); }
+void tl_set_cacerts_dir(const char *dir);
+void tl_set_system_fonts_dir(const char *dir);
+/* The certificates and fonts Android keeps under /system, as copies the app carries (cacerts/, and fonts/ + etc/fonts.xml). */
+void husk_native_set_system_files(const char *cacerts_dir, const char *fonts_root)
+{
+    if (cacerts_dir) tl_set_cacerts_dir(cacerts_dir);
+    if (fonts_root) tl_set_system_fonts_dir(fonts_root);
+}
 /* Where MoltenVK is: Unreal's Vulkan renderer runs on it. Before the launch call. */
 void husk_ue4_set_vulkan(const char *dylib) { snprintf(A.vulkan, sizeof(A.vulkan), "%s", dylib ? dylib : ""); }
 void tl_set_shared_storage(const char *dir);
@@ -402,13 +557,17 @@ void husk_native_set_shared_storage(const char *dir) { tl_set_shared_storage(dir
 
 void husk_native_add_package(const char *apk)
 {
-    if (apk && A.nextra < 3 && atomic_load(&A.state) == HUSK_UNITY_IDLE) {
+    if (apk && A.nextra < 15 && atomic_load(&A.state) == HUSK_UNITY_IDLE) {
         snprintf(A.extra[A.nextra++], sizeof(A.extra[0]), "%s", apk);
         tl_ld_queue_split(apk);
     }
 }
 void husk_sdl_set_safe_insets(int left, int top, int right, int bottom) { tl_sdl_set_safe_insets(left, top, right, bottom); }
 int husk_sdl_apk_is_portrait(const char *apk) { return tl_sdl_manifest_portrait(apk) ? 1 : 0; }
+int husk_apk_orientation(const char *apk) { return tl_manifest_orientation(apk); }
+int husk_apk_is_game(const char *apk) { return tl_manifest_is_game(apk) ? 1 : 0; }
+bool tl_manifest_split_required(const char *apk);
+int husk_apk_split_required(const char *apk) { return tl_manifest_split_required(apk) ? 1 : 0; }
 void husk_sdl_set_keyboard_handler(void (*handler)(int action)) { tl_sdl_set_keyboard_handler(handler); }
 void husk_sdl_commit_text(const char *utf8) { if (atomic_load(&A.state) == HUSK_UNITY_RUNNING && A.engine == ENGINE_SDL) tl_sdl_commit_text(utf8); }
 void husk_sdl_key(int keycode, int down) { if (atomic_load(&A.state) == HUSK_UNITY_RUNNING && A.engine == ENGINE_SDL) tl_sdl_key(keycode, down != 0); }
@@ -448,17 +607,17 @@ const char *husk_native_loaded_apk(void) { return atomic_load(&A.state) == HUSK_
 
 int husk_unity_state(void)
 {
-    if (atomic_load(&A.state) == HUSK_UNITY_RUNNING && ((A.engine == ENGINE_COCOS && tl_cocos_ended()) || (A.engine == ENGINE_GODOT && tl_godot_ended()))) atomic_store(&A.state, HUSK_UNITY_ENDED);
+    if (atomic_load(&A.state) == HUSK_UNITY_RUNNING && ((A.engine == ENGINE_COCOS && tl_cocos_ended()) || (A.engine == ENGINE_GODOT && tl_godot_ended()) || (A.engine == ENGINE_GAMEMAKER && tl_gm_ended()) || (A.engine == ENGINE_JAVA && tl_javaapp_ended()))) atomic_store(&A.state, HUSK_UNITY_ENDED);
     return atomic_load(&A.state);
 }
 static unsigned long engine_frames(void)
 {
-    return A.engine == ENGINE_GODOT ? tl_godot_frames() : A.engine == ENGINE_GTA ? tl_gta_frames() : A.engine == ENGINE_UE4 ? tl_na_frames() : A.engine == ENGINE_SDL ? tl_sdl_frames() : A.engine == ENGINE_GAMEACTIVITY ? tl_ga_frames() : A.engine == ENGINE_COCOS ? tl_cocos_frames() : tl_unity_frames();
+    return A.engine == ENGINE_JAVA ? tl_javaapp_frames() : A.engine == ENGINE_GAMEMAKER ? tl_gm_frames() : A.engine == ENGINE_FLUTTER ? tl_flutter_frames() : A.engine == ENGINE_GODOT ? tl_godot_frames() : A.engine == ENGINE_GTA ? tl_gta_frames() : A.engine == ENGINE_UE4 ? tl_na_frames() : A.engine == ENGINE_SDL ? tl_sdl_frames() : A.engine == ENGINE_GAMEACTIVITY ? tl_ga_frames() : A.engine == ENGINE_COCOS ? tl_cocos_frames() : tl_unity_frames();
 }
 unsigned long husk_unity_frames(void) { return engine_frames(); }
 void husk_unity_perf_snapshot(husk_unity_perf *out)
 {
-    if (A.engine == ENGINE_GAMEACTIVITY || A.engine == ENGINE_SDL || A.engine == ENGINE_UE4 || A.engine == ENGINE_GTA) {
+    if (A.engine == ENGINE_GAMEACTIVITY || A.engine == ENGINE_SDL || A.engine == ENGINE_UE4 || A.engine == ENGINE_GTA || A.engine == ENGINE_FLUTTER || A.engine == ENGINE_JAVA) {
         /* The game paces its own frames; the rate is how many it presented since the last look. */
         static unsigned long last; static struct timespec since;
         struct timespec now; clock_gettime(CLOCK_MONOTONIC, &now);
@@ -470,13 +629,17 @@ void husk_unity_perf_snapshot(husk_unity_perf *out)
         return;
     }
     if (A.engine == ENGINE_COCOS) { tl_cocos_perf p; tl_cocos_perf_snapshot(&p); out->fps = p.fps; out->mean_ms = p.mean_ms; out->max_ms = p.max_ms; return; }
+    if (A.engine == ENGINE_GAMEMAKER) { tl_gm_perf p; tl_gm_perf_snapshot(&p); out->fps = p.fps; out->mean_ms = p.mean_ms; out->max_ms = p.max_ms; return; }
     if (A.engine == ENGINE_GODOT) { tl_godot_perf p; tl_godot_perf_snapshot(&p); out->fps = p.fps; out->mean_ms = p.mean_ms; out->max_ms = p.max_ms; return; }
     tl_unity_perf p; tl_unity_perf_snapshot(&p); out->fps = p.fps; out->mean_ms = p.mean_ms; out->max_ms = p.max_ms;
 }
 void husk_unity_touch(int phase, int id, float x, float y)
 {
     if (atomic_load(&A.state) != HUSK_UNITY_RUNNING) return;
-    if (A.engine == ENGINE_GODOT) tl_godot_touch(phase, id, x, y);
+    if (A.engine == ENGINE_JAVA) tl_javaapp_touch(phase, id, x, y);
+    else if (A.engine == ENGINE_GAMEMAKER) tl_gm_touch(phase, id, x, y);
+    else if (A.engine == ENGINE_FLUTTER) tl_flutter_touch(phase, id, x, y);
+    else if (A.engine == ENGINE_GODOT) tl_godot_touch(phase, id, x, y);
     else if (A.engine == ENGINE_GTA) tl_gta_touch(phase, id, x, y);
     else if (A.engine == ENGINE_UE4) tl_na_touch(phase, id, x, y);
     else if (A.engine == ENGINE_SDL) tl_sdl_touch(phase, id, x, y);
@@ -486,7 +649,10 @@ void husk_unity_touch(int phase, int id, float x, float y)
 void husk_unity_set_paused(bool paused)
 {
     if (atomic_load(&A.state) != HUSK_UNITY_RUNNING) return;
-    if (A.engine == ENGINE_GODOT) { tl_godot_set_paused(paused); tl_audio_set_paused(paused); }
+    if (A.engine == ENGINE_JAVA) { tl_javaapp_set_paused(paused); tl_audio_set_paused(paused); }
+    else if (A.engine == ENGINE_GAMEMAKER) { tl_gm_set_paused(paused); tl_audio_set_paused(paused); }
+    else if (A.engine == ENGINE_FLUTTER) { tl_flutter_set_paused(paused); tl_audio_set_paused(paused); }
+    else if (A.engine == ENGINE_GODOT) { tl_godot_set_paused(paused); tl_audio_set_paused(paused); }
     else if (A.engine == ENGINE_GTA) { tl_gta_set_paused(paused); tl_audio_set_paused(paused); }
     else if (A.engine == ENGINE_UE4) { tl_na_set_paused(paused); tl_audio_set_paused(paused); }
     else if (A.engine == ENGINE_SDL) { tl_sdl_set_paused(paused); tl_audio_set_paused(paused); }

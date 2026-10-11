@@ -28,6 +28,7 @@
 #include <sys/ioctl.h>
 #include <sys/select.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -79,8 +80,26 @@ static socklen_t sa_to_darwin(const void *g, socklen_t glen, struct sockaddr_sto
     if (fam == G_AF_UNIX) {
         struct sockaddr_un *s = (struct sockaddr_un *)out;
         size_t n = glen > 2 ? glen - 2 : 0;
+        const char *gp = (const char *)p + 2;
+        char path[1100];
+        bool abstract = n > 0 && gp[0] == 0;
+        if (abstract) { size_t m = n - 1 < sizeof(path) - 1 ? n - 1 : sizeof(path) - 1; memcpy(path, gp + 1, m); path[m] = 0; }
+        else { size_t m = strnlen(gp, n); char raw[1100]; if (m > sizeof(raw) - 1) m = sizeof(raw) - 1; memcpy(raw, gp, m); raw[m] = 0;
+               const char *tl_path_resolve(const char *path, char *buf, size_t n); char rb[1100];
+               snprintf(path, sizeof(path), "%s", m ? tl_path_resolve(raw, rb, sizeof(rb)) : ""); }
+        /* Linux's abstract names, and paths longer than Darwin's 104 bytes (an app's files under an iOS container path), as a short
+         * name in the temporary directory made from a hash of the address: a bind and a connect to the same address meet there */
+        if (abstract || strlen(path) > sizeof(s->sun_path) - 1) {
+            uint64_t h = 1469598103934665603ull;
+            for (const char *q = path; *q; q++) h = (h ^ (uint8_t)*q) * 1099511628211ull;
+            const char *tmp = getenv("TMPDIR"); if (!tmp || !*tmp || strlen(tmp) > sizeof(s->sun_path) - 22) tmp = "/tmp";
+            char dir[600]; snprintf(dir, sizeof(dir), "%s%ss", tmp, tmp[strlen(tmp) - 1] == '/' ? "" : "/");
+            mkdir(dir, 0700);
+            snprintf(path, sizeof(path), "%s/%c%016llx", dir, abstract ? 'a' : 'p', (unsigned long long)h);
+        }
+        n = strlen(path);
         if (n > sizeof(s->sun_path) - 1) n = sizeof(s->sun_path) - 1;
-        memcpy(s->sun_path, p + 2, n);
+        memcpy(s->sun_path, path, n); s->sun_path[n] = 0;
         s->sun_family = AF_UNIX;
         s->sun_len = (uint8_t)(2 + n + 1);
         return s->sun_len;
@@ -182,7 +201,16 @@ static int b_bind(int fd, const void *g, socklen_t glen)
     struct sockaddr_storage s;
     socklen_t n = sa_to_darwin(g, glen, &s);
     if (!n) { tl_set_guest_errno(G_EAFNOSUPPORT); return -1; }
-    TL_ERRNO_BEGIN(); int r = bind(fd, (struct sockaddr *)&s, n); TL_ERRNO_END(); return r;
+    /* a short name made for an address (see sa_to_darwin) outlives the app's own unlink of the long path: a socket left there by an
+       earlier run goes first, as the app's unlink would have taken it */
+    if (s.ss_family == AF_UNIX) {
+        const char *sp = ((struct sockaddr_un *)&s)->sun_path, *base = strrchr(sp, '/');
+        struct stat st;
+        if (base && (base[1] == 'a' || base[1] == 'p') && strlen(base + 2) == 16 && base - sp >= 2 && !strncmp(base - 2, "/s", 2) && stat(sp, &st) == 0 && S_ISSOCK(st.st_mode)) unlink(sp);
+    }
+    TL_ERRNO_BEGIN(); int r = bind(fd, (struct sockaddr *)&s, n); int e = errno; TL_ERRNO_END();
+    NTRACE("bind(fd %d, family %d%s%s) -> %d errno %d", fd, s.ss_family, s.ss_family == AF_UNIX ? " " : "", s.ss_family == AF_UNIX ? ((struct sockaddr_un *)&s)->sun_path : "", r, r < 0 ? e : 0);
+    return r;
 }
 
 static int b_connect(int fd, const void *g, socklen_t glen)
@@ -222,6 +250,8 @@ static long b_recv(int fd, void *p, size_t n, int flags)
 {
     TL_ERRNO_BEGIN(); long r = recv(fd, p, n, msg_flags_to_darwin(flags)); int e = errno; TL_ERRNO_END(); NTRACE("recv(fd %d, %zu) -> %ld errno %d", fd, n, r, r < 0 ? e : 0); return r;
 }
+static long b_sendto(int fd, const void *p, size_t n, int flags, const void *g, socklen_t glen);
+static long b___sendto_chk(int fd, const void *p, size_t n, size_t bl, int flags, const void *g, socklen_t glen) { (void)bl; return b_sendto(fd, p, n, flags, g, glen); }
 static long b_sendto(int fd, const void *p, size_t n, int flags, const void *g, socklen_t glen)
 {
     struct sockaddr_storage s; socklen_t sl = 0;
@@ -273,6 +303,25 @@ static long b_recvmsg(int fd, guest_msghdr *g, int flags)
     }
     TL_ERRNO_END();
     return r;
+}
+/* sendmmsg / recvmmsg: Darwin has neither; one message at a time (QUIC and DNS libraries batch with them) */
+typedef struct { guest_msghdr hdr; unsigned int len; } guest_mmsghdr;
+static int b_sendmmsg(int fd, guest_mmsghdr *v, unsigned int n, int flags)
+{
+    unsigned int i = 0;
+    for (; i < n; i++) { long r = b_sendmsg(fd, &v[i].hdr, flags); if (r < 0) return i ? (int)i : -1; v[i].len = (unsigned int)r; }
+    return (int)i;
+}
+static int b_recvmmsg(int fd, guest_mmsghdr *v, unsigned int n, int flags, void *timeout)
+{
+    (void)timeout;
+    unsigned int i = 0;
+    for (; i < n; i++) {
+        long r = b_recvmsg(fd, &v[i].hdr, i ? flags | 0x40 /* MSG_DONTWAIT */ : flags);
+        if (r < 0) return i ? (int)i : -1;
+        v[i].len = (unsigned int)r;
+    }
+    return (int)i;
 }
 
 static int b_shutdown(int fd, int how) { TL_ERRNO_BEGIN(); int r = shutdown(fd, how); TL_ERRNO_END(); return r; }
@@ -381,7 +430,8 @@ static int b_getaddrinfo(const char *node, const char *service, const guest_addr
         hp = &hints;
     }
     int r = getaddrinfo(node, service, hp, &dres);
-    NTRACE("getaddrinfo(%s, %s) -> %d", node ? node : "(null)", service ? service : "(null)", r);
+    NTRACE("getaddrinfo(%s, %s, family %d flags %#x socktype %d) -> %d", node ? node : "(null)", service ? service : "(null)",
+           gh ? gh->ai_family : -1, gh ? gh->ai_flags : -1, gh ? gh->ai_socktype : -1, r);
     if (r) return r;                                                /* EAI_* values agree with bionic's */
     guest_addrinfo *head = NULL, **tail = &head;
     for (struct addrinfo *a = dres; a; a = a->ai_next) {
@@ -398,6 +448,13 @@ static int b_getaddrinfo(const char *node, const char *service, const guest_addr
     if (!head) return 8;                                            /* EAI_NONAME */
     *res = head;
     return 0;
+}
+
+/* bionic's own: getaddrinfo on a network (netid/mark are Android's network selection; there is one network here) */
+static int b_android_getaddrinfofornet(const char *node, const char *service, const guest_addrinfo *gh, unsigned netid, unsigned mark, guest_addrinfo **res)
+{
+    (void)netid; (void)mark;
+    return b_getaddrinfo(node, service, gh, res);
 }
 
 static void b_freeaddrinfo(guest_addrinfo *a)
@@ -449,13 +506,49 @@ static unsigned b_if_nametoindex(const char *n) { return if_nametoindex(n); }
 static int b_inet_pton(int af, const char *src, void *dst) { int d = dom_to_darwin(af); return d < 0 ? -1 : inet_pton(d, src, dst); }
 static const char *b_inet_ntop(int af, const void *src, char *dst, socklen_t size) { int d = dom_to_darwin(af); return d < 0 ? NULL : inet_ntop(d, src, dst, size); }
 
+/*
+ * getifaddrs: the host's interfaces with IPv4 or IPv6 addresses, in bionic's struct ifaddrs (the same fields, Linux sockaddrs). Each
+ * entry is one allocation holding its name and addresses, so freeifaddrs frees the chain entry by entry. Flags keep their meaning;
+ * IFF_MULTICAST is 0x1000 on Linux, 0x8000 here.
+ */
+#include <ifaddrs.h>
+#include <net/if.h>
+typedef struct guest_ifaddrs { struct guest_ifaddrs *next; char *name; uint32_t flags; void *addr, *netmask, *ifu, *data; } guest_ifaddrs;
+static int b_getifaddrs(guest_ifaddrs **out)
+{
+    struct ifaddrs *list;
+    if (getifaddrs(&list) != 0) { tl_set_guest_errno(tl_errno_to_guest(errno)); return -1; }
+    guest_ifaddrs *head = NULL, **tail = &head;
+    for (struct ifaddrs *i = list; i; i = i->ifa_next) {
+        if (!i->ifa_addr || (i->ifa_addr->sa_family != AF_INET && i->ifa_addr->sa_family != AF_INET6)) continue;
+        size_t nl = strlen(i->ifa_name) + 1;
+        uint8_t *blk = calloc(1, sizeof(guest_ifaddrs) + 3 * 32 + nl);
+        guest_ifaddrs *g = (guest_ifaddrs *)blk;
+        uint8_t *sa = blk + sizeof(guest_ifaddrs);
+        g->name = (char *)(sa + 96); memcpy(g->name, i->ifa_name, nl);
+        uint32_t f = i->ifa_flags & 0x3FF & ~0x20u;
+        if (i->ifa_flags & IFF_MULTICAST) f |= 0x1000;
+        g->flags = f;
+        sa_from_darwin(i->ifa_addr, sa, 32); g->addr = sa;
+        if (i->ifa_netmask) { struct sockaddr_storage m; memcpy(&m, i->ifa_netmask, i->ifa_netmask->sa_len < sizeof(m) ? i->ifa_netmask->sa_len : sizeof(m));
+                              m.ss_family = i->ifa_addr->sa_family; sa_from_darwin((struct sockaddr *)&m, sa + 32, 32); g->netmask = sa + 32; }
+        if (i->ifa_dstaddr && (i->ifa_flags & (IFF_BROADCAST | IFF_POINTOPOINT))) { sa_from_darwin(i->ifa_dstaddr, sa + 64, 32); g->ifu = sa + 64; }
+        *tail = g; tail = &g->next;
+    }
+    freeifaddrs(list);
+    *out = head;
+    return 0;
+}
+static void b_freeifaddrs(guest_ifaddrs *g) { while (g) { guest_ifaddrs *n = g->next; free(g); g = n; } }
+
 const tl_bionic_entry tl_tab_net[] = {
+    TL_WRAP("getifaddrs", b_getifaddrs), TL_WRAP("freeifaddrs", b_freeifaddrs),
     TL_WRAP("socket", b_socket), TL_WRAP("socketpair", b_socketpair), TL_WRAP("bind", b_bind), TL_WRAP("connect", b_connect),
     TL_WRAP("listen", b_listen), TL_WRAP("accept", b_accept), TL_WRAP("accept4", b_accept4), TL_WRAP("send", b_send),
-    TL_WRAP("recv", b_recv), TL_WRAP("sendto", b_sendto), TL_WRAP("recvfrom", b_recvfrom), TL_WRAP("__recvfrom_chk", b___recvfrom_chk), TL_WRAP("sendmsg", b_sendmsg),
-    TL_WRAP("recvmsg", b_recvmsg), TL_WRAP("shutdown", b_shutdown), TL_WRAP("getsockname", b_getsockname),
+    TL_WRAP("recv", b_recv), TL_WRAP("sendto", b_sendto), TL_WRAP("__sendto_chk", b___sendto_chk), TL_WRAP("recvfrom", b_recvfrom), TL_WRAP("__recvfrom_chk", b___recvfrom_chk), TL_WRAP("sendmsg", b_sendmsg),
+    TL_WRAP("recvmsg", b_recvmsg), TL_WRAP("sendmmsg", b_sendmmsg), TL_WRAP("recvmmsg", b_recvmmsg), TL_WRAP("shutdown", b_shutdown), TL_WRAP("getsockname", b_getsockname),
     TL_WRAP("getpeername", b_getpeername), TL_WRAP("setsockopt", b_setsockopt), TL_WRAP("getsockopt", b_getsockopt),
-    TL_WRAP("getaddrinfo", b_getaddrinfo), TL_WRAP("freeaddrinfo", b_freeaddrinfo), TL_WRAP("gai_strerror", b_gai_strerror),
+    TL_WRAP("getaddrinfo", b_getaddrinfo), TL_WRAP("android_getaddrinfofornet", b_android_getaddrinfofornet), TL_WRAP("freeaddrinfo", b_freeaddrinfo), TL_WRAP("gai_strerror", b_gai_strerror),
     TL_WRAP("getnameinfo", b_getnameinfo), TL_WRAP("gethostbyname", b_gethostbyname), TL_WRAP("gethostbyaddr", b_gethostbyaddr),
     TL_WRAP("if_nametoindex", b_if_nametoindex), TL_WRAP("inet_pton", b_inet_pton), TL_WRAP("inet_ntop", b_inet_ntop),
     TL_DIRECT(inet_addr), TL_DIRECT(inet_aton), TL_DIRECT(inet_ntoa), TL_WRAP("htons", b_htons), TL_WRAP("ntohs", b_htons), TL_WRAP("htonl", b_htonl), TL_WRAP("ntohl", b_htonl),

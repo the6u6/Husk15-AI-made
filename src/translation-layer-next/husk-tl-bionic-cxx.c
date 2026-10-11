@@ -155,11 +155,12 @@ static __thread cleanup_rec *t_cleanup;
 static void b___pthread_cleanup_push(cleanup_rec *c, void (*routine)(void *), void *arg) { c->routine = routine; c->arg = arg; c->prev = t_cleanup; t_cleanup = c; }
 static void b___pthread_cleanup_pop(cleanup_rec *c, int execute) { t_cleanup = c->prev; if (execute && c->routine) c->routine(c->arg); }
 
-/* bionic's struct mallinfo is ten ints; Darwin keeps no such numbers */
-static void b_mallinfo(int *out) { memset(out, 0, 10 * sizeof(int)); }
+/* bionic's struct mallinfo is ten size_t (80 bytes on arm64), returned by value -- through x8, as any struct over 16 bytes is, so
+ * this must return the struct, not take a pointer. Darwin keeps no such numbers. */
+typedef struct { size_t arena, ordblks, smblks, hblks, hblkhd, usmblks, fsmblks, uordblks, fordblks, keepcost; } b_mallinfo_t;
+static b_mallinfo_t b_mallinfo(void) { b_mallinfo_t m; memset(&m, 0, sizeof(m)); return m; }
 static size_t b_malloc_usable_size(void *p) { return p ? malloc_size(p) : 0; }
 
-static int b_epoll_create(int size) { (void)size; tl_set_guest_errno(38); return -1; }
 
 const tl_bionic_entry tl_tab_cxx[] = {
     TL_WRAP("getrlimit", b_getrlimit), TL_WRAP("setrlimit", b_setrlimit), TL_WRAP("getrusage", b_getrusage),
@@ -167,7 +168,7 @@ const tl_bionic_entry tl_tab_cxx[] = {
     TL_WRAP("pthread_setschedparam", b_pthread_setschedparam), TL_WRAP("pthread_getschedparam", b_pthread_getschedparam),
     TL_WRAP("pthread_attr_setschedparam", b_pthread_attr_setschedparam), TL_WRAP("pthread_gettid_np", b_pthread_gettid_np),
     TL_WRAP("__pthread_cleanup_push", b___pthread_cleanup_push), TL_WRAP("__pthread_cleanup_pop", b___pthread_cleanup_pop),
-    TL_WRAP("mallinfo", b_mallinfo), TL_WRAP("malloc_usable_size", b_malloc_usable_size), TL_WRAP("epoll_create", b_epoll_create),
+    TL_WRAP("mallinfo", b_mallinfo), TL_WRAP("malloc_usable_size", b_malloc_usable_size),
     TL_WRAP("_Znwm", b_new), TL_WRAP("_Znam", b_new), TL_WRAP("_ZnwmRKSt9nothrow_t", b_new_nothrow), TL_WRAP("_ZnamRKSt9nothrow_t", b_new_nothrow),
     TL_WRAP("_ZdlPv", b_delete), TL_WRAP("_ZdaPv", b_delete), TL_WRAP("_ZdlPvm", b_delete_sized), TL_WRAP("_ZdaPvm", b_delete_sized),
     TL_WRAP("_ZdlPvRKSt9nothrow_t", b_delete_sized), TL_WRAP("_ZdaPvRKSt9nothrow_t", b_delete_sized),
@@ -177,7 +178,7 @@ const tl_bionic_entry tl_tab_cxx[] = {
     TL_WRAP("getgid", b_getgid), TL_WRAP("setuid", b_setid), TL_WRAP("setgid", b_setid), TL_WRAP("initgroups", b_initgroups),
     TL_WRAP("tcgetattr", b_tcattr), TL_WRAP("tcsetattr", b_tcsetattr), TL_WRAP("execl", b_execl),
     TL_WRAP("umask", b_umask), TL_WRAP("alarm", b_alarm), TL_WRAP("mlock", b_mlock), TL_WRAP("kill", b_kill),
-    TL_WRAP("sigprocmask", b_sigprocmask),
+    TL_WRAP("sigprocmask", b_sigprocmask), TL_WRAP("sigprocmask64", b_sigprocmask),
     TL_DIRECT(sigsetjmp), TL_DIRECT(siglongjmp),
     TL_END
 };

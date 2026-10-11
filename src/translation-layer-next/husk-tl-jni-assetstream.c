@@ -34,7 +34,7 @@ jobj *tl_hle_assets(void);
 typedef struct { const uint8_t *data; size_t len, pos; uint8_t *owned; } stream;
 
 /* The asset's place in the APK, if it is stored there uncompressed (so a file descriptor can read it in place). */
-static bool stored_asset(const char *name, int *fd, int64_t *off, int64_t *len)
+bool tl_assetstream_stored(const char *name, int *fd, int64_t *off, int64_t *len)
 {
     char path[600]; snprintf(path, sizeof(path), "assets/%s", name);
     for (int i = 0; ; i++) {
@@ -56,7 +56,7 @@ static void AM_openFd(tl_jcall *c)
 {
     const char *name = Str(c->args[0].l);
     int fd; int64_t off, len;
-    if (!stored_asset(name, &fd, &off, &len)) { tl_jni_throw("java/io/FileNotFoundException", name); c->ret = vl(NULL); return; }
+    if (!tl_assetstream_stored(name, &fd, &off, &len)) { tl_jni_throw("java/io/FileNotFoundException", name); c->ret = vl(NULL); return; }
     jobj *a = tl_jni_new_object(tl_jni_class(AFD));
     tl_jni_set_field(a, "fd", "I", vi(fd)); tl_jni_set_field(a, "off", "J", vj(off)); tl_jni_set_field(a, "len", "J", vj(len));
     c->ret = vl(a);

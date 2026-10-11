@@ -65,7 +65,7 @@ static bool is_dex(const char *name)
 
 /* Recognised by the libraries an engine always ships. */
 typedef struct engine_scan {
-    bool il2cpp, unity, mono_unity, flutter, react, dotnet, godot, unreal, cocos, gdx, minecraft, sdl, sdl2, mainlib, rockstar_game, openal, mpg123, sdl_symbols, native_activity;
+    bool il2cpp, unity, mono_unity, flutter, react, dotnet, godot, unreal, cocos, gdx, minecraft, sdl, sdl2, mainlib, rockstar_game, openal, mpg123, sdl_symbols, native_activity, cordova, capacitor, gamemaker, python, supercell, unity_library, unity6;
 } engine_scan;
 
 static void note_engine(engine_scan *s, const char *f)
@@ -74,6 +74,8 @@ static void note_engine(engine_scan *s, const char *f)
     else if (!strcmp(f, "libunity.so")) s->unity = true;
     else if (!strcmp(f, "libmonobdwgc-2.0.so") || !strcmp(f, "libmono.so")) s->mono_unity = true;
     else if (!strcmp(f, "libflutter.so")) s->flutter = true;
+    else if (!strcmp(f, "libyoyo.so")) s->gamemaker = true;
+    else if (!strncmp(f, "libpython", 9)) s->python = true;
     else if (!strcmp(f, "libreactnativejni.so") || !strcmp(f, "libhermes.so")) s->react = true;
     else if (!strcmp(f, "libmonosgen-2.0.so") || !strcmp(f, "libmonodroid.so")) s->dotnet = true;
     else if (!strcmp(f, "libgodot_android.so")) s->godot = true;
@@ -84,6 +86,7 @@ static void note_engine(engine_scan *s, const char *f)
     else if (!strcmp(f, "libSDL3.so")) s->sdl = true;
     else if (!strcmp(f, "libSDL2.so")) s->sdl2 = true;
     else if (!strcmp(f, "libmain.so")) s->mainlib = true;
+    else if (!strcmp(f, "libg.so")) s->supercell = true;
     else if (!strcmp(f, "libGame.so")) s->rockstar_game = true;
     else if (!strcmp(f, "libopenal.so")) s->openal = true;
     else if (!strcmp(f, "libVendor_mpg123.so")) s->mpg123 = true;
@@ -93,9 +96,17 @@ static const char *engine_name(const engine_scan *s)
 {
     /* Rockstar's GTA port: libGame with its own OpenAL and mpg123 (a Flutter shell around it would otherwise make it look like a Flutter app). */
     if (s->rockstar_game && s->openal && s->mpg123) return "Rockstar";
+    if ((s->il2cpp || s->unity) && s->unity_library) return NULL;
+    /* Unity 6 starts through UnityPlayerForActivityOrService: its own Java activity runs it, on the Java runtime */
+    if ((s->il2cpp || s->unity) && s->unity6) return "Unity 6";
     if (s->il2cpp) return "Unity (IL2CPP)";
     if (s->unity) return s->mono_unity ? "Unity (Mono)" : "Unity";
-    if (s->flutter) return "Flutter";
+    /* Supercell's games (libg.so) carry a Flutter module for some screens; the game itself is their engine behind a Java activity */
+    if (s->flutter && !s->supercell) return "Flutter";
+    if (s->gamemaker) return "GameMaker";
+    /* Web apps: the app is HTML and JavaScript in a WebView (Ionic is one or the other underneath). */
+    if (s->capacitor) return "Capacitor";
+    if (s->cordova) return "Cordova";
     if (s->react) return "React Native";
     if (s->dotnet) return ".NET / Xamarin";
     if (s->godot) return "Godot";
@@ -103,6 +114,8 @@ static const char *engine_name(const engine_scan *s)
     if (s->cocos) return "Cocos";
     if (s->minecraft) return "Minecraft";
     /* SDL 2 is told by the pair its Java shell always loads: libSDL2 and the game's own libmain (SDL 3 games ship libSDL3 alone, as it is the only SDL there). */
+    /* python-for-android (Kivy, pygame): SDL 2 with CPython in libmain. The SDL driver runs it. */
+    if (s->python && s->sdl2 && s->mainlib) return "Python";
     if (s->sdl || (s->sdl2 && s->mainlib) || s->sdl_symbols) return "SDL";
     if (s->gdx) return "libGDX";
     /* A game that is only a NativeActivity library of its own (sokol, android_native_app_glue): the runtime drives the activity itself. */
@@ -269,6 +282,9 @@ char *husk_tl_scan(const char *const *paths, int count)
             const tl_zip_entry *e = &z.entries[i];
             const char *file = NULL;
             int abi = lib_abi(e->name, &file);
+            /* the frameworks' own files: an index.html under www/ or public/ alone is any app's (X keeps one for a web view) */
+            if (!strcmp(e->name, "assets/capacitor.config.json")) eng.capacitor = true;
+            if (!strcmp(e->name, "assets/www/cordova.js") || !strcmp(e->name, "assets/www/cordova_plugins.js")) eng.cordova = true;
             if (!strcmp(e->name, "AndroidManifest.xml")) {
                 manifest = true;
             } else if (is_dex(e->name)) {
@@ -297,6 +313,8 @@ char *husk_tl_scan(const char *const *paths, int count)
                 rep->packing = "none";
             } else if (tl_zip_data(&z, e, LIB_LIMIT, &data, &len, &owned, derr, sizeof(derr))) {
                 tl_elf_analyze(data, len, rep);
+                static const char u6[] = "UnityPlayerForActivityOrService";
+                if (!strcmp(file, "libunity.so") && memmem(data, len, u6, sizeof(u6) - 1)) eng.unity6 = true;
                 if (owned) free((void *)data);
             } else {
                 memset(rep, 0, sizeof(*rep));
@@ -308,6 +326,9 @@ char *husk_tl_scan(const char *const *paths, int count)
             }
             if (rep->exports_sdl_main) eng.sdl_symbols = true;
             if (rep->exports_native_activity) eng.native_activity = true;
+            /* Unity's libmain starts the game from Java through JNI_OnLoad; an app that only embeds Unity ("Unity as a Library",
+             * Duolingo) ships a libmain without it, and is an ordinary app around it */
+            if (!strcmp(file, "libmain.so") && !rep->exports_jni_onload) eng.unity_library = true;
             arm64_libs++;
             if (strcmp(lib_status(rep), "ok") != 0) {
                 arm64_trouble++;
@@ -331,6 +352,10 @@ char *husk_tl_scan(const char *const *paths, int count)
     } else if (!manifest && dex_count == 0) {
         verdict = "unreadable";
         snprintf(summary, sizeof(summary), "This is not an app: it has no manifest and no code.");
+    } else if (eng.capacitor || eng.cordova) {
+        verdict = "web";
+        snprintf(summary, sizeof(summary), "A %s web app: its pages and scripts run in Safari's engine, with Husk answering "
+                 "the plugins it calls.", eng.capacitor ? "Capacitor" : "Cordova");
     } else if (!any_native) {
         verdict = "java";
         snprintf(summary, sizeof(summary), "No native code. Only the Java side of the "
@@ -367,7 +392,8 @@ char *husk_tl_scan(const char *const *paths, int count)
     tl_json_key(&j, "error");       tl_json_string(&j, error[0] ? error : NULL);
     tl_json_key(&j, "verdict");     tl_json_string(&j, verdict);
     tl_json_key(&j, "summary");     tl_json_string(&j, summary);
-    tl_json_key(&j, "engine");      tl_json_string(&j, engine_name(&eng));
+    /* An app with code and no engine Husk knows by its libraries is an Android app: Husk's own Java runtime runs it */
+    tl_json_key(&j, "engine");      tl_json_string(&j, engine_name(&eng) ? engine_name(&eng) : dex_count > 0 ? "Java" : NULL);
     tl_json_key(&j, "hasManifest"); tl_json_bool(&j, manifest);
     tl_json_key(&j, "dexCount");    tl_json_int(&j, dex_count);
     tl_json_key(&j, "dexBytes");    tl_json_int(&j, dex_bytes);

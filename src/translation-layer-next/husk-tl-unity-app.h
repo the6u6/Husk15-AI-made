@@ -56,6 +56,53 @@ bool husk_godot_launch(const char *apk, const char *data_dir, void *metal_layer,
 bool husk_gta_launch(const char *apk, const char *data_dir, void *metal_layer, int width, int height,
                      const char *angle_dylib, const char *ca_bundle);
 void husk_ue4_set_vulkan(const char *dylib);
+
+/* Flutter apps (libflutter.so): the engine and the app's Dart run natively; Impeller draws through ANGLE. */
+bool husk_flutter_launch(const char *apk, const char *data_dir, void *metal_layer, int width, int height,
+                         const char *angle_dylib, const char *ca_bundle);
+int  husk_flutter_is_app(const char *apk);
+/* A GameMaker game (YoYo's runner, libyoyo.so). */
+bool husk_gamemaker_launch(const char *apk, const char *data_dir, void *metal_layer, int width, int height,
+                           const char *angle_dylib, const char *ca_bundle);
+int  husk_gamemaker_orientation(const char *apk);                   /* from options.ini: 1 portrait, 0 landscape, -1 either */
+/* Java apps (libGDX games and other apps whose code is Java) on Husk's Dalvik runtime. The runtime folder (the bundled
+ * java-runtime) and the screen's pixels per dp are set before the launch call. */
+bool husk_java_launch(const char *apk, const char *data_dir, void *metal_layer, int width, int height,
+                      const char *angle_dylib, const char *ca_bundle);
+void husk_java_set_runtime(const char *root, float density);
+void husk_java_back(void);
+/* The host's side of a Java app's views: its keyboard (show, EditorInfo input type and IME options), the clipboard (get returns a
+   malloc'd string or NULL), the share sheet, the orientation the activity asks for. Before husk_java_launch. */
+void husk_java_set_host(void (*keyboard)(int show, int input_type, int ime_options), void (*set_clipboard)(const char *utf8),
+                        char *(*get_clipboard)(void), void (*share)(const char *utf8), void (*orientation)(int android_orientation));
+/* The notch / home indicator areas and the keyboard's height, in surface pixels; before the launch and whenever they change. */
+void husk_java_set_insets(int left, int top, int right, int bottom, int keyboard);
+/* The phone is in dark mode (before the launch): the app's configuration says night. */
+void husk_java_set_night_mode(int night);
+void husk_java_insert_text(const char *utf8);
+void husk_java_delete_backward(void);
+void husk_java_text_action(void);
+void husk_java_keyboard_closed(void);
+void husk_java_key(int android_keycode, int down);
+/* A Java app's WebViews are WKWebViews in a container the host puts right under the app's screen view, the same size, at the screen's
+   scale (surface pixels per point). fresh: a new app (1), or the running one shown on a new screen view (0: its pages move over).
+   husk_java_web_hit says whether a touch at a point in the screen view belongs to a web page instead. */
+void husk_java_web_attach(void *screen_view, void *container, float scale, int fresh);
+int husk_java_web_hit(float x, float y);
+void husk_flutter_set_pixel_ratio(float ratio);                      /* the screen's scale, before the launch */
+void husk_flutter_set_insets(int top, int right, int bottom, int left);   /* safe area, in surface pixels */
+void husk_flutter_resize(int width, int height);                     /* the view's new size in pixels, after the launch */
+/* The keyboard for a Flutter app's text fields: the app asks for it (show 1 with the kind, or 0 to hide; on its own thread), and
+ * what is typed goes back. The kind is 0 text, 1 number, 2 email, 3 URL, plus 0x10 multi-line and 0x20 secure. */
+void husk_flutter_set_keyboard_handler(void (*fn)(int show, int kind));
+void husk_flutter_insert_text(const char *utf8);
+void husk_flutter_delete_backward(void);
+void husk_flutter_text_action(void);                                  /* Return */
+bool husk_flutter_text_multiline(void);
+void husk_flutter_set_keyboard_inset(int bottom);                     /* pixels of the view the keyboard covers */
+void husk_flutter_back(void);                                         /* Android's back button */
+void husk_flutter_set_close_handler(void (*fn)(void));                /* the app closed itself */
+void husk_native_set_system_files(const char *cacerts_dir, const char *fonts_root);
 /* Another APK of the app about to be launched (a split, an asset pack). Before the launch call; at most three. */
 void husk_native_add_package(const char *apk);
 /* The folder games see as Android's shared storage (/sdcard outside their own Android/data), or NULL for each game's own. */
@@ -64,6 +111,10 @@ void husk_native_set_shared_storage(const char *dir);
 void husk_sdl_set_safe_insets(int left, int top, int right, int bottom);
 /* Whether an SDL game's manifest asks for a portrait screen (the others are landscape). */
 int husk_sdl_apk_is_portrait(const char *apk);
+int husk_apk_orientation(const char *apk);
+int husk_apk_is_game(const char *apk);         /* the manifest files it as a game (appCategory / isGame) */      /* 1 portrait, 0 landscape, -1 the manifest does not say */
+/* 1 when the app needs its split APKs (isSplitRequired, requiredSplitTypes, Play's splits.required) */
+int husk_apk_split_required(const char *apk);
 /* Soft keyboard for an SDL game: the handler is told 1 = show, 2 = hide; typed text goes in with husk_sdl_commit_text, Backspace (67) and Enter (66) with husk_sdl_key. */
 void husk_sdl_set_keyboard_handler(void (*handler)(int action));
 void husk_sdl_commit_text(const char *utf8);

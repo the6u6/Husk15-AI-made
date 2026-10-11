@@ -595,10 +595,83 @@ static bool find_sdl_activity(const char *apk, const char *package, char *out, s
 
 /* Whether the app asks for a portrait screen: the first activity that names an orientation (android:screenOrientation) decides. Landscape, sensor and "unspecified" are the
  * landscape the runtime always used. Values: 0 landscape, 1 portrait, 6 sensorLandscape, 7 sensorPortrait, 8 reverseLandscape, 9 reversePortrait, 11 userLandscape, 12 userPortrait. */
-bool tl_sdl_manifest_portrait(const char *apk)
+/* Whether the manifest's <application> calls the app a game: android:appCategory="game" (0) or android:isGame="true". */
+bool tl_manifest_is_game(const char *apk)
+{
+    tl_zip z; char err[160]; bool game = false;
+    if (!tl_zip_open(&z, apk, err, sizeof(err))) return false;
+    const tl_zip_entry *e = tl_zip_find(&z, "AndroidManifest.xml");
+    const uint8_t *data; size_t len; bool owned = false;
+    if (e && tl_zip_data(&z, e, 8u << 20, &data, &len, &owned, err, sizeof(err)) && len > 8) {
+        const uint8_t *pool = NULL; size_t pool_size = 0;
+        for (size_t off = (size_t)(data[2] | (data[3] << 8)); off + 8 <= len; ) {
+            uint16_t type = (uint16_t)(data[off] | (data[off + 1] << 8)); uint32_t size = rd32(data + off + 4);
+            if (size < 8 || off + size > len) break;
+            if (type == 0x0001) { pool = data + off; pool_size = size; }
+            else if (type == 0x0102 && pool && off + 36 <= len) {
+                const uint8_t *el = data + off; char tag[24];
+                if (axml_string(pool, pool_size, rd32(el + 20), tag, sizeof(tag)) && !strcmp(tag, "application")) {
+                    uint16_t astart = (uint16_t)(el[24] | (el[25] << 8)), asize = (uint16_t)(el[26] | (el[27] << 8)), acount = (uint16_t)(el[28] | (el[29] << 8));
+                    for (unsigned i = 0; i < acount; i++) {
+                        const uint8_t *at = el + 16 + astart + (size_t)i * asize; char an[32];
+                        if (at + 20 > data + len || !axml_string(pool, pool_size, rd32(at + 4), an, sizeof(an))) continue;
+                        if (!strcmp(an, "appCategory") && rd32(at + 16) == 0) game = true;
+                        if (!strcmp(an, "isGame") && rd32(at + 16) != 0) game = true;
+                    }
+                    break;
+                }
+            }
+            off += size;
+        }
+    }
+    if (owned) free((void *)data);
+    tl_zip_close(&z);
+    return game;
+}
+
+/* Whether the app needs its split APKs to run: the manifest says android:isSplitRequired="true" or names requiredSplitTypes, or
+ * carries Google Play's com.android.vending.splits.required. Such an app imported as its base APK alone is missing its libraries
+ * or resources. */
+bool tl_manifest_split_required(const char *apk)
+{
+    tl_zip z; char err[160]; bool req = false;
+    if (!tl_zip_open(&z, apk, err, sizeof(err))) return false;
+    const tl_zip_entry *e = tl_zip_find(&z, "AndroidManifest.xml");
+    const uint8_t *data; size_t len; bool owned = false;
+    if (e && tl_zip_data(&z, e, 8u << 20, &data, &len, &owned, err, sizeof(err)) && len > 8) {
+        const uint8_t *pool = NULL; size_t pool_size = 0;
+        for (size_t off = (size_t)(data[2] | (data[3] << 8)); off + 8 <= len && !req; ) {
+            uint16_t type = (uint16_t)(data[off] | (data[off + 1] << 8)); uint32_t size = rd32(data + off + 4);
+            if (size < 8 || off + size > len) break;
+            if (type == 0x0001) { pool = data + off; pool_size = size; }
+            else if (type == 0x0102 && pool && off + 36 <= len) {
+                const uint8_t *el = data + off; char tag[24];
+                if (!axml_string(pool, pool_size, rd32(el + 20), tag, sizeof(tag))) tag[0] = 0;
+                uint16_t astart = (uint16_t)(el[24] | (el[25] << 8)), asize = (uint16_t)(el[26] | (el[27] << 8)), acount = (uint16_t)(el[28] | (el[29] << 8));
+                for (unsigned i = 0; i < acount; i++) {
+                    const uint8_t *at = el + 16 + astart + (size_t)i * asize; char an[32], av[80] = "";
+                    if (at + 20 > data + len || !axml_string(pool, pool_size, rd32(at + 4), an, sizeof(an))) continue;
+                    if (!strcmp(an, "isSplitRequired") && rd32(at + 16) != 0) req = true;
+                    if (!strcmp(an, "requiredSplitTypes")) req = true;
+                    if (!strcmp(tag, "meta-data") && !strcmp(an, "name") && rd32(at + 8) != 0xFFFFFFFFu
+                        && axml_string(pool, pool_size, rd32(at + 8), av, sizeof(av)) && !strcmp(av, "com.android.vending.splits.required")) req = true;
+                }
+            }
+            off += size;
+        }
+    }
+    if (owned) free((void *)data);
+    tl_zip_close(&z);
+    return req;
+}
+
+bool tl_sdl_manifest_portrait(const char *apk) { return tl_manifest_orientation(apk) == 1; }
+
+/* 1 portrait, 0 landscape, -1 when no activity names an orientation (apps, which Android shows the way the phone is held). */
+int tl_manifest_orientation(const char *apk)
 {
     tl_zip z; char err[160]; bool portrait = false, decided = false;
-    if (!tl_zip_open(&z, apk, err, sizeof(err))) return false;
+    if (!tl_zip_open(&z, apk, err, sizeof(err))) return -1;
     const tl_zip_entry *e = tl_zip_find(&z, "AndroidManifest.xml");
     const uint8_t *data; size_t len; bool owned = false;
     if (e && tl_zip_data(&z, e, 8u << 20, &data, &len, &owned, err, sizeof(err)) && len > 8) {
@@ -625,7 +698,40 @@ bool tl_sdl_manifest_portrait(const char *apk)
     }
     if (owned) free((void *)data);
     tl_zip_close(&z);
-    return portrait;
+    return decided ? (portrait ? 1 : 0) : -1;
+}
+
+/* The highest OpenGL ES version the manifest's <uses-feature android:glEsVersion> asks for (0x00030002 for 3.2), 0 if none. */
+int tl_manifest_gles(const char *apk)
+{
+    tl_zip z; char err[160]; int best = 0;
+    if (!tl_zip_open(&z, apk, err, sizeof(err))) return 0;
+    const tl_zip_entry *e = tl_zip_find(&z, "AndroidManifest.xml");
+    const uint8_t *data; size_t len; bool owned = false;
+    if (e && tl_zip_data(&z, e, 8u << 20, &data, &len, &owned, err, sizeof(err)) && len > 8) {
+        const uint8_t *pool = NULL; size_t pool_size = 0;
+        for (size_t off = (size_t)(data[2] | (data[3] << 8)); off + 8 <= len; ) {
+            uint16_t type = (uint16_t)(data[off] | (data[off + 1] << 8)); uint32_t size = rd32(data + off + 4);
+            if (size < 8 || off + size > len) break;
+            if (type == 0x0001) { pool = data + off; pool_size = size; }
+            else if (type == 0x0102 && pool && off + 36 <= len) {
+                const uint8_t *el = data + off; char tag[24];
+                if (axml_string(pool, pool_size, rd32(el + 20), tag, sizeof(tag)) && !strcmp(tag, "uses-feature")) {
+                    uint16_t astart = (uint16_t)(el[24] | (el[25] << 8)), asize = (uint16_t)(el[26] | (el[27] << 8)), acount = (uint16_t)(el[28] | (el[29] << 8));
+                    for (unsigned i = 0; i < acount; i++) {
+                        const uint8_t *at = el + 16 + astart + (size_t)i * asize; char an[32];
+                        if (at + 20 > data + len || !axml_string(pool, pool_size, rd32(at + 4), an, sizeof(an)) || strcmp(an, "glEsVersion")) continue;
+                        int v = (int)rd32(at + 16);
+                        if (v > best) best = v;
+                    }
+                }
+            }
+            off += size;
+        }
+    }
+    if (owned) free((void *)data);
+    tl_zip_close(&z);
+    return best;
 }
 
 bool tl_sdl_start(const tl_ga_config *cfg, const char *activity_class)
@@ -643,6 +749,8 @@ bool tl_sdl_start(const tl_ga_config *cfg, const char *activity_class)
     char dir[700];
     snprintf(dir, sizeof(dir), "%s/files", S.data); mkdirs(dir);
     snprintf(dir, sizeof(dir), "%s/sdcard/Android/data/%s/files", S.data, S.pkg); mkdirs(dir);
+    /* python-for-android (Kivy, pygame): the app and Python unpacked, and the environment its start.c reads. */
+    { bool tl_python_prepare(const char *apk, const char *data_dir); tl_python_prepare(S.apk, S.data); }
 
     tl_set_data_dir(cfg->data_dir);
     tl_nwindow_configure(cfg->width, cfg->height, cfg->metal_layer);

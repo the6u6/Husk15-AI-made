@@ -111,6 +111,8 @@ struct GamePage: View {
         return store.apps.first { $0.apks.first == loaded }?.label ?? "Another game"
     }
 
+    private var preflight: AppDiagnosis? { AppDiagnosis.preflight(app) }
+
     private var subtitle: String {
         if let used = LibraryItem.game(app).usedText { return used }
         return runs ? "Ready to play" : "May not run on this iPhone"
@@ -165,6 +167,21 @@ struct GamePage: View {
                 }
             }
             .heroRow()
+
+            // what the files say before it starts: a damaged APK, the wrong CPU, a missing piece, protection that refuses Husk
+            if let d = preflight {
+                Section {
+                    AppDiagnosisCard(diagnosis: d)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+                }
+            }
+            // why it stopped last time, until it plays again
+            if let d = GameStatusStore.shared.diagnosis(app.id), d != preflight {
+                Section(header: Text("Last Run")) {
+                    AppDiagnosisCard(diagnosis: d, showsEvidence: true)
+                        .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+                }
+            }
 
             if !ShowcaseStore.shared.pictures(for: app.packageName).isEmpty {
                 Section(header: Text("Screenshots")) {
@@ -261,13 +278,23 @@ Button(action: { confirmRemove = true }) {
     private func play() {
         guard TLAppSettings.load(app.id).geode, case .ready = GeodeSupport.shared.current(app) else {
             if TLAppSettings.load(app.id).geode {
-                Task { await GeodeSupport.shared.prepare(app); playing = true }
+                Task { await GeodeSupport.shared.prepare(app); start() }
             } else {
-                playing = true
+                start()
             }
             return
         }
-        playing = true
+        start()
+    }
+
+    /// Full screen, or in a window over Husk when Multitasking says so for this app.
+    private func start() {
+        if app.report?.runsOnNativeRuntime == true || app.report?.webKind != nil, AppWindows.opensInWindow(app) {
+            AppWindows.shared.open(app)
+        } else {
+            AppWindows.shared.close(app)
+            playing = true
+        }
     }
 
     /// This game's engine is loaded in this run of Husk, so its files may be open: no restoring under it.

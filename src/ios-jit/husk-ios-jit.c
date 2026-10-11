@@ -565,13 +565,31 @@ static HuskDualMapping husk_ios_jit_allocate_real(size_t bytes)
 
     /* Writable alias of the same physical pages. Purely local -- no debugger
      * involvement, and therefore still available after detach. */
+    /* Near the executable view: the translation layer's loader retargets code at this alias with adrp, which reaches +-4 GiB,
+     * and a kernel left to choose (VM_FLAGS_ANYWHERE) can put it hundreds of GiB away (seen on iOS 27). Free addresses after
+     * the region, then before it, in 16 MiB steps out to 2 GiB; anywhere only if none is free. */
     vm_address_t rw = 0;
     vm_prot_t cur_prot = VM_PROT_NONE, max_prot = VM_PROT_NONE;
-    kern_return_t kr = vm_remap(mach_task_self(), &rw, (vm_size_t)bytes,
-                                /*mask=*/0, VM_FLAGS_ANYWHERE,
-                                mach_task_self(), (vm_address_t)rx,
-                                /*copy=*/FALSE, &cur_prot, &max_prot,
-                                VM_INHERIT_NONE);
+    kern_return_t kr = KERN_NO_SPACE;
+    const uintptr_t step = 16u << 20, reach = (uintptr_t)2 << 30;
+    for (uintptr_t off = 0; off <= reach && kr != KERN_SUCCESS; off += step) {
+        for (int side = 0; side < 2 && kr != KERN_SUCCESS; side++) {
+            uintptr_t want = side == 0 ? (uintptr_t)rx + bytes + off : (uintptr_t)rx - bytes - off;
+            if (side == 1 && (uintptr_t)rx < bytes + off + step) continue;
+            rw = (vm_address_t)want;
+            kr = vm_remap(mach_task_self(), &rw, (vm_size_t)bytes, /*mask=*/0, VM_FLAGS_FIXED,
+                          mach_task_self(), (vm_address_t)rx, /*copy=*/FALSE, &cur_prot, &max_prot, VM_INHERIT_NONE);
+        }
+    }
+    if (kr != KERN_SUCCESS) {
+        HUSK_LOG("#%llu: no free space within 2 GiB of rx=%p for the writable view: placing it anywhere", (unsigned long long)n, rx);
+        rw = 0;
+        kr = vm_remap(mach_task_self(), &rw, (vm_size_t)bytes,
+                      /*mask=*/0, VM_FLAGS_ANYWHERE,
+                      mach_task_self(), (vm_address_t)rx,
+                      /*copy=*/FALSE, &cur_prot, &max_prot,
+                      VM_INHERIT_NONE);
+    }
     if (kr != KERN_SUCCESS) {
         HUSK_LOG("#%llu: vm_remap failed for rx=%p size=%zu: %d (%s)",
                  (unsigned long long)n, rx, bytes, (int)kr, mach_error_string(kr));

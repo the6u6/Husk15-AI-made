@@ -35,7 +35,7 @@ extern "C" {
 typedef struct tl_lib tl_lib;
 
 /* Where libraries come from: the APKs' lib/arm64-v8a/ directories. */
-#define TL_LD_MAX_APKS 8
+#define TL_LD_MAX_APKS 16
 bool tl_ld_add_apk(const char *path);
 /* A split APK of the app about to start; added right after its base APK, whichever engine adds that. */
 void tl_ld_queue_split(const char *path);
@@ -59,6 +59,8 @@ int tl_ld_apk_libs(void (*cb)(const char *name, uint64_t size, void *user), void
  * logging an error, because the system is not a library this linker owns.
  */
 tl_lib *tl_ld_load(const char *name);
+/* Another folder to look for libraries in, by file name, after the APKs. */
+void tl_ld_add_search_dir(const char *dir);
 
 /* Run constructors for a library and anything it needs that has not run. */
 bool tl_ld_init(tl_lib *lib);
@@ -68,6 +70,7 @@ tl_lib *tl_ld_find_lib(const char *name);
 
 /* A symbol exported by `lib`, or (lib == NULL) by any loaded library, in load order. */
 void *tl_ld_sym(tl_lib *lib, const char *name);
+void *tl_ld_sym_deep(tl_lib *lib, const char *name, tl_lib **found_in);   /* the library, then its dependencies, as bionic's dlsym(handle) */
 
 /* The library an address belongs to (either view), and the nearest exported symbol. */
 tl_lib *tl_ld_lib_of(const void *addr);

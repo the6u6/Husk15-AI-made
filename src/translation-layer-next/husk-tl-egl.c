@@ -16,6 +16,8 @@
 
 void *tl_nwindow_native(void *window);
 int tl_nwindow_width(void *window);
+void *tl_nwindow_texture(void *window);
+void tl_nwindow_post(void *window, const void *rgba, int w, int h, bool flip);
 int tl_nwindow_height(void *window);
 
 typedef void *EGLDisplay, *EGLSurface, *EGLContext, *EGLConfig, *EGLNativeWindowType;
@@ -128,24 +130,58 @@ static EGLDisplay w_eglGetDisplay(void *native)
 
 #define PASS_BOOL(name, params, args) static EGLBoolean w_##name params { return a_##name args; }
 PASS_BOOL(eglInitialize, (EGLDisplay d, EGLint *a, EGLint *b), (d, a, b))
-PASS_BOOL(eglTerminate, (EGLDisplay d), (d))
+/* eglTerminate of the display everything here shares (the app's GL, Husk's own render thread): Android's counts initializations and
+ * tears down at the last; here Husk holds one for as long as it runs, so a library terminating its own use (Castle's GPU probe in X)
+ * leaves the display, and everyone else's surfaces, standing */
+static EGLBoolean w_eglTerminate(EGLDisplay d)
+{
+    if (d && d == E.display) { if (getenv("TL_EGL_TRACE")) tl_log_line("egl: eglTerminate of the shared display: kept"); return EGL_TRUE; }
+    return a_eglTerminate(d);
+}
 PASS_BOOL(eglGetConfigs, (EGLDisplay d, EGLConfig *c, EGLint n, EGLint *r), (d, c, n, r))
+/* ANGLE's configs with depth and stencil all have alpha. Android's also come without (RGBX), and an engine that asks for no alpha
+ * picks one of those (King's): such a request also gets each 8-bit RGBA config again as a "no alpha" alias -- its handle with the
+ * low bit set, which reports alpha 0 and is the real config everywhere else. */
+static inline EGLConfig cfg_real(EGLConfig c) { return (EGLConfig)((uintptr_t)c & ~(uintptr_t)1); }
+static inline bool cfg_alias(EGLConfig c) { return ((uintptr_t)c & 1) != 0; }
 static EGLBoolean w_eglChooseConfig(EGLDisplay d, const EGLint *at, EGLConfig *c, EGLint n, EGLint *r)
 {
     /* Android-only attributes (EGL_RECORDABLE_ANDROID, EGL_FRAMEBUFFER_TARGET_ANDROID) match nothing in ANGLE: every
      * config would be refused over a property it cannot have. They are dropped from the request. */
     EGLint filtered[128]; int nf = 0;
+    bool alpha_wanted = false;
     for (int i = 0; at && at[i] != EGL_NONE && nf < 124; i += 2) {
         if (at[i] == 0x3142 || at[i] == 0x3147) continue;
+        if (at[i] == 0x3021 /* EGL_ALPHA_SIZE */ && at[i + 1] > 0) alpha_wanted = true;
         filtered[nf++] = at[i]; filtered[nf++] = at[i + 1];
     }
     filtered[nf] = EGL_NONE;
-    EGLBoolean ok = a_eglChooseConfig(d, at ? filtered : NULL, c, n, r);
+    static EGLConfig tmp[256];
+    static pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_lock(&mu);
+    EGLint k = 0;
+    EGLBoolean ok = a_eglChooseConfig(d, at ? filtered : NULL, tmp, 256, &k);
+    EGLint total = 0;
+    if (ok) {
+        EGLConfig all[512];
+        for (int i = 0; i < k; i++) all[total++] = tmp[i];
+        static int no_alias = -1;
+        if (no_alias < 0) no_alias = getenv("TL_EGL_NO_ALIAS") ? 1 : 0;
+        for (int i = 0; i < k && !alpha_wanted && !no_alias && total < 512; i++) {
+            EGLint a = 0, rr = 0, g = 0, b = 0;
+            a_eglGetConfigAttrib(d, tmp[i], 0x3021, &a); a_eglGetConfigAttrib(d, tmp[i], 0x3024, &rr);
+            a_eglGetConfigAttrib(d, tmp[i], 0x3023, &g); a_eglGetConfigAttrib(d, tmp[i], 0x3022, &b);
+            if (a == 8 && rr == 8 && g == 8 && b == 8) all[total++] = (EGLConfig)((uintptr_t)tmp[i] | 1);
+        }
+        if (c) { EGLint m = total < n ? total : n; for (int i = 0; i < m; i++) c[i] = all[i]; total = m; }
+        if (r) *r = total;
+    }
+    pthread_mutex_unlock(&mu);
     static int trace = -1;
     if (trace < 0) trace = getenv("TL_EGL_TRACE") ? 1 : 0;
     if (trace || !ok || (r && *r == 0)) {
-        char buf[512]; size_t k = 0;
-        for (int i = 0; at && at[i] != EGL_NONE && i < 60 && k + 24 < sizeof(buf); i += 2) k += (size_t)snprintf(buf + k, sizeof(buf) - k, " %#x=%d", at[i], at[i + 1]);
+        char buf[512]; size_t kk = 0;
+        for (int i = 0; at && at[i] != EGL_NONE && i < 60 && kk + 24 < sizeof(buf); i += 2) kk += (size_t)snprintf(buf + kk, sizeof(buf) - kk, " %#x=%d", at[i], at[i + 1]);
         tl_log_line("egl: eglChooseConfig(%s ) -> %s, %d config(s)", buf, ok ? "true" : "false", r ? *r : -1);
     }
     return ok;
@@ -153,10 +189,15 @@ static EGLBoolean w_eglChooseConfig(EGLDisplay d, const EGLint *at, EGLConfig *c
 static EGLBoolean w_eglGetConfigAttrib(EGLDisplay d, EGLConfig c, EGLint at, EGLint *v)
 {
     if (at == 0x3142 /* EGL_RECORDABLE_ANDROID */) { if (v) *v = 1; return EGL_TRUE; }
-    return a_eglGetConfigAttrib(d, c, at, v);
+    bool alias = cfg_alias(c);
+    EGLBoolean ok = a_eglGetConfigAttrib(d, cfg_real(c), at, v);
+    if (ok && alias && v) { if (at == 0x3021 /* ALPHA_SIZE */) *v = 0; else if (at == 0x3020 /* BUFFER_SIZE */) *v = 24; else if (at == 0x302E /* NATIVE_VISUAL_ID */) *v = 2; }
+    static int trace = -1;
+    if (trace < 0) trace = getenv("TL_EGL_TRACE") ? 1 : 0;
+    if (trace) tl_log_line("egl: eglGetConfigAttrib(%p, %#x) -> %s %d", c, at, ok ? "true" : "false", v ? *v : -1);
+    return ok;
 }
 PASS_BOOL(eglDestroyContext, (EGLDisplay d, EGLContext c), (d, c))
-PASS_BOOL(eglDestroySurface, (EGLDisplay d, EGLSurface s), (d, s))
 PASS_BOOL(eglQuerySurface, (EGLDisplay d, EGLSurface s, EGLint at, EGLint *v), (d, s, at, v))
 PASS_BOOL(eglSurfaceAttrib, (EGLDisplay d, EGLSurface s, EGLint at, EGLint v), (d, s, at, v))
 static EGLBoolean w_eglMakeCurrent(EGLDisplay d, EGLSurface dr, EGLSurface rd, EGLContext c)
@@ -194,7 +235,7 @@ static EGLContext w_eglCreateContext(EGLDisplay d, EGLConfig c, EGLContext share
         patched[n] = EGL_NONE;
         at = patched;
     }
-    EGLContext ctx = a_eglCreateContext(d, c, share, at);
+    EGLContext ctx = a_eglCreateContext(d, cfg_real(c), share, at);
     static int trace = -1;
     if (trace < 0) trace = getenv("TL_EGL_TRACE") ? 1 : 0;
     if (trace || !ctx) {
@@ -214,11 +255,90 @@ static EGLint w_eglGetError(void) { return E.ready ? a_eglGetError() : 0x3001; }
 static bool g_offscreen_windows;
 /* A game that draws with Vulkan on the window's layer still makes an OpenGL ES context first, to read what the device offers. The layer is MoltenVK's, so ANGLE gets a buffer instead. */
 void tl_egl_offscreen_windows(bool on) { g_offscreen_windows = on; }
+/* surfaces made on a TextureView's window: off-screen, read back into its SurfaceTexture at each swap */
+#define MAX_TEX_SURFACES 16
+static struct { EGLSurface s; void *win; } g_tex_surf[MAX_TEX_SURFACES];
+static pthread_mutex_t g_tex_lock = PTHREAD_MUTEX_INITIALIZER;
+static void *tex_window_of(EGLSurface s)
+{
+    void *w = NULL;
+    pthread_mutex_lock(&g_tex_lock);
+    for (int i = 0; i < MAX_TEX_SURFACES; i++) if (g_tex_surf[i].s == s && s) { w = g_tex_surf[i].win; break; }
+    pthread_mutex_unlock(&g_tex_lock);
+    return w;
+}
+/* The Java runtime's compositor (husk-tl-dvm-android.c), where it is linked: it holds the screen's surface, so an app that makes
+ * an EGL window of its own (SDL, Unity on a SurfaceView) draws off screen and each swap hands the frame to it, to be put on the
+ * screen under the app's views. Two window surfaces on one layer is what a phone refuses (EGL_BAD_ALLOC). */
+__attribute__((weak)) bool tl_javaapp_compositing(void);
+__attribute__((weak)) void tl_javaapp_app_pixels(const void *px, int w, int h);
+#define MAX_COMP_SURFACES 8
+static EGLSurface g_comp_surf[MAX_COMP_SURFACES];
+static bool comp_surface(EGLSurface s)
+{
+    bool r = false;
+    pthread_mutex_lock(&g_tex_lock);
+    for (int i = 0; i < MAX_COMP_SURFACES && s; i++) if (g_comp_surf[i] == s) r = true;
+    pthread_mutex_unlock(&g_tex_lock);
+    return r;
+}
+/* The current frame of a surface, read back (bottom-up RGBA, in a buffer of this thread's). */
+static const uint8_t *read_back(EGLDisplay d, EGLSurface s, EGLint *pw, EGLint *ph)
+{
+    EGLint w = 0, h = 0;
+    a_eglQuerySurface(d, s, EGL_WIDTH, &w); a_eglQuerySurface(d, s, EGL_HEIGHT, &h);
+    if (w <= 0 || h <= 0 || !a_glReadPixels) return NULL;
+    static __thread uint8_t *buf; static __thread size_t cap;
+    size_t need = (size_t)w * h * 4;
+    if (need > cap) { free(buf); buf = malloc(need); cap = buf ? need : 0; }
+    if (!buf) return NULL;
+    int old_fb = 0, old_pack = 0;
+    a_glGetIntegerv(0x8CAA /* GL_READ_FRAMEBUFFER_BINDING */, &old_fb);
+    a_glGetIntegerv(0x0D05 /* GL_PACK_ALIGNMENT */, &old_pack);
+    a_glBindFramebuffer(0x8CA8 /* GL_READ_FRAMEBUFFER */, 0);
+    a_glPixelStorei(0x0D05, 1);
+    a_glReadPixels(0, 0, w, h, 0x1908 /* GL_RGBA */, 0x1401 /* GL_UNSIGNED_BYTE */, buf);
+    a_glPixelStorei(0x0D05, old_pack);
+    a_glBindFramebuffer(0x8CA8, (unsigned)old_fb);
+    *pw = w; *ph = h;
+    return buf;
+}
 static EGLSurface w_eglCreateWindowSurface(EGLDisplay d, EGLConfig cfg, void *win, const EGLint *at)
 {
+    cfg = cfg_real(cfg);
+    if (tl_nwindow_texture(win)) {
+        EGLint pb[] = { EGL_WIDTH, tl_nwindow_width(win), EGL_HEIGHT, tl_nwindow_height(win), EGL_NONE };
+        EGLSurface s = a_eglCreatePbufferSurface(d, cfg, pb);
+        if (s) {
+            pthread_mutex_lock(&g_tex_lock);
+            for (int i = 0; i < MAX_TEX_SURFACES; i++) if (!g_tex_surf[i].s) { g_tex_surf[i].s = s; g_tex_surf[i].win = win; break; }
+            pthread_mutex_unlock(&g_tex_lock);
+        }
+        tl_log_line("egl: TextureView window %dx%d -> off-screen surface %p", pb[1], pb[3], s);
+        return s;
+    }
+    if (tl_javaapp_compositing && tl_javaapp_compositing()) {
+        EGLint pb[] = { EGL_WIDTH, tl_nwindow_width(win), EGL_HEIGHT, tl_nwindow_height(win), EGL_NONE };
+        EGLSurface s = a_eglCreatePbufferSurface(d, cfg, pb);
+        if (s) {
+            pthread_mutex_lock(&g_tex_lock);
+            for (int i = 0; i < MAX_COMP_SURFACES; i++) if (!g_comp_surf[i]) { g_comp_surf[i] = s; break; }
+            pthread_mutex_unlock(&g_tex_lock);
+        }
+        tl_log_line("egl: window %dx%d -> surface %p, composited under the app's views", pb[1], pb[3], s);
+        return s;
+    }
     if (E.frame_dir[0] || g_offscreen_windows) {
         EGLint pb[] = { EGL_WIDTH, tl_nwindow_width(win), EGL_HEIGHT, tl_nwindow_height(win), EGL_NONE };
         EGLSurface s = a_eglCreatePbufferSurface(d, cfg, pb);
+        if (!s) {
+            /* the config the game chose may draw only to windows: the closest one that also makes buffers */
+            EGLint r = 8, g = 8, b = 8, a = 0, dp = 0, st = 0, rt = 0;
+            a_eglGetConfigAttrib(d, cfg, 0x3024 /* EGL_RED_SIZE */, &r); a_eglGetConfigAttrib(d, cfg, 0x3023 /* EGL_GREEN_SIZE */, &g); a_eglGetConfigAttrib(d, cfg, 0x3022 /* EGL_BLUE_SIZE */, &b);
+            a_eglGetConfigAttrib(d, cfg, 0x3021 /* EGL_ALPHA_SIZE */, &a); a_eglGetConfigAttrib(d, cfg, 0x3025 /* EGL_DEPTH_SIZE */, &dp); a_eglGetConfigAttrib(d, cfg, 0x3026 /* EGL_STENCIL_SIZE */, &st);
+            a_eglGetConfigAttrib(d, cfg, 0x3040 /* EGL_RENDERABLE_TYPE */, &rt);
+            tl_log_line("egl: off-screen surface for config %p failed (%#x); rgba %d%d%d%d depth %d stencil %d", cfg, a_eglGetError(), r, g, b, a, dp, st);
+        }
         tl_log_line("egl: window %dx%d -> off-screen surface %p", pb[1], pb[3], s);
         return s;
     }
@@ -227,7 +347,17 @@ static EGLSurface w_eglCreateWindowSurface(EGLDisplay d, EGLConfig cfg, void *wi
     tl_log_line("egl: window surface %p on layer %p (%dx%d), eglGetError %#x", s, layer, tl_nwindow_width(win), tl_nwindow_height(win), a_eglGetError());
     return s;
 }
-static EGLSurface w_eglCreatePbufferSurface(EGLDisplay d, EGLConfig c, const EGLint *at) { return a_eglCreatePbufferSurface(d, c, at); }
+static EGLBoolean w_eglDestroySurface(EGLDisplay d, EGLSurface s)
+{
+    pthread_mutex_lock(&g_tex_lock);
+    for (int i = 0; i < MAX_TEX_SURFACES; i++) if (g_tex_surf[i].s == s) g_tex_surf[i].s = NULL;
+    bool comp = false;
+    for (int i = 0; i < MAX_COMP_SURFACES && s; i++) if (g_comp_surf[i] == s) { g_comp_surf[i] = NULL; comp = true; }
+    pthread_mutex_unlock(&g_tex_lock);
+    if (comp && tl_javaapp_app_pixels) tl_javaapp_app_pixels(NULL, 0, 0);
+    return a_eglDestroySurface(d, s);
+}
+static EGLSurface w_eglCreatePbufferSurface(EGLDisplay d, EGLConfig c, const EGLint *at) { return a_eglCreatePbufferSurface(d, cfg_real(c), at); }
 
 /* A frame as a BMP: bottom-up BGR from GL's bottom-up RGBA, so no flip is needed. */
 static void save_frame(EGLDisplay d, EGLSurface s, unsigned long n)
@@ -276,9 +406,37 @@ static void save_frame(EGLDisplay d, EGLSurface s, unsigned long n)
 static atomic_ulong g_glt_n, g_glt_draws, g_glt_uploads;
 void tl_egl_gl_histogram(char *out, size_t cap);
 void tl_egl_recent_calls(char *out, size_t n, int count);
+static void tex_swap(EGLDisplay d, EGLSurface s, void *win)
+{
+    EGLint w = 0, h = 0;
+    a_eglQuerySurface(d, s, EGL_WIDTH, &w); a_eglQuerySurface(d, s, EGL_HEIGHT, &h);
+    if (w <= 0 || h <= 0 || !a_glReadPixels) return;
+    static __thread uint8_t *buf; static __thread size_t cap;
+    size_t need = (size_t)w * h * 4;
+    if (need > cap) { free(buf); buf = malloc(need); cap = buf ? need : 0; }
+    if (!buf) return;
+    int old_fb = 0, old_pack = 0;
+    a_glGetIntegerv(0x8CAA /* GL_READ_FRAMEBUFFER_BINDING */, &old_fb);
+    a_glGetIntegerv(0x0D05 /* GL_PACK_ALIGNMENT */, &old_pack);
+    a_glBindFramebuffer(0x8CA8 /* GL_READ_FRAMEBUFFER */, 0);
+    a_glPixelStorei(0x0D05, 1);
+    a_glReadPixels(0, 0, w, h, 0x1908 /* GL_RGBA */, 0x1401 /* GL_UNSIGNED_BYTE */, buf);
+    a_glPixelStorei(0x0D05, old_pack);
+    a_glBindFramebuffer(0x8CA8, (unsigned)old_fb);
+    tl_nwindow_post(win, buf, w, h, true);
+}
 static EGLBoolean w_eglSwapBuffers(EGLDisplay d, EGLSurface s)
 {
+    void *texwin = tex_window_of(s);
+    if (texwin) { tex_swap(d, s, texwin); return EGL_TRUE; }
     unsigned long n = atomic_fetch_add(&E.presented, 1) + 1;
+    if (comp_surface(s)) {
+        EGLint w = 0, h = 0;
+        const uint8_t *px = read_back(d, s, &w, &h);
+        if (px && tl_javaapp_app_pixels) tl_javaapp_app_pixels(px, w, h);
+        if (n <= 3 || n % 600 == 0) tl_log_line("egl: swap #%lu (composited)", n);
+        return EGL_TRUE;
+    }
     if (n <= 3 || n % 600 == 0) {
         if (getenv("TL_GL_TRACE")) tl_log_line("egl: swap #%lu (%lu GL calls, %lu draws, %lu uploads so far)", n, (unsigned long)atomic_load(&g_glt_n), (unsigned long)atomic_load(&g_glt_draws), (unsigned long)atomic_load(&g_glt_uploads));
         else tl_log_line("egl: swap #%lu", n);
@@ -439,11 +597,35 @@ static void w_glCompileShader(unsigned sh)
     free(log); free(src);
 }
 
+/* EGL sync objects: this ANGLE does not check the handle, and its Metal back end waits through the calling thread's context --
+ * which a frame pacer's fence thread (Swappy's) does not have. Waited on from such a thread, a fence counts as signalled. */
+static EGLint (*r_eglClientWaitSyncKHR)(EGLDisplay, void *, EGLint, uint64_t);
+static EGLBoolean (*r_eglDestroySyncKHR)(EGLDisplay, void *);
+static EGLBoolean (*r_eglGetSyncAttribKHR)(EGLDisplay, void *, EGLint, EGLint *);
+static EGLint (*r_eglClientWaitSync)(EGLDisplay, void *, EGLint, uint64_t);
+static EGLBoolean (*r_eglDestroySync)(EGLDisplay, void *);
+static EGLint w_eglClientWaitSyncKHR(EGLDisplay d, void *s, EGLint f, uint64_t t)
+{
+    if (!s) return EGL_FALSE;
+    if (!a_eglGetCurrentContext()) return 0x30F6;                   /* EGL_CONDITION_SATISFIED_KHR */
+    return r_eglClientWaitSyncKHR(d, s, f, t);
+}
+static EGLBoolean w_eglDestroySyncKHR(EGLDisplay d, void *s) { return s ? r_eglDestroySyncKHR(d, s) : EGL_FALSE; }
+static EGLBoolean w_eglGetSyncAttribKHR(EGLDisplay d, void *s, EGLint a, EGLint *v) { return s ? r_eglGetSyncAttribKHR(d, s, a, v) : EGL_FALSE; }
+static EGLint w_eglClientWaitSync(EGLDisplay d, void *s, EGLint f, uint64_t t)
+{
+    if (!s) return EGL_FALSE;
+    if (!a_eglGetCurrentContext()) return 0x30F6;
+    return r_eglClientWaitSync(d, s, f, t);
+}
+static EGLBoolean w_eglDestroySync(EGLDisplay d, void *s) { return s ? r_eglDestroySync(d, s) : EGL_FALSE; }
+
 #define ADAPT(name) { #name, (void *)w_##name, (void **)&r_##name }
 static const struct { const char *name; void *wrap; void **real; } k_adapt[] = {
     ADAPT(glBlitFramebuffer), ADAPT(glTexSubImage3D), ADAPT(glCompressedTexSubImage3D), ADAPT(glCopyImageSubData),
     ADAPT(glColorMask), ADAPT(glDepthMask), ADAPT(glVertexAttribPointer), ADAPT(glUniformMatrix2fv),
     ADAPT(glUniformMatrix3fv), ADAPT(glUniformMatrix4fv), ADAPT(glSampleCoverage), ADAPT(glGetString), ADAPT(glGetStringi), ADAPT(glCompileShader), ADAPT(glShaderSource), ADAPT(glAttachShader), ADAPT(glLinkProgram), ADAPT(glGetIntegerv), ADAPT(glBindBufferBase), ADAPT(glBindBuffer), ADAPT(glBufferData), ADAPT(glBufferSubData), ADAPT(glBindBufferRange),
+    ADAPT(eglClientWaitSyncKHR), ADAPT(eglDestroySyncKHR), ADAPT(eglGetSyncAttribKHR), ADAPT(eglClientWaitSync), ADAPT(eglDestroySync),
 };
 
 static const struct { const char *name; void *fn; } k_egl[] = {
@@ -574,7 +756,16 @@ static const char *const k_es31_stub_names[] = {
     "glFramebufferParameteri", "glGetFramebufferParameteriv", "glTexStorage2DMultisample", NULL
 };
 
+static void *egl_resolve(const char *name);
 void *tl_egl_resolve(const char *name)
+{
+    void *r = egl_resolve(name);
+    static int trace = -1;
+    if (trace < 0) trace = getenv("TL_EGL_TRACE") ? 1 : 0;
+    if (trace && name[0] == 'e') tl_log_line("egl: resolve %s -> %p", name, r);
+    return r;
+}
+static void *egl_resolve(const char *name)
 {
     for (int i = 0; k_noop_names[i]; i++) if (!strcmp(k_noop_names[i], name)) return (void *)w_gl_noop;
     if (g_es31_shim) for (int i = 0; k_es31_stub_names[i]; i++) if (!strcmp(k_es31_stub_names[i], name)) {

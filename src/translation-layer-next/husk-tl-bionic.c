@@ -171,6 +171,14 @@ static int bionic___system_property_read(const void *pi, char *name, char *value
     return (int)strlen(p->v);
 }
 
+/* __system_property_foreach: each property Husk answers, as a find() handle */
+static int bionic___system_property_foreach(void (*fn)(const void *pi, void *cookie), void *cookie)
+{
+    if (!fn) return -1;
+    for (size_t i = 0; i < sizeof(k_props) / sizeof(k_props[0]); i++) fn(&k_props[i], cookie);
+    return 0;
+}
+
 int tl_dns_servers(char out[][64], int max);
 
 static int bionic___system_property_get(const char *name, char *value)
@@ -188,6 +196,36 @@ static int bionic___system_property_get(const char *name, char *value)
     snprintf(value, 92, "%s", v);
     return (int)strlen(value);
 }
+int tl_property_get(const char *name, char *value) { return bionic___system_property_get(name, value); }
+/* every property, as getprop prints them ([name]: [value]) */
+size_t tl_property_list(char *buf, size_t n)
+{
+    size_t o = 0; buf[0] = 0;
+    for (size_t i = 0; i < sizeof(k_props) / sizeof(k_props[0]) && o + 1 < n; i++) {
+        char v[92]; bionic___system_property_get(k_props[i].k, v);
+        o += (size_t)snprintf(buf + o, n - o, "[%s]: [%s]\n", k_props[i].k, v);
+    }
+    return o < n ? o : n - 1;
+}
+
+/* The rest of the property API Android's own libraries use (ART's libbase reads properties through the callback). */
+typedef void (*guest_prop_cb)(void *cookie, const char *name, const char *value, uint32_t serial);
+static void bionic___system_property_read_callback(const void *pi, guest_prop_cb cb, void *cookie)
+{
+    if (!pi || !cb) return;
+    const struct { const char *k, *v; } *p = pi;
+    cb(cookie, p->k, p->v, 0);
+}
+static uint32_t bionic___system_property_serial(const void *pi) { (void)pi; return 0; }
+static uint32_t bionic___system_property_area_serial(void) { return 0; }
+/* Nothing ever changes a property here, so a wait always times out. */
+static bool bionic___system_property_wait(const void *pi, uint32_t old, uint32_t *serial, const void *timeout)
+{
+    (void)pi; (void)old; (void)timeout;
+    if (serial) *serial = 0;
+    return false;
+}
+static int bionic___system_property_set(const char *name, const char *value) { (void)name; (void)value; return 0; }
 
 /* ---------------------------------------------------------------- logging */
 
@@ -202,6 +240,50 @@ static int bionic___android_log_write(int prio, const char *tag, const char *tex
 {
     log_emit(prio, tag, text);
     return 1;
+}
+
+/* liblog's API since Android 11: a minimum priority, a pluggable logger and aborter. Android's own libraries (libbase) call these. */
+typedef struct { size_t struct_size; int32_t buffer_id; int32_t priority; const char *tag; const char *file; uint32_t line; const char *message; } guest_log_message;
+typedef void (*guest_logger)(const guest_log_message *);
+typedef void (*guest_aborter)(const char *);
+static _Atomic int32_t g_log_min;                 /* ANDROID_LOG_DEFAULT (0): info and up */
+static _Atomic(guest_logger) g_logger;
+static _Atomic(guest_aborter) g_aborter;
+static const char *_Atomic g_default_tag;
+
+static int bionic___android_log_is_loggable(int prio, const char *tag, int def)
+{
+    (void)tag;
+    int32_t min = g_log_min ? g_log_min : (def ? def : 4);
+    return prio >= min;
+}
+static int bionic___android_log_is_loggable_len(int prio, const char *tag, size_t len, int def) { (void)len; return bionic___android_log_is_loggable(prio, tag, def); }
+static int32_t bionic___android_log_get_minimum_priority(void) { return g_log_min; }
+static int32_t bionic___android_log_set_minimum_priority(int32_t p) { return atomic_exchange(&g_log_min, p); }
+static void bionic___android_log_set_default_tag(const char *tag) { g_default_tag = tag; }
+static void bionic___android_log_logd_logger(const guest_log_message *m)
+{
+    if (m) log_emit(m->priority, m->tag ? m->tag : g_default_tag, m->message);
+}
+static void bionic___android_log_set_logger(guest_logger fn) { g_logger = fn; }
+static void bionic___android_log_write_log_message(guest_log_message *m)
+{
+    if (!m) return;
+    /* as liblog does: a message without a tag gets the default one (the process name, unless set) */
+    if (!m->tag) { const char *t = g_default_tag; m->tag = t ? t : "app_process64"; }
+    guest_logger fn = g_logger;
+    if (fn && fn != bionic___android_log_logd_logger) fn(m); else bionic___android_log_logd_logger(m);
+}
+static void bionic___android_log_default_aborter(const char *msg)
+{
+    tl_log_line("bionic: abort message: %s", msg ? msg : "");
+    abort();
+}
+static void bionic___android_log_set_aborter(guest_aborter fn) { g_aborter = fn; }
+static void bionic___android_log_call_aborter(const char *msg)
+{
+    guest_aborter fn = g_aborter;
+    if (fn && fn != bionic___android_log_default_aborter) fn(msg); else bionic___android_log_default_aborter(msg);
 }
 
 static int bionic___android_log_buf_write(int buf, int prio, const char *tag, const char *text)
@@ -269,6 +351,10 @@ TL_VA_STUB(tl_va_syslog, tl_vai_syslog);
 extern void tl_va_syslog(void);
 
 static void bionic_openlog(const char *ident, int option, int facility) { (void)ident; (void)option; (void)facility; }
+/* vsyslog: bionic's va_list is AAPCS64's struct, not the host's; the format is logged as it stands */
+static void bionic_vsyslog(int pri, const char *fmt, void *ap) { (void)pri; (void)ap; log_emit(4, "syslog", fmt ? fmt : ""); }
+/* __progname: the program's name, as libc keeps it for err() and syslog */
+static const char *g_progname = "app_process64";
 static void bionic_closelog(void) {}
 
 /* --------------------------------------------------- C runtime and aborts */
@@ -277,8 +363,23 @@ static void describe_caller(void *lr, char *out, size_t n)
 {
     const char *ln = NULL; const void *sa = NULL;
     const char *sym = tl_ld_symbol_at(lr, &ln, &sa);
-    if (ln) snprintf(out, n, "%s %s+%#lx", ln, sym ? sym : "?", sa ? (unsigned long)((const char *)lr - (const char *)sa) : 0ul);
+    extern void *tl_ld_lib_base(const tl_lib *L);
+    if (ln && sym) snprintf(out, n, "%s %s+%#lx", ln, sym, sa ? (unsigned long)((const char *)lr - (const char *)sa) : 0ul);
+    else if (ln) snprintf(out, n, "%s +%#lx", ln, (unsigned long)((const char *)lr - (const char *)tl_ld_lib_base(tl_ld_lib_of(lr))));
     else snprintf(out, n, "%p", lr);
+}
+/* the guest's frames above an exit or abort, by frame pointer */
+static void log_guest_frames(void *fp)
+{
+    for (int i = 0; i < 16 && fp && ((uintptr_t)fp & 7) == 0; i++) {
+        void **f = fp;
+        void *lr = f[1];
+        if (!lr) break;
+        char where[200]; describe_caller(lr, where, sizeof(where));
+        tl_log_line("bionic:   from %s", where);
+        if (f[0] <= fp) break;
+        fp = f[0];
+    }
 }
 
 static void guest_abort(const char *why)
@@ -305,6 +406,7 @@ static void bionic_exit(int status)
     char where[200];
     describe_caller(__builtin_return_address(0), where, sizeof(where));
     tl_log_line("bionic: exit(%d) called from %s", status, where);
+    log_guest_frames(__builtin_frame_address(1));
     if (tl_guest_exit_hook) tl_guest_exit_hook(status);
     exit(status);
 }
@@ -318,6 +420,28 @@ static void bionic___assert2(const char *file, int line, const char *func, const
     tl_log_line("bionic: assertion failed: %s:%d: %s: %s (from %s)", file, line, func ? func : "?", expr, where);
     abort();
 }
+
+/* fdsan: Android's file descriptor ownership checks. Owner tags are kept per descriptor and never enforced. */
+static _Atomic uint64_t g_fd_tags[4096];
+static uint64_t bionic_android_fdsan_create_owner_tag(int type, uint64_t tag) { return ((uint64_t)(type & 0xff) << 56) | (tag & 0x00ffffffffffffffull); }
+static void bionic_android_fdsan_exchange_owner_tag(int fd, uint64_t expected, uint64_t tag) { (void)expected; if (fd >= 0 && fd < 4096) atomic_store(&g_fd_tags[fd], tag); }
+static uint64_t bionic_android_fdsan_get_owner_tag(int fd) { return fd >= 0 && fd < 4096 ? atomic_load(&g_fd_tags[fd]) : 0; }
+static const char *bionic_android_fdsan_get_tag_type(uint64_t tag)
+{
+    static const char *const k[] = { "unowned", "FILE*", "DIR*", "unique_fd", "sqlite", "FileInputStream", "FileOutputStream", "RandomAccessFile", "ParcelFileDescriptor", "ART FdFile", "DatagramSocketImpl", "SocketImpl", "ZipArchive" };
+    unsigned t = (unsigned)(tag >> 56);
+    return t < sizeof(k) / sizeof(k[0]) ? k[t] : "native object of unknown type";
+}
+static uint64_t bionic_android_fdsan_get_tag_value(uint64_t tag) { return tag & 0x00ffffffffffffffull; }
+int tl_guest_close(int fd);
+static int bionic_android_fdsan_close_with_tag(int fd, uint64_t tag) { (void)tag; if (fd >= 0 && fd < 4096) atomic_store(&g_fd_tags[fd], 0); return tl_guest_close(fd); }
+static int g_fdsan_level;
+static int bionic_android_fdsan_get_error_level(void) { return g_fdsan_level; }
+static int bionic_android_fdsan_set_error_level(int l) { int o = g_fdsan_level; g_fdsan_level = l; return o; }
+static int bionic_android_fdsan_set_error_level_from_property(int l) { return bionic_android_fdsan_set_error_level(l); }
+static int bionic_tcdrain(int fd) { (void)fd; return 0; }
+static int bionic_tcsendbreak(int fd, int d) { (void)fd; (void)d; return 0; }
+static int bionic_munlock(const void *a, size_t l) { (void)a; (void)l; return 0; }
 
 static void bionic_android_set_abort_message(const char *msg) { tl_log_line("bionic: abort message: %s", msg ? msg : "(null)"); }
 
@@ -370,7 +494,9 @@ static void bionic___cxa_finalize(void *dso)
 
 /* -------------------------------------------------------- system queries */
 
-static unsigned long bionic_getauxval(unsigned long type)
+unsigned long tl_bionic_getauxval(unsigned long type);
+static unsigned long bionic_getauxval(unsigned long type) { return tl_bionic_getauxval(type); }
+unsigned long tl_bionic_getauxval(unsigned long type)
 {
     static uint8_t random16[16] = { 0x4a, 0x13, 0x9c, 0x71, 0xe2, 0x05, 0x88, 0x3d, 0xb6, 0x21, 0x5f, 0xc4, 0x90, 0x2e, 0x67, 0xd8 };
     switch (type) {
@@ -475,11 +601,16 @@ static long bionic_syscall(long num, long a1, long a2, long a3, long a4, long a5
 static int bionic_fork(void) { tl_set_guest_errno(38); return -1; }
 static int bionic_execv(const char *p, char *const a[]) { (void)p; (void)a; tl_set_guest_errno(38); return -1; }
 static int bionic_execve(const char *p, char *const a[], char *const e[]) { (void)p; (void)a; (void)e; tl_set_guest_errno(38); return -1; }
+/* posix_spawn reports its error as the return value */
+static int bionic_posix_spawn(void *pid, const char *p, const void *fa, const void *at, char *const a[], char *const e[]) { (void)pid; (void)p; (void)fa; (void)at; (void)a; (void)e; return 38; }
 static int bionic_waitpid(int pid, int *st, int opt) { (void)pid; (void)st; (void)opt; tl_set_guest_errno(10); return -1; }
 static long bionic_ptrace(int req, int pid, void *addr, void *data) { (void)req; (void)pid; (void)addr; (void)data; tl_set_guest_errno(1); return -1; }
 
 /* A passwd entry like Android's: an app user. */
-static struct { char *pw_name; uint32_t pw_uid, pw_gid; char *pw_dir; char *pw_shell; } g_pwd = { "u0_a1", 10001, 10001, "/data", "/system/bin/sh" };
+/* bionic's LP64 struct passwd: name, passwd, uid, gid, gecos, dir, shell (an app's user, as bionic makes it from the uid) */
+typedef struct { char *pw_name, *pw_passwd; uint32_t pw_uid, pw_gid; char *pw_gecos, *pw_dir, *pw_shell; } guest_passwd;
+static guest_passwd g_pwd = { "u0_a1", NULL, 10001, 10001, NULL, "/data", "/system/bin/sh" };
+const void *tl_bionic_app_passwd(void) { return &g_pwd; }
 static void *bionic_getpwuid(uint32_t uid) { (void)uid; return &g_pwd; }
 static int bionic_getpwuid_r(uint32_t uid, void *pwd, char *buf, size_t n, void **result)
 {
@@ -504,7 +635,12 @@ static void dl_fail(const char *fmt, const char *arg)
     t_dlerr_set = true;
 }
 
-static void *bionic_dlopen(const char *path, int flags)
+static void *dlopen_impl(const char *path, int flags);
+/* __loader_dlopen, which bionic's dlopen calls with its caller: the first call in dlopen's code is to it, as on a phone, because
+ * liblinkernsbypass (GameNative, Turnip loaders) finds __loader_dlopen by walking dlopen's instructions to its first BL */
+__attribute__((noinline)) static void *bionic_loader_dlopen(const char *path, int flags, const void *caller) { (void)caller; return dlopen_impl(path, flags); }
+__attribute__((noinline, disable_tail_calls)) static void *bionic_dlopen(const char *path, int flags) { return bionic_loader_dlopen(path, flags, __builtin_return_address(0)); }
+static void *dlopen_impl(const char *path, int flags)
 {
     if (!path) return &g_sys_handle[0];          /* the global namespace */
     const char *base = strrchr(path, '/');
@@ -531,11 +667,21 @@ static void *bionic_dlopen(const char *path, int flags)
     return L;
 }
 
+static void *bionic_dlsym(void *handle, const char *name);
+static void *bionic_loader_android_dlopen_ext(const char *path, int flags, const void *info, const void *caller) { (void)info; (void)caller; return bionic_dlopen(path, flags); }
+static void *bionic_android_dlopen_ext(const char *path, int flags, const void *info) { (void)info; return bionic_dlopen(path, flags); }
+static void *bionic_loader_dlsym(void *handle, const char *name, const void *caller) { (void)caller; return bionic_dlsym(handle, name); }
+static void *bionic_loader_dlvsym(void *handle, const char *name, const char *ver, const void *caller) { (void)ver; (void)caller; return bionic_dlsym(handle, name); }
+
 static void *bionic_dlsym(void *handle, const char *name)
 {
     if (!name) return NULL;
     void *r = NULL;
-    if (handle == NULL || handle == (void *)-1L) {
+    if (handle == (void *)-1L) {
+        /* RTLD_NEXT: the definition after the caller's own, which for a library wrapping libc (ART's signal chain) is libc's */
+        r = tl_bionic_find(name);
+        if (!r) r = tl_ld_sym(NULL, name);
+    } else if (handle == NULL) {
         r = tl_ld_sym(NULL, name);
         if (!r) r = tl_bionic_find(name);
     } else if ((sysh *)handle >= g_sys_handle && (sysh *)handle < g_sys_handle + 16) {
@@ -596,8 +742,25 @@ static char **tl_environ_ptr(void) { return NULL; }
 const tl_bionic_entry tl_tab_core[] = {
     TL_WRAP("__errno", bionic___errno),
     TL_WRAP("__system_property_find", bionic___system_property_find),
-    TL_WRAP("__system_property_read", bionic___system_property_read),
+    TL_WRAP("__system_property_read", bionic___system_property_read), TL_WRAP("__system_property_foreach", bionic___system_property_foreach),
     TL_WRAP("__system_property_get", bionic___system_property_get),
+    TL_WRAP("__system_property_read_callback", bionic___system_property_read_callback),
+    TL_WRAP("__system_property_serial", bionic___system_property_serial),
+    TL_WRAP("__system_property_area_serial", bionic___system_property_area_serial),
+    TL_WRAP("__system_property_wait", bionic___system_property_wait),
+    TL_WRAP("__system_property_set", bionic___system_property_set),
+    TL_WRAP("__android_log_is_loggable", bionic___android_log_is_loggable),
+    TL_WRAP("__android_log_is_loggable_len", bionic___android_log_is_loggable_len),
+    TL_WRAP("__android_log_get_minimum_priority", bionic___android_log_get_minimum_priority),
+    TL_WRAP("__android_log_set_minimum_priority", bionic___android_log_set_minimum_priority),
+    TL_WRAP("__android_log_set_default_tag", bionic___android_log_set_default_tag),
+    TL_WRAP("__android_log_logd_logger", bionic___android_log_logd_logger),
+    TL_WRAP("__android_log_stderr_logger", bionic___android_log_logd_logger),
+    TL_WRAP("__android_log_set_logger", bionic___android_log_set_logger),
+    TL_WRAP("__android_log_write_log_message", bionic___android_log_write_log_message),
+    TL_WRAP("__android_log_default_aborter", bionic___android_log_default_aborter),
+    TL_WRAP("__android_log_set_aborter", bionic___android_log_set_aborter),
+    TL_WRAP("__android_log_call_aborter", bionic___android_log_call_aborter),
     TL_WRAP("__android_log_write", bionic___android_log_write),
     TL_WRAP("__android_log_buf_write", bionic___android_log_buf_write),
     TL_WRAP("__android_log_vprint", bionic___android_log_vprint),
@@ -606,6 +769,9 @@ const tl_bionic_entry tl_tab_core[] = {
     TL_WRAP("__android_log_assert", tl_va_android_log_assert),
     TL_WRAP("syslog", tl_va_syslog),
     TL_WRAP("openlog", bionic_openlog),
+    TL_WRAP("vsyslog", bionic_vsyslog),
+    TL_DATA("__progname", &g_progname),
+    TL_DIRECT(strsep), TL_DIRECT(arc4random_uniform),
     TL_WRAP("closelog", bionic_closelog),
     TL_WRAP("abort", bionic_abort),
     TL_WRAP("exit", bionic_exit),
@@ -613,6 +779,16 @@ const tl_bionic_entry tl_tab_core[] = {
     TL_WRAP("__stack_chk_fail", bionic___stack_chk_fail),
     TL_WRAP("__assert2", bionic___assert2),
     TL_WRAP("android_set_abort_message", bionic_android_set_abort_message),
+    TL_WRAP("android_fdsan_create_owner_tag", bionic_android_fdsan_create_owner_tag),
+    TL_WRAP("android_fdsan_exchange_owner_tag", bionic_android_fdsan_exchange_owner_tag),
+    TL_WRAP("android_fdsan_get_owner_tag", bionic_android_fdsan_get_owner_tag),
+    TL_WRAP("android_fdsan_get_tag_type", bionic_android_fdsan_get_tag_type),
+    TL_WRAP("android_fdsan_get_tag_value", bionic_android_fdsan_get_tag_value),
+    TL_WRAP("android_fdsan_close_with_tag", bionic_android_fdsan_close_with_tag),
+    TL_WRAP("android_fdsan_get_error_level", bionic_android_fdsan_get_error_level),
+    TL_WRAP("android_fdsan_set_error_level", bionic_android_fdsan_set_error_level),
+    TL_WRAP("android_fdsan_set_error_level_from_property", bionic_android_fdsan_set_error_level_from_property),
+    TL_WRAP("tcdrain", bionic_tcdrain), TL_WRAP("tcsendbreak", bionic_tcsendbreak), TL_WRAP("munlock", bionic_munlock),
     TL_WRAP("__libc_init", bionic___libc_init),
     TL_WRAP("__register_atfork", bionic___register_atfork),
     TL_WRAP("pthread_atfork", bionic_pthread_atfork),
@@ -635,6 +811,9 @@ const tl_bionic_entry tl_tab_core[] = {
     TL_WRAP("prctl", bionic_prctl),
     TL_WRAP("syscall", bionic_syscall),
     TL_WRAP("fork", bionic_fork),
+    TL_WRAP("vfork", bionic_fork),
+    TL_WRAP("posix_spawn", bionic_posix_spawn),
+    TL_WRAP("posix_spawnp", bionic_posix_spawn),
     TL_WRAP("execv", bionic_execv),
     TL_WRAP("execve", bionic_execve),
     TL_WRAP("waitpid", bionic_waitpid),
@@ -647,12 +826,17 @@ const tl_bionic_entry tl_tab_core[] = {
     TL_WRAP("dlerror", bionic_dlerror),
     TL_WRAP("dladdr", bionic_dladdr),
     TL_WRAP("dl_iterate_phdr", bionic_dl_iterate_phdr),
+    /* libdl's implementation entry points, which Facebook's loader hooks look up by name to call with a caller address */
+    TL_WRAP("android_dlopen_ext", bionic_android_dlopen_ext), TL_WRAP("__loader_dlopen", bionic_loader_dlopen), TL_WRAP("__loader_android_dlopen_ext", bionic_loader_android_dlopen_ext),
+    TL_WRAP("__loader_dlsym", bionic_loader_dlsym), TL_WRAP("__loader_dlvsym", bionic_loader_dlvsym),
+    TL_WRAP("__loader_dlclose", bionic_dlclose), TL_WRAP("__loader_dlerror", bionic_dlerror), TL_WRAP("__loader_dladdr", bionic_dladdr),
+    TL_WRAP("__loader_dl_iterate_phdr", bionic_dl_iterate_phdr),
     TL_END
 };
 
 /* ----------------------------------------------------------------- lookup */
 
-static const tl_bionic_entry *const k_tables[] = { tl_tab_core, tl_tab_str, tl_tab_io, tl_tab_io2, tl_tab_str2, tl_tab_net, tl_tab_pthread, tl_tab_ndk, tl_tab_egl, tl_tab_cxx, tl_tab_opensles };
+static const tl_bionic_entry *const k_tables[] = { tl_tab_core, tl_tab_str, tl_tab_io, tl_tab_io2, tl_tab_str2, tl_tab_net, tl_tab_pthread, tl_tab_ndk, tl_tab_egl, tl_tab_cxx, tl_tab_opensles, tl_tab_sys, tl_tab_ldbl, tl_tab_jvm };
 
 typedef struct { const char *name; void *addr; } slot;
 static slot *g_slots;
@@ -706,7 +890,10 @@ bool tl_bionic_is_system_lib(const char *soname)
     static const char *const sys[] = {
         "libc.so", "libm.so", "libdl.so", "liblog.so", "libandroid.so", "libEGL.so", "libGLESv1_CM.so",
         "libGLESv2.so", "libGLESv3.so", "libz.so", "libmediandk.so", "libOpenSLES.so", "libaaudio.so",
-        "libvulkan.so", "libnativewindow.so", "libjnigraphics.so", "libcamera2ndk.so", "libstdc++.so", NULL };
+        "libvulkan.so", "libnativewindow.so", "libjnigraphics.so", "libcamera2ndk.so", "libstdc++.so",
+        /* the rest of the NDK's libraries an app may list as needed without calling much in them (Roblox needs OpenMAX AL) */
+        "libOpenMAXAL.so", "libneuralnetworks.so", "libbinder_ndk.so", "libsync.so", "libamidi.so",
+        /* the Java runtime's: answered by Husk (husk-tl-dvm-jvm.c), never loaded */ "libopenjdkjvm.so", "libdl_android.so", "libart.so", NULL };
     for (int i = 0; sys[i]; i++) if (!strcmp(sys[i], soname)) return true;
     return false;
 }

@@ -116,6 +116,29 @@ static bool grant_self(size_t host_bytes, char *err, size_t errlen)
 #endif
 
 #if defined(__APPLE__) && !TARGET_OS_OSX
+/* The loader retargets code at the writable view with adrp (+-4 GiB). A region whose writable alias the kernel placed anywhere
+ * (VM_FLAGS_ANYWHERE: hundreds of GiB away on iOS 27) gets a second alias of the same pages next to the executable view: a local
+ * vm_remap, which needs no debugger. Free addresses after the region, then before it, in 16 MiB steps out to 2 GiB. */
+static void near_alias(void)
+{
+    ptrdiff_t d = g_x.rw - g_x.rx;
+    if (d < ((ptrdiff_t)2 << 30) && d > -((ptrdiff_t)2 << 30)) return;
+    const uintptr_t step = 16u << 20, reach = (uintptr_t)2 << 30, rx = (uintptr_t)g_x.rx, size = g_x.size;
+    for (uintptr_t off = 0; off <= reach; off += step) {
+        for (int side = 0; side < 2; side++) {
+            if (side == 1 && rx < size + off + step) continue;
+            vm_address_t want = side == 0 ? rx + size + off : rx - size - off;
+            vm_prot_t cur, max;
+            if (vm_remap(mach_task_self(), &want, size, 0, VM_FLAGS_FIXED, mach_task_self(), (vm_address_t)rx, FALSE, &cur, &max, VM_INHERIT_NONE) != KERN_SUCCESS) continue;
+            if (vm_protect(mach_task_self(), want, size, FALSE, VM_PROT_READ | VM_PROT_WRITE) != KERN_SUCCESS) { vm_deallocate(mach_task_self(), want, size); continue; }
+            tl_log_line("xmem: the writable view was %td MiB from the executable one; a new one at %p is %td MiB from it", d >> 20, (void *)want, (ptrdiff_t)(want - rx) >> 20);
+            g_x.rw = (uint8_t *)want;
+            return;
+        }
+    }
+    tl_log_line("xmem: the writable view is %td MiB from the executable one and no address near it is free", d >> 20);
+}
+
 /* The phone: StikDebug's region if a debugger granted one, otherwise one the process makes for itself where the device allows that (before TXM). */
 static bool open_platform(size_t host_bytes, char *err, size_t errlen)
 {
@@ -124,6 +147,7 @@ static bool open_platform(size_t host_bytes, char *err, size_t errlen)
         g_x.rx = m->rx_addr;
         g_x.rw = m->rw_addr;
         g_x.size = m->size;
+        near_alias();
         return true;
     }
     /* From iOS 26 the Trusted Execution Monitor decides what may execute, and an attempt to run unblessed memory can end the process rather than fail. Only a debugger

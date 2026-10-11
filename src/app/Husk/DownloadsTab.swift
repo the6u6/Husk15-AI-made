@@ -7,6 +7,7 @@ struct DownloadsTab: View {
     @ObservedObject private var updates = AppUpdates.shared
     @ObservedObject private var guest = GuestImage.shared
     @State private var adding = false
+    @Environment(\.presentationMode) private var huskPM
 
     var body: some View {
         NavigationView {
@@ -53,6 +54,7 @@ struct DownloadsTab: View {
             }
             .navigationTitle("Downloads")
             .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Done") { huskPM.wrappedValue.dismiss() } }
                 ToolbarItem(placement: .primaryAction) {
                     Button { adding = true } label: { Label("Add", systemImage: "plus") }
                 }

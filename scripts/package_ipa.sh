@@ -135,14 +135,10 @@ done
 # Leaving the loop in place would make every IPA fail this validation.
 #
 # husk-jit.js also went: it was the JIT payload staged for the VM's guest.
-for f in ; do
-    if [ ! -f "$APP/$f" ]; then
-        echo "  MISSING  $f" >&2
-        rc=1
-    else
-        printf "  ok       %-28s %s\n" "$f" "$(du -h "$APP/$f" | cut -f1)"
-    fi
-done
+#
+# The loop itself went with them. Removing the entries from its file list left
+# `for f in ; do`, which is valid shell and iterates zero times -- so it never
+# failed a build, and never looked like the bug it was.
 
 # The widget that draws the download Live Activity.
 #

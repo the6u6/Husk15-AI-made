@@ -4,6 +4,8 @@ import SwiftUI
 /// Settings, as the iOS Settings app lays them out: a card for the app up top, then groups of rows that each
 /// push a page of their own. What belongs to the app, what belongs to the emulator, and what the thing is.
 struct SettingsTab: View {
+    @AppStorage(AppWindows.defaultKey) private var multitask = false
+
     var body: some View {
         NavigationView {
             List {
@@ -26,8 +28,36 @@ struct SettingsTab: View {
                     row(AppearanceSettings(), "paintbrush.fill", .pink, "Appearance", "Light or dark, accent colour, app icon")
                 }
 
+                Section {
+                    Toggle(isOn: $multitask) {
+                        Label {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("Open Apps in Windows")
+                                Text("Use Husk while an app runs").font(.caption).foregroundColor(.secondary).lineLimit(1)
+                            }
+                        } icon: {
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                // Color.gradient is iOS 16. iOS 14 has no
+                                // gradient fill for a Shape, so the icon is flat
+                                // purple rather than a purple gradient.
+                                .fill(Color.purple)
+                                .frame(width: 30, height: 30)
+                                .huskOverlay {
+                                    Image(systemName: "macwindow.on.rectangle")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(.white)
+                                }
+                        }
+                    }
+                } header: {
+                    Text("Multitasking")
+                } footer: {
+                    Text("Apps and games open in a window you can move, resize and minimise to a dock, like LiveContainer's multitasking. "
+                       + "Each app can override this in its own settings.")
+                }
+
                 Section(header: Text("Emulator")) {
-                    row(InputSettings(), "hand.tap.fill",Color(.systemIndigo), "Input", "Screen, touch, keyboard")
+                    row(InputSettings(), "hand.tap.fill", .indigo, "Input", "Screen, touch, keyboard")
                     row(NetworkSettings(), "globe", .green, "Network", "Internet and saved sessions")
                     row(SavedMachineSettings(), "externaldrive.fill",Color(.systemTeal), "Saved Machine", "Snapshots and automatic saving")
                 }
@@ -824,6 +854,9 @@ struct AboutSettings: View {
                 if devInfo {
                     NavigationLink { TLChecksView() } label: {
                         Label("Device Checks", systemImage: "stethoscope")
+                    }
+                    NavigationLink { MassTestView() } label: {
+                        Label("Mass Test", systemImage: "square.stack.3d.down.forward")
                     }
                 }
                 Button { showLogs = true } label: {

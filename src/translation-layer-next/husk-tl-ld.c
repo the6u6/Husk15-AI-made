@@ -2,6 +2,7 @@
 #include "husk-tl-ld.h"
 
 #include <errno.h>
+#include <libkern/OSCacheControl.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdatomic.h>
@@ -116,13 +117,13 @@ static inline const void *at(const tl_lib *L, uint64_t vaddr) { return L->rw + (
 
 /* The app's split APKs (its 64-bit libraries, its asset packs), given before the engine starts: they are added right after
  * the base, whichever engine adds that, as Android puts a split's libraries and assets beside the base's. */
-static char g_splits[4][1024];
+static char g_splits[15][1024];
 static int g_nsplits;
 static char g_apk_paths[TL_LD_MAX_APKS][1024];
 
 void tl_ld_queue_split(const char *path)
 {
-    if (path && path[0] && g_nsplits < 4) snprintf(g_splits[g_nsplits++], sizeof(g_splits[0]), "%s", path);
+    if (path && path[0] && g_nsplits < 15) snprintf(g_splits[g_nsplits++], sizeof(g_splits[0]), "%s", path);
 }
 
 const char *tl_ld_queued_split(int i) { return i >= 0 && i < g_nsplits ? g_splits[i] : NULL; }
@@ -166,6 +167,15 @@ int tl_ld_apk_libs(void (*cb)(const char *name, uint64_t size, void *user), void
             cb(nm + 14, G.apks[i].entries[k].usize, user); n++;
         }
     return n;
+}
+
+/* The APK (base or split) whose lib/arm64-v8a/ carries a library, or NULL. */
+const char *tl_ld_lib_apk(const char *name)
+{
+    char entry[200];
+    snprintf(entry, sizeof(entry), "lib/arm64-v8a/%s", name);
+    for (int i = 0; i < G.napks; i++) if (tl_zip_find(&G.apks[i], entry)) return g_apk_paths[i];
+    return NULL;
 }
 
 bool tl_ld_has_lib(const char *name)
@@ -430,6 +440,21 @@ void *tl_ld_sym(tl_lib *lib, const char *name)
     return NULL;
 }
 
+/* dlsym(handle) as bionic's: the library, then what it needs, breadth-first (ART finds a dependency's JNI_OnLoad this way:
+ * Signal loads libringrtc, whose JNI_OnLoad is in the libringrtc_rffi it needs) */
+void *tl_ld_sym_deep(tl_lib *lib, const char *name, tl_lib **found_in)
+{
+    if (!lib) return NULL;
+    const elf_sym *s = lib_find(lib, name);
+    if (s) { if (found_in) *found_in = lib; return sym_value(lib, s); }
+    build_scope(lib);
+    for (int i = 0; i < lib->ndeps; i++) {
+        s = lib_find(lib->deps[i], name);
+        if (s) { if (found_in) *found_in = lib->deps[i]; return sym_value(lib->deps[i], s); }
+    }
+    return NULL;
+}
+
 /* Where the library's vaddr 0 lies in the executable view: what dladdr calls its base. */
 void *tl_ld_lib_base(const tl_lib *L) { return L ? (void *)(L->rx - L->base_vaddr) : NULL; }
 
@@ -464,6 +489,24 @@ const char *tl_ld_symbol_at(const void *addr, const char **lib_name, const void 
     if (!best) return NULL;
     if (sym_addr) *sym_addr = L->rx + (best->st_value - L->base_vaddr);
     return sym_name(L, best);
+}
+
+/* /proc/self/maps as the app's code sees it: each library it loaded, at its address, under the path it was loaded by (Unity and
+ * IL2CPP find their own library there; crash reporters list them). */
+size_t tl_ld_maps(char *buf, size_t n, const char *libdir)
+{
+    size_t k = 0;
+    if (n) buf[0] = 0;
+    pthread_mutex_lock(&G.lock);
+    for (int i = 0; i < G.nlibs && k + 200 < n; i++) {
+        tl_lib *L = G.libs[i];
+        if (L->state < 2) continue;
+        uintptr_t lo = (uintptr_t)L->rx, hi = lo + L->npages * PAGE;
+        k += (size_t)snprintf(buf + k, n - k, "%lx-%lx r-xp 00000000 fd:00 %d %s/%s\n", (unsigned long)lo, (unsigned long)hi, 4000 + i,
+                              libdir, L->soname[0] ? L->soname : base_name(L->name));
+    }
+    pthread_mutex_unlock(&G.lock);
+    return k;
 }
 
 int tl_ld_iterate(tl_ld_phdr_cb cb, void *user)
@@ -925,8 +968,35 @@ static int x18_rewrite(tl_lib *L, uint32_t *site_rw, const uint8_t *pc, ptrdiff_
         bool pair = (insn & 0x3A000000u) == 0x28000000u, single = (insn & 0x3B000000u) == 0x38000000u;
         unsigned mode = pair ? (insn >> 23) & 3u : (insn >> 10) & 3u;
         if ((pair || (single && !((insn >> 21) & 1u))) && ((insn >> 5) & 31u) == 31 && (mode == 1 || mode == 3)) {
-            tl_log_line("ld: %s: x18 instruction %08x at +%#llx writes back sp", L->name, insn, (unsigned long long)(pc - L->rx));
-            return X18_FAILED;
+            /* stp x17, x18, [sp, #-16]! / ldp x17, x18, [sp], #16 (a function that keeps x18 across a call): the stack pointer moves
+             * on its own (before the access for pre-index, after it for post-index) and the access becomes one at [sp] that does not
+             * write back, which is rewritten as any other; its scratch saves go below sp, clear of the access. */
+            int64_t moved;
+            uint32_t plain;
+            if (pair) {
+                int64_t imm7 = (int64_t)((insn >> 15) & 0x7Fu); if (imm7 & 0x40) imm7 -= 0x80;
+                unsigned opc = insn >> 30;
+                moved = imm7 * (opc == 2 ? 8 : 4);
+                plain = (insn & ~((3u << 23) | (0x7Fu << 15))) | (2u << 23);             /* signed offset 0 */
+            } else {
+                int64_t imm9 = (int64_t)((insn >> 12) & 0x1FFu); if (imm9 & 0x100) imm9 -= 0x200;
+                moved = imm9;
+                plain = insn & ~((3u << 10) | (0x1FFu << 12));                            /* unscaled offset 0 (stur / ldur) */
+            }
+            if (moved <= -4096 || moved >= 4096 || moved == 0) return X18_FAILED;
+            uint32_t adjust = moved < 0 ? 0xD10003FFu | ((uint32_t)(-moved) << 10) : 0x910003FFu | ((uint32_t)moved << 10);   /* sub / add sp, sp, #n */
+            uint32_t pused = a64_gpr_mask(plain);
+            unsigned S = pick_scratch(pused, 0), T = pick_scratch(pused, S);
+            if (!S || !T) return X18_FAILED;
+            if (mode == 3) EMIT(adjust);
+            EMIT(e_stur(S, -16)); EMIT(e_stur(T, -8));
+            EMIT(e_mrs_tsd(S)); EMIT(e_and_tsd(S)); EMIT(e_ldr_slot(S, S));
+            EMIT(a64_subst_gpr(plain, 18, S));
+            EMIT(e_mrs_tsd(T)); EMIT(e_and_tsd(T)); EMIT(e_str_slot(S, T));
+            EMIT(e_ldur(T, -8)); EMIT(e_ldur(S, -16));
+            if (mode == 1) EMIT(adjust);
+            EMIT_B(back);
+            goto emitted;
         }
         unsigned S = pick_scratch(used, 0), T = pick_scratch(used, S);
         if (!S || !T) return X18_FAILED;
@@ -937,6 +1007,7 @@ static int x18_rewrite(tl_lib *L, uint32_t *site_rw, const uint8_t *pc, ptrdiff_
         EMIT(e_ldur(T, -8)); EMIT(e_ldur(S, -16));
         EMIT_B(back);
     }
+emitted:
 #undef EMIT
 #undef EMIT_B
     if (!in_range_b(pc, rx)) return X18_FAILED;
@@ -980,6 +1051,31 @@ static uint32_t encode_adrp(uint32_t rt, const void *pc, const void *target)
  *    writable view, because code reaches its globals pc-relatively and the page
  *    the executable view shows is not writable.
  */
+/* Whether a vaddr is in one of the library's executable sections. */
+static bool in_code(const tl_lib *L, uint64_t vaddr)
+{
+    for (int r = 0; r < L->ncode; r++) if (vaddr >= L->code[r].start && vaddr < L->code[r].end) return true;
+    return false;
+}
+
+/* An adrp into a page that holds code and data both (a small library built for 4 KiB pages): what the next instructions make of it.
+ * "add Xd, Xn, #imm" with Xn the adrp's register forms an address; when that address is in code (a callback handed to someone),
+ * the adrp must keep naming the executable view. Loads and stores through it are data, and get the writable view. */
+static bool adrp_targets_code(const tl_lib *L, const uint32_t *w, size_t i, size_t nwords, uint32_t rd, uintptr_t tp)
+{
+    if (!(L->pflags[(tp - (uintptr_t)L->rx) / PAGE] & TL_PAGE_X)) return false;
+    for (size_t k = i + 1; k < nwords && k <= i + 4; k++) {
+        uint32_t n = w[k];
+        if ((n & 0xFF800000u) == 0x91000000u && ((n >> 5) & 0x1Fu) == rd) {        /* add Xd, Xn, #imm{, lsl #12} */
+            uint64_t imm = (n >> 10) & 0xFFFu;
+            if (n & (1u << 22)) imm <<= 12;
+            return in_code(L, (uint64_t)(tp - (uintptr_t)L->rx) + imm + L->base_vaddr);
+        }
+        if (((n >> 5) & 0x1Fu) == rd) return false;                              /* any other use of it: data */
+    }
+    return false;
+}
+
 static void patch_image(tl_lib *L, size_t *n_tpidr, size_t *n_adrp, size_t *n_adr, size_t *n_svc)
 {
     ptrdiff_t delta = L->rw - L->rx;
@@ -1027,7 +1123,7 @@ static void patch_image(tl_lib *L, size_t *n_tpidr, size_t *n_adrp, size_t *n_ad
                 uintptr_t tp = ((uintptr_t)pc & ~(uintptr_t)0xFFF) + (uintptr_t)(imm << 12);
                 if (tp >= (uintptr_t)L->rx && tp < (uintptr_t)L->rx + L->npages * PAGE) {
                     size_t tpg = (tp - (uintptr_t)L->rx) / PAGE;
-                    if (L->pflags[tpg] & TL_PAGE_W) {
+                    if ((L->pflags[tpg] & TL_PAGE_W) && !adrp_targets_code(L, w, i, nwords, insn & 0x1Fu, tp)) {
                         w[i] = encode_adrp(insn & 0x1Fu, pc, (const void *)(tp + (uintptr_t)delta));
                         (*n_adrp)++;
                     }
@@ -1050,7 +1146,8 @@ static void patch_image(tl_lib *L, size_t *n_tpidr, size_t *n_adrp, size_t *n_ad
                 if (imm & 0x100000) imm -= 0x200000;
                 uintptr_t tp = (uintptr_t)pc + (uintptr_t)imm;
                 if (tp >= (uintptr_t)L->rx && tp < (uintptr_t)L->rx + L->npages * PAGE
-                    && (L->pflags[(tp - (uintptr_t)L->rx) / PAGE] & TL_PAGE_W)) {
+                    && (L->pflags[(tp - (uintptr_t)L->rx) / PAGE] & TL_PAGE_W)
+                    && !in_code(L, (uint64_t)(tp - (uintptr_t)L->rx) + L->base_vaddr)) {
                     uint32_t branch;
                     if (adr_stub(L, pc, insn & 0x1Fu, (uint64_t)(tp + (uintptr_t)delta), &branch)) { w[i] = branch; (*n_adr)++; }
                     else L->n_adr_failed++;
@@ -1149,12 +1246,19 @@ static void tl_tlsdesc_entry(void) {}
 
 static inline uint64_t rd64(const uint8_t *p) { uint64_t v; memcpy(&v, p, 8); return v; }
 
-/* An address inside the image as pointer data records it: writable view for data. */
+/* An address inside the image as pointer data records it: writable view for data, executable view for code. A small library built
+ * for 4 KiB pages has code and data on one 16 KiB page, which is then writable; a pointer into its executable sections (a Python
+ * module's exec slot, a vtable entry) is still code and must be called through the executable view. */
 static uint64_t image_addr(const tl_lib *L, uint64_t vaddr)
 {
     uint64_t off = vaddr - L->base_vaddr;
     size_t page = (size_t)(off / PAGE);
-    if (page < L->npages && (L->pflags[page] & TL_PAGE_W)) return (uint64_t)(uintptr_t)(L->rw + off);
+    if (page < L->npages && (L->pflags[page] & TL_PAGE_W)) {
+        if (L->pflags[page] & TL_PAGE_X)
+            for (int r = 0; r < L->ncode; r++)
+                if (vaddr >= L->code[r].start && vaddr < L->code[r].end) return (uint64_t)(uintptr_t)(L->rx + off);
+        return (uint64_t)(uintptr_t)(L->rw + off);
+    }
     return (uint64_t)(uintptr_t)(L->rx + off);
 }
 
@@ -1622,6 +1726,38 @@ static tl_lib *map_library(const char *name, uint8_t *file, size_t flen)
             }
         }
     }
+    /* Bytes of an executable segment that no section claims: protectors (app shields, packers) keep their unpacking code there,
+     * out of the section headers, and it reads tpidr_el0 like any other code. Every allocated section counts as claimed, so
+     * .rodata and .eh_frame stay data. */
+    if (ncode && eh->e_shoff && eh->e_shentsize >= 64) {
+        struct { uint64_t lo, hi; } claimed[64]; int nclaimed = 0;
+        for (unsigned i = 0; i < eh->e_shnum && nclaimed < 64; i++) {
+            const uint8_t *sh = file + eh->e_shoff + (size_t)i * eh->e_shentsize;
+            uint64_t flags, addr, size; uint32_t type;
+            memcpy(&type, sh + 4, 4); memcpy(&flags, sh + 8, 8); memcpy(&addr, sh + 16, 8); memcpy(&size, sh + 32, 8);
+            if ((flags & 2 /* ALLOC */) && size) { claimed[nclaimed].lo = addr; claimed[nclaimed].hi = addr + (type == 8 /* NOBITS */ ? 0 : size); nclaimed++; }
+        }
+        for (unsigned i = 0; i < eh->e_phnum && ncode < 16; i++) {
+            const elf_phdr *p = &phs[i];
+            if (p->p_type != PT_LOAD_ || !(p->p_flags & PF_X_) || p->p_offset + p->p_filesz > flen) continue;
+            uint64_t a = p->p_vaddr, end = p->p_vaddr + p->p_filesz;
+            while (a < end && ncode < 16) {
+                /* the next claimed byte at or after a */
+                uint64_t next = end; bool inside = false;
+                for (int k = 0; k < nclaimed; k++) {
+                    if (a >= claimed[k].lo && a < claimed[k].hi) { inside = true; a = claimed[k].hi; break; }
+                    if (claimed[k].lo > a && claimed[k].lo < next) next = claimed[k].lo;
+                }
+                if (inside) continue;
+                uint64_t lo = (a + 3) & ~3ull, hi = next & ~3ull;
+                if (hi > lo && hi - lo >= 256 && lo > (uint64_t)eh->e_phoff + (uint64_t)eh->e_phnum * eh->e_phentsize + 0x1000) {   /* not the headers at the start */
+                    code[ncode].vaddr = lo; code[ncode].size = hi - lo; code[ncode].foff = p->p_offset + (lo - p->p_vaddr); ncode++;
+                    tl_log_line("ld: %s: %#llx-%#llx is executable but in no section: treated as code", name, (unsigned long long)lo, (unsigned long long)hi);
+                }
+                a = next;
+            }
+        }
+    }
     if (!ncode) {
         tl_log_line("ld: %s has no section headers; treating every executable segment as code", name);
         for (unsigned i = 0; i < eh->e_phnum && ncode < 16; i++) {
@@ -1751,6 +1887,15 @@ static bool relocate(tl_lib *L)
     return true;
 }
 
+/* Folders a library named only by its file name is also looked for in (the Java runtime's: the ART APEX's lib64). */
+static char *g_search[32];
+static int g_nsearch;
+void tl_ld_add_search_dir(const char *dir)
+{
+    for (int i = 0; i < g_nsearch; i++) if (!strcmp(g_search[i], dir)) return;
+    if (g_nsearch < 32) g_search[g_nsearch++] = strdup(dir);
+}
+
 static tl_lib *load_locked(const char *name, int depth)
 {
     tl_lib *L = find_loaded(name);
@@ -1759,7 +1904,19 @@ static tl_lib *load_locked(const char *name, int depth)
     if (depth > 32) { tl_log_line("ld: dependency chain too deep at %s", name); return NULL; }
 
     uint8_t *file; size_t flen;
-    if (!fetch_from_apks(base_name(name), &file, &flen) && !fetch_from_file(name, &file, &flen)) {
+    bool got = fetch_from_apks(base_name(name), &file, &flen);
+    if (!got && fetch_from_file(name, &file, &flen)) {
+        got = true;
+        /* a library the app unpacked itself (SoLoader's Superpack, an update): what it needs is next to it */
+        char dir[1024]; snprintf(dir, sizeof(dir), "%s", name);
+        char *sl = strrchr(dir, '/'); if (sl && sl != dir) { *sl = 0; tl_ld_add_search_dir(dir); }
+    }
+    for (int d = 0; !got && d < g_nsearch; d++) {
+        char path[1024];
+        snprintf(path, sizeof(path), "%s/%s", g_search[d], base_name(name));
+        got = fetch_from_file(path, &file, &flen);
+    }
+    if (!got) {
         tl_log_line("ld: %s is not in the APK and is not a system library", name);
         return NULL;
     }
@@ -1807,6 +1964,18 @@ static bool init_locked(tl_lib *L)
     char **argv = G.argv ? G.argv : fallback_argv, **envp = G.envp ? G.envp : fallback_envp;
     int argc = 1;
     typedef void (*init_fn)(int, char **, char **);
+    /* BoringSSL's FIPS self-check hashes its own .text, which the loader has rewritten (svc,
+     * x18, tpidr sites), and aborts on the mismatch. Skip it: the code itself is unchanged. */
+    const elf_sym *fips = lib_find(L, "BORINGSSL_integrity_test");
+    if (fips && fips->st_shndx) {
+        uint8_t *x = (uint8_t *)sym_value(L, fips);
+        if (x >= L->rx) {
+            uint32_t ret = 0xd65f03c0u;
+            memcpy(L->rw + (x - L->rx), &ret, 4);
+            sys_icache_invalidate(x, 4);
+            tl_log_line("ld: %s: skipped BORINGSSL_integrity_test", L->name);
+        }
+    }
     if (L->init) ((init_fn)(L->rx + (L->init - L->base_vaddr)))(argc, argv, envp);
     if (L->init_array) {
         const uint64_t *fns = at(L, L->init_array);

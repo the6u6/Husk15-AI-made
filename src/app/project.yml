@@ -114,12 +114,29 @@ targets:
           - "-lz"
           # libresolv: the phone's DNS servers, for games that resolve names themselves (Geode's c-ares).
           - "-lresolv"
+          # SQLite for Java apps' android.database.sqlite (the system's own library).
+          - "-lsqlite3"
           - "-framework"
           - "AudioToolbox"
           - "-framework"
           - "CoreText"
           - "-framework"
           - "CoreGraphics"
+          # ImageIO decodes and encodes images for Java apps' BitmapFactory and Bitmap.compress.
+          - "-framework"
+          - "ImageIO"
+          # WebKit draws Java apps' android.webkit.WebView (WKWebView under the app's screen).
+          - "-framework"
+          - "WebKit"
+          # VideoToolbox (with CoreMedia and CoreVideo) decodes H.264/HEVC for Java apps' MediaCodec; Accelerate converts the frames.
+          - "-framework"
+          - "VideoToolbox"
+          - "-framework"
+          - "CoreMedia"
+          - "-framework"
+          - "CoreVideo"
+          - "-framework"
+          - "Accelerate"
           # Security verifies the licence signature Minecraft's UI engine checks through Java's Signature class.
           - "-framework"
           - "Security"
@@ -165,6 +182,42 @@ targets:
     # All of it existed to boot the VM. The app is now a SwiftUI shell over the
     # translation layer, which loads no guest.
 
+
+    # EXPERIMENTAL (VM removal): most of the "Stage guest image" preBuildScript.
+    # It copied the Phase 0 kernel and initramfs, the QEMU option ROMs, the UEFI
+    # firmware and two qcow2 seeds into the bundle, and needed qemu-img at build
+    # time. All of it existed to boot the VM, and the app is now a SwiftUI shell
+    # over the translation layer, which loads no guest.
+    #
+    # KEPT, because upstream added them to the same script and they have nothing
+    # to do with QEMU: Android's CA certificates and fonts for Flutter, and
+    # Husk's Dalvik runtime for Java apps. Dropping them with the VM would break
+    # exactly those apps. outputFiles went with the dropped half -- every entry
+    # named a VM artefact.
+    preBuildScripts:
+      - name: Stage translation-layer resources
+        script: |
+          set -e
+          mkdir -p "$BUILT_PRODUCTS_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH"
+
+          # The parts of Android's /system that apps on the translation layer read directly: CA certificates and
+          # fonts (scripts/build_android_system.sh makes them from the Lineage image). Flutter apps need both.
+          SYS="$SRCROOT/../../build/android-system"
+          if [ -d "$SYS/fonts" ]; then
+            rsync -a --delete "$SYS/" "$BUILT_PRODUCTS_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/android-system/"
+          else
+            echo "warning: build/android-system missing (scripts/build_android_system.sh): Flutter apps will have no system fonts" >&2
+          fi
+
+          # Husk's Dalvik runtime for Java apps (libGDX games and the like): libcore, ICU and Husk's Java framework
+          # (scripts/build_java_runtime.sh). ELF libraries and jars, so resources, not code the app links.
+          JRT="$SRCROOT/../../build/java-runtime"
+          if [ -f "$JRT/husk-framework.dex" ]; then
+            rsync -a --delete "$JRT/" "$BUILT_PRODUCTS_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/java-runtime/"
+          else
+            echo "warning: build/java-runtime missing (scripts/build_java_runtime.sh): Java apps will not start" >&2
+          fi
+        basedOnDependencyAnalysis: false
 
     # EXPERIMENTAL (iOS 14): postBuildScripts and the HuskJITHelper target are
     # gone. Xcode refuses a deployment target above the installed SDK, so the
