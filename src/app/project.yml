@@ -47,8 +47,9 @@ settings:
     ONLY_ACTIVE_ARCH: YES
     ENABLE_BITCODE: NO
     SWIFT_VERSION: "5.0"
-    # The guest framebuffer path is latency-sensitive and the JIT path is
-    # timing-sensitive; never let a debug build of the display loop mislead us.
+    # The JIT path is timing-sensitive and the display loop is latency-sensitive;
+    # never let a debug build of either mislead us. This outlived the guest
+    # framebuffer the first half of that sentence was about.
     SWIFT_OPTIMIZATION_LEVEL: "-O"
 
 targets:
@@ -95,7 +96,8 @@ targets:
         INFOPLIST_FILE: Husk/Info.plist
         CODE_SIGN_ENTITLEMENTS: "$(HUSK_ENTITLEMENTS)"
         SWIFT_OBJC_BRIDGING_HEADER: Husk/HuskBridge.h
-        # libqemu-aarch64-softmmu.dylib has install_name @rpath/...
+        # ANGLE is dlopened by @rpath at GL start-up, and is embedded but not
+        # linked, so this is what makes the loader find it.
         LD_RUNPATH_SEARCH_PATHS:
           - "$(inherited)"
           - "@executable_path/Frameworks"
@@ -156,14 +158,17 @@ targets:
       - framework: Frameworks/libFilePickerFix.dylib
         embed: true
         codeSign: true
-      # ANGLE, which the QEMU dylib dlopens by @rpath at GL start-up. Embedded
-      # but NOT linked: nothing in the app references its symbols directly, and
-      # the only thing that would notice its absence is the dynamic loader.
+      # ANGLE, which the translation layer dlopens by @rpath at GL start-up.
+      # Embedded but NOT linked: nothing in the app references its symbols
+      # directly, and the only thing that would notice its absence is the
+      # dynamic loader -- which is exactly what happened.
       #
       # This was in the checked-in .pbxproj and missing here, which nobody could
       # see while the project was never regenerated. The first regeneration
-      # dropped it, and the app died at qemu_egl_init_dpy_cocoa with
-      # "Couldn't open @rpath/libANGLE-shared.dylib".
+      # dropped it and the app died at bring-up with "Couldn't open
+      # @rpath/libANGLE-shared.dylib". The loader that hit that was QEMU's; it
+      # is now husk-tl-egl's, so the same mistake is still fatal, just from a
+      # different place.
       - framework: ../../build/ios-arm64/sysroot/lib/libANGLE-shared.dylib
         embed: true
         codeSign: true

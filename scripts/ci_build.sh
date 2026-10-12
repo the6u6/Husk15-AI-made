@@ -16,29 +16,26 @@ step "fetch sources"
 step "dependencies: libffi glib pixman libucontext libslirp"
 ./scripts/build_ios.sh libffi glib pixman libucontext libslirp
 
-# build_gpu_ios.sh asks for cross-ios-darwin.meson, which no script generates.
-# build_ios.sh writes cross-darwin.meson, the file it describes (host system
-# darwin, subsystem ios), under a different name.
-cp build/ios-arm64/cross-darwin.meson build/ios-arm64/cross-ios-darwin.meson
+# ANGLE and MoltenVK stay because the translation layer resolves its graphics
+# entry points by name out of them: husk-tl-bionic.c takes GLES from ANGLE, and
+# tl_vk_resolve takes Vulkan from MoltenVK. They are the app's graphics, not the
+# emulator's.
 
 if [ ! -f build/ios-arm64/sysroot/lib/libANGLE-shared.dylib ]; then
     step "ANGLE (EGL/GLES over Metal)"
     ./scripts/build_angle_ios.sh
 fi
 
-if [ ! -f build/ios-arm64/sysroot/lib/libvirglrenderer.a ]; then
-    step "libepoxy + virglrenderer"
-    # build_ios.sh's cross environment, which the GPU script assumes is set.
-    PKG_CONFIG_LIBDIR="$HUSK_ROOT/build/ios-arm64/sysroot/lib/pkgconfig:$HUSK_ROOT/build/ios-arm64/sysroot/share/pkgconfig" \
-        ./scripts/build_gpu_ios.sh
-fi
-
-# REMOVED: the QEMU cross build, the Husk patches into it, and the guest
-# kernel/initramfs. Husk no longer runs a full Android system. The translation
-# layer (src/translation-layer-next) is a separate C runtime and is untouched.
+# REMOVED: the QEMU cross build, the Husk patches into it, the guest
+# kernel/initramfs, and the libepoxy + virglrenderer pair. Husk no longer runs a
+# full Android system. The translation layer (src/translation-layer-next) is a
+# separate C runtime and is untouched. virglrenderer went with virtio-gpu-gl;
+# nothing in the app linked it, and src/ios-jit -- the only place it was
+# referenced -- is not in the app target's sources at all.
+#
 # Dropping these stages is most of this script's wall clock. The scripts are
 # still on disk if anyone wants them back: build_ios.sh, integrate_husk.sh,
-# fetch_phase0_guest.sh, build_phase1_image.sh.
+# fetch_phase0_guest.sh, build_phase1_image.sh, build_gpu_ios.sh.
 
 if [ ! -d build/ios-arm64/lib/MoltenVK.xcframework ]; then
     step "MoltenVK (Vulkan over Metal, for Unreal Engine games)"
