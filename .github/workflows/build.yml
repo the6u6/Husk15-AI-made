@@ -300,6 +300,36 @@ jobs:
           fi
           echo "ok: no iOS 16/17-only APIs outside the shim"
 
+      - name: assert every C symbol Swift calls is defined
+        # The one thing a compile cannot tell you. A C declaration with no
+        # definition satisfies every Swift call site, so the app builds, links
+        # fail, and the error names no file -- a page of "Undefined symbols for
+        # architecture arm64" with nothing to grep for. Four builds were spent
+        # learning this: three audits passed first, and all three asked whether
+        # a symbol was *declared*, which is not the question the linker asks.
+        #
+        # It happened because QemuAbsent.c held 33 definitions, 7 of them
+        # husk_ios_jit_* that the VM removal left declared and called while
+        # deleting the file that defined them.
+        #
+        # Here because it costs a second and saves the two hours it takes to
+        # reach the app target. The source list is derived from project.yml, so
+        # it cannot go stale the way a hardcoded list did -- the first version of
+        # this check named two directories and could not see JitAbsent.c, which
+        # was the answer, and reported the eight symbols it had just defined as
+        # missing.
+        run: |
+          set -euo pipefail
+          python3 tests/test_link_symbols.py
+
+      - name: prove that check still catches what it exists for
+        # A gate that has only ever run against a correct tree has not been
+        # shown to fail on an incorrect one. This removes JitAbsent.c, watches
+        # the check name all eight symbols, and puts the file back.
+        run: |
+          set -euo pipefail
+          python3 tests/test_link_symbol_catches_defect.py
+
   # ------------------------------------------------------------------- build
   build:
     name: build IPA and tipa
