@@ -223,7 +223,7 @@ private struct AppWindow: View {
                     Image(systemName: "chevron.backward").font(.system(size: 13, weight: .semibold)).frame(width: 28, height: 28)
                 }
                 .buttonStyle(.plain)
-                .accessibility(label: Text("Back"))
+                .accessibility(label: "Back")
             }
             ItemIcon(item: .game(app), size: 18)
             Text(app.label).font(.footnote.weight(.semibold)).lineLimit(1)
@@ -251,7 +251,7 @@ private struct AppWindow: View {
         }
         .buttonStyle(.plain)
         .frame(width: 22)
-        .accessibility(label: Text(label))
+        .accessibility(label: label)
     }
 
     private var moveGesture: some Gesture {
@@ -284,7 +284,7 @@ private struct AppWindow: View {
                     }
                     .onEnded { _ in startFrame = nil }
             )
-            .accessibility(label: Text("Resize"))
+            .accessibility(label: "Resize")
     }
 }
 
@@ -329,7 +329,7 @@ private struct WindowDock: View {
                 Button { windows.close() } label: { huskLabel("Close", systemImage: "xmark") }
                     .foregroundColor(Color.red)
             }
-            .accessibility(label: Text("\(app.label)), minimised")
+            .accessibility(label: "\(app.label), minimised")
             
     }
 }

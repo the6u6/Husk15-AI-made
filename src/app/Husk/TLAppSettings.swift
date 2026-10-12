@@ -186,7 +186,7 @@ struct TLAppSettingsView: View {
                         }
                         .buttonStyle(.plain)
                         .foregroundColor(Theme.accent)
-                        .accessibility(label: Text("Save Name"))
+                        .accessibility(label: "Save Name")
                     }
                 }
                 .padding(.vertical, 2)

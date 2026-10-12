@@ -272,13 +272,6 @@ extension huskStorable where Self: RawRepresentable, Self.RawValue == String {
     }
 }
 
-extension huskStorable where Self == Bool {
-    static func huskRead(_ d: UserDefaults, _ k: String) -> Bool? {
-        d.object(forKey: k) as? Bool
-    }
-    static func huskWrite(_ v: Bool, _ d: UserDefaults, _ k: String) { d.set(v, forKey: k) }
-}
-
 // MARK: - @StateObject (iOS 14.0)
 //
 // The pre-14 idiom is `@ObservedObject private var x = ObservedObject(wrappedValue: X())`,
@@ -394,6 +387,27 @@ extension View {
 /// There is no Color accessor below 14 -- `getRed(_:green:blue:alpha:)` on Color
 /// is 14 too -- so the conversion goes through a view that has a layer and asks
 /// the layer for its colour. It is the long-standing trick and it costs one
+extension View {
+    /// `.accessibilityLabel(x)` is iOS 14; `.accessibility(label:)` is the iOS 13
+    /// spelling and takes a **Text**.
+    ///
+    /// Fourteen of the fifteen call sites had a String -- string literals
+    /// included, which is what made the compiler's complaint read like an
+    /// argument-scoping problem rather than a type one.
+    ///
+    /// The obvious fix is to wrap them at the call site, and that is what an
+    /// earlier pass did: `.accessibilityLabel(` became
+    /// `.accessibility(label: Text(`, and a regex matching a balanced
+    /// parenthesised argument ate the inside of four string literals. Two of
+    /// them were unterminated afterwards.
+    ///
+    /// So this is an overload instead. The call sites keep whatever they had and
+    /// no regex sits in the middle of them.
+    func accessibility(label: String) -> some View {
+        accessibility(label: Text(label))
+    }
+}
+
 // MARK: - LazyVGrid / LazyHGrid (iOS 14.0)
 //
 // iOS 13 has no grid at all -- LazyVGrid, LazyHGrid, Grid and GridRow all arrive
@@ -519,13 +533,38 @@ extension View {
     //
     // One entry point, with the header named and no Text overload. The bare form
     // is the same call with no header, which the default parameter covers.
-    func huskSection<H: View, C: View>(@ViewBuilder header: () -> H,
-                                      @ViewBuilder content: () -> C) -> some View {
+    // Content FIRST, and that ordering is load-bearing rather than stylistic.
+    //
+    // `huskSection { content } header: { header }` is multiple trailing-closure
+    // syntax: the first closure binds to the *first* parameter, whatever it is
+    // called. With the parameters the other way round -- header first -- the
+    // unlabeled closure had nowhere to go and the compiler said "incorrect
+    // argument label in call (have '_:header:')" at every one of the six sites.
+    //
+    // This is also SwiftUI's own order, which is why `Section { } header: { }`
+    // worked and this did not.
+    func huskSection<C: View, H: View>(@ViewBuilder content: () -> C,
+                                       @ViewBuilder header: () -> H) -> some View {
         HuskSectionGroup(header: header, content: content)
     }
 
     func huskSection<C: View>(@ViewBuilder content: () -> C) -> some View {
         HuskPlainSection(content: content)
+    }
+
+    /// A group with a footer and no header. Two call sites use this shape; the
+    /// overload went in the previous round and took the header-first ordering
+    /// with it, so both sites lost their footer.
+    func huskSection<C: View, F: View>(@ViewBuilder content: () -> C,
+                                       @ViewBuilder footer: () -> F) -> some View {
+        HuskPlainSection(content: {
+            content()
+            footer()
+                .font(.footnote)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 16)
+                .padding(.top, 6)
+        })
     }
 }
 

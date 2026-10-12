@@ -223,7 +223,7 @@ struct DiscoverView: View {
             .navigationBarItems(
                 leading: AnyView(
                     Button("Cancel") { newSourceURL = ""; showingAddSource = false }
-                ,
+                ,)
                 trailing: AnyView(
                     Button("Add") {
                         let url = newSourceURL
@@ -274,19 +274,18 @@ struct DiscoverView: View {
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
-                            .accessibility(label: Text( Text("Remove \(url))"))
+                            .accessibility(label: "Remove \(url)")
                         }
                         .padding(.vertical, 2)
                     }
                 } header: { Text("Active Repositories") }
             }
-            .navigationTitle("Repositori                leading: AnyView(EmptyView()),
-es")
+            .navigationTitle("Repositories")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(
                 leading: AnyView(
                     Button("Done") { showingSources = false }
-                ,
+                ),
                 trailing: AnyView(
                     Button { showingSources = false; showingAddSource = true } label: {
                         Image(systemName: "plus")

@@ -155,7 +155,8 @@ private final class ZipWriter {
         let input = try FileHandle(forReadingFrom: file)
         defer { try? input.close() }
         var crc: UInt32 = 0, size: UInt64 = 0
-        while let chunk = try input.readData(ofLength: 1 << 20), !chunk.isEmpty { crc = crc32(crc, chunk); size += UInt64(chunk.count) }
+        var chunk = try input.readData(ofLength: 1 << 20)
+        while !chunk.isEmpty { crc = crc32(crc, chunk); size += UInt64(chunk.count) }
         guard size < 0xFFFF_FFFF, offset < 0xFFFF_FFFF else { throw SaveBackup.Failure("A save file is too large to back up.") }
         try input.seek(toOffset: 0)
         try write(name, size: size, crc: crc) {

@@ -54,7 +54,7 @@ struct DownloadsTab: View {
             .navigationTitle("Downloads")
             .navigationBarItems(
                 leading: AnyView(
-                ,
+                ,)
                 trailing: AnyView(
                     Button { adding = true } label: { huskLabel("Add", systemImage: "plus") }
                 )
@@ -158,7 +158,7 @@ private struct AddDownloadSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(
                 leading: AnyView(
-                ,
+                ,)
                 trailing: AnyView(
                     if working { huskProgress() } else {
                         Button("Download") {

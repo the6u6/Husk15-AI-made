@@ -68,7 +68,7 @@ private struct FAQRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibility(label: Text(item.question))
+            .accessibility(label: item.question)
             // .accessibilityValue is iOS 14 with no 13 equivalent. The chevron
             // and the answer's presence already say which it is, so nothing is
             // lost here that was not already twice visible.

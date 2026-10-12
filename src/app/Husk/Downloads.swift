@@ -653,7 +653,8 @@ final class BackgroundDownloadDelegate: NSObject, URLSessionDownloadDelegate {
                 guard let out = try? FileHandle(forWritingTo: part), let inp = try? FileHandle(forReadingFrom: location) else { throw CocoaError(.fileWriteUnknown) }
                 try out.truncate(atOffset: UInt64(tag.offset))
                 try out.seekToEndOfFile()
-                while let chunk = try inp.readData(ofLength: 8 << 20), !chunk.isEmpty { try out.write(chunk) }
+                var chunk = try inp.readData(ofLength: 8 << 20)
+        while !chunk.isEmpty { try out.write(chunk) }
                 try out.close(); try inp.close()
             } else if status == 200 || (status == 206 && tag.offset == 0) {
                 try? fm.removeItem(at: part)

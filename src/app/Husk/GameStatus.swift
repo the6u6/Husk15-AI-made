@@ -105,6 +105,6 @@ struct GameStatusBadge: View {
             .foregroundColor(.white)
             .background(Circle().fill(Color(.systemBackground)).padding(1))
             .background(Circle().stroke(result.color, lineWidth: 2).padding(1))
-            .accessibility(label: Text(result.label))
+            .accessibility(label: result.label)
     }
 }

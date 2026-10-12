@@ -46,8 +46,8 @@ final class AppTheme: ObservableObject {
         Preset(id: "orange", name: "Orange", color: .orange, hex: "#FF9500"),
         Preset(id: "yellow", name: "Yellow", color: .yellow, hex: "#FFCC00"),
         Preset(id: "green", name: "Green", color: .green, hex: "#34C759"),
-        Preset(id: "teal", name: "Teal", color: .teal, hex: "#30B0C7"),
-        Preset(id: "mint", name: "Mint", color: .mint, hex: "#00C7BE"),
+        Preset(id: "teal", name: "Teal", color: Color(.systemCyanFallback), hex: "#30B0C7"),
+        Preset(id: "mint", name: "Mint", color: Color(.systemMintFallback), hex: "#00C7BE"),
     ]
 
     /// The hex for a colour the app knows, or nil if it is not one of the presets.

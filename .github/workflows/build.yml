@@ -368,6 +368,20 @@ jobs:
           set -euo pipefail
           python3 tests/test_hit_testing_policy.py
 
+      - name: assert every bracket balances, outside strings and comments
+        # The brace counter in check_consistent.py ignores string literals --
+        # correctly, because a brace inside a string is not a brace -- which is
+        # exactly why it could not see a rewrite that ate the inside of four
+        # string literals and left two of them unterminated. That pass reported
+        # fifteen sites in and fifteen sites out and was, by its own count,
+        # correct.
+        #
+        # This lexes the way Swift does: comments and literals removed first,
+        # then every bracket balanced. Brackets were never checked at all before.
+        run: |
+          set -euo pipefail
+          python3 tests/test_brackets_balance.py
+
       - name: prove that check still catches what it exists for
         # A gate that has only ever run against a correct tree has not been
         # shown to fail on an incorrect one. This removes JitAbsent.c, watches
