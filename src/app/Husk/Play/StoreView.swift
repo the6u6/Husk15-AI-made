@@ -31,6 +31,7 @@ struct StoreView: View {
             .navigationTitle("Store")
             .navigationBarTitleDisplayMode(.large)
             .navigationBarItems(
+                leading: AnyView(EmptyView()),
                 trailing: AnyView(
                                         if manager.isSignedIn {
                                             Menu {
@@ -420,7 +421,8 @@ struct PlayAppDetailSheet: View {
             }
             .background(Theme.backdrop)
             .navigationTitle(app.title)
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplay                leading: AnyView(EmptyView()),
+Mode(.inline)
             .navigationBarItems(
                 leading: AnyView(
                     Button("Done") { huskPM.wrappedValue.dismiss() }

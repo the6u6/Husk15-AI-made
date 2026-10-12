@@ -72,12 +72,12 @@ extension View {
 // the app either set `.accentColor` on it or wanted the app's accent anyway.
 extension View {
     func huskProgress() -> some View {
-        HuskUIKitProgress(style: .spinner, tint: Color.accentColor, fraction: nil)
+        HuskUIKitProgress(style: .default, tint: Color.accentColor, fraction: nil)
     }
 
     func huskProgress(_ title: LocalizedStringKey) -> some View {
         HStack(spacing: 10) {
-            HuskUIKitProgress(style: .spinner, tint: Color.accentColor, fraction: nil)
+            HuskUIKitProgress(style: .default, tint: Color.accentColor, fraction: nil)
             Text(title)
         }
     }
@@ -169,14 +169,20 @@ private struct HuskOnChange<V: Equatable>: ViewModifier {
 // through the same wrapper, in two files -- round-trips as itself and not as its
 // description.
 @propertyWrapper
-struct huskAppStorage<Value: huskStorable> {
+// The constraint comes back now that the protocol's methods are Any-typed: the
+    // conformances exist, so Bool and Theme.Appearance satisfy it. Version 2 had
+    // this constraint with a Self-typed protocol, and the conformances silently
+    // did not exist -- which is why it reported at every use rather than here.
+    struct huskAppStorage<Value: huskStorable> {
     @State private var stored: Value
     private let key: String
 
     init(wrappedValue: Value, _ key: String) {
         self.key = key
         let defaults = UserDefaults.standard
-        if let existing = Value.huskRead(defaults, key) {
+        // The cast is the price of an unconstrained wrapper, and it is one place
+        // rather than fifteen.
+        if let existing = Value.huskRead(defaults, key) as? Value {
             _stored = State(initialValue: existing)
         } else {
             Value.huskWrite(wrappedValue, defaults, key)
@@ -198,33 +204,71 @@ struct huskAppStorage<Value: huskStorable> {
     }
 }
 
-/// How a value gets into UserDefaults, specialised per type rather than through
-/// a `Self`-typed requirement.
+/// How a value gets into UserDefaults, as a pair of `Any`-typed statics.
 ///
-/// The first version declared `static func huskRead(_:_:) -> Self?` and
-/// `huskWrite(_ value: Self, ...)` and tried to satisfy them from
-/// `where Self == Bool` extensions. Swift cannot do that: a `Self`-typed
-/// requirement cannot be witnessed from an extension constrained to a concrete
-/// type, and it says so once per scalar -- "no type for 'Self' can satisfy both
-/// 'Self == Bool' and 'Self : huskStorable'".
+/// Three versions of this got it wrong before this one, and the reason is worth
+/// writing down because the fix each time looked obvious:
 ///
-/// The conformances below are therefore ordinary concrete conformances on
-/// *constrained extensions of the protocol*, which is the form that works. Storing
-/// the scalars as themselves is what makes this interchangeable with what
+///  1. `-> Self?` and `_ value: Self` on the protocol, satisfied from
+///     `where Self == Bool` extensions. Swift cannot witness a Self-typed
+///     requirement from an extension constrained to a concrete type, and says
+///     so once per scalar: "no type for 'Self' can satisfy both 'Self == Bool'
+///     and 'Self : huskStorable'".
+///
+///  2. Moving the conformances onto constrained *protocol* extensions changed
+///     the message and not the problem -- the wrapper still constrained `Value`
+///     to huskStorable, so every use inherited the failure and the compiler
+///     reported it at fifteen call sites instead of four.
+///
+///  3. This one: no `Self` anywhere in the signatures. The conformances are
+///     ordinary conformances, and the wrapper casts once at each end.
+///
+/// Storing the scalars as themselves is what makes this interchangeable with what
 /// `@AppStorage` wrote before it: the same key holds the same type of value, so an
 /// install that has been through either one reads correctly.
 protocol huskStorable {
-    static func huskRead(_ defaults: UserDefaults, _ key: String) -> Self?
-    static func huskWrite(_ value: Self, _ defaults: UserDefaults, _ key: String)
+    static func huskRead(_ defaults: UserDefaults, _ key: String) -> Any?
+    static func huskWrite(_ value: Any, _ defaults: UserDefaults, _ key: String)
 }
+
+extension huskStorable where Self == Bool {
+    static func huskRead(_ d: UserDefaults, _ k: String) -> Any? { d.object(forKey: k) }
+    static func huskWrite(_ v: Any, _ d: UserDefaults, _ k: String) {
+        if let v = v as? Bool { d.set(v, forKey: k) }
+    }
+}
+
+extension huskStorable where Self == Int {
+    static func huskRead(_ d: UserDefaults, _ k: String) -> Any? { d.object(forKey: k) }
+    static func huskWrite(_ v: Any, _ d: UserDefaults, _ k: String) {
+        if let v = v as? Int { d.set(v, forKey: k) }
+    }
+}
+
+extension huskStorable where Self == Double {
+    static func huskRead(_ d: UserDefaults, _ k: String) -> Any? { d.object(forKey: k) }
+    static func huskWrite(_ v: Any, _ d: UserDefaults, _ k: String) {
+        if let v = v as? Double { d.set(v, forKey: k) }
+    }
+}
+
+extension huskStorable where Self == String {
+    static func huskRead(_ d: UserDefaults, _ k: String) -> Any? { d.string(forKey: k) }
+    static func huskWrite(_ v: Any, _ d: UserDefaults, _ k: String) {
+        if let v = v as? String { d.set(v, forKey: k) }
+    }
+}
+
+/// Theme.Appearance, and any other String-backed enum stored through the same
+/// wrapper: the raw value goes in, the case comes back out.
 extension huskStorable where Self: RawRepresentable, Self.RawValue == String {
-    static func huskRead(_ d: UserDefaults, _ k: String) -> Self? {
+    static func huskRead(_ d: UserDefaults, _ k: String) -> Any? {
         guard let raw = d.string(forKey: k) else { return nil }
         return Self(rawValue: raw)
     }
 
-    static func huskWrite(_ v: Self, _ d: UserDefaults, _ k: String) {
-        d.set(v.rawValue, forKey: k)
+    static func huskWrite(_ v: Any, _ d: UserDefaults, _ k: String) {
+        if let v = v as? Self { d.set(v.rawValue, forKey: k) }
     }
 }
 
@@ -233,25 +277,6 @@ extension huskStorable where Self == Bool {
         d.object(forKey: k) as? Bool
     }
     static func huskWrite(_ v: Bool, _ d: UserDefaults, _ k: String) { d.set(v, forKey: k) }
-}
-
-extension huskStorable where Self == Int {
-    static func huskRead(_ d: UserDefaults, _ k: String) -> Int? {
-        d.object(forKey: k) as? Int
-    }
-    static func huskWrite(_ v: Int, _ d: UserDefaults, _ k: String) { d.set(v, forKey: k) }
-}
-
-extension huskStorable where Self == Double {
-    static func huskRead(_ d: UserDefaults, _ k: String) -> Double? {
-        d.object(forKey: k) as? Double
-    }
-    static func huskWrite(_ v: Double, _ d: UserDefaults, _ k: String) { d.set(v, forKey: k) }
-}
-
-extension huskStorable where Self == String {
-    static func huskRead(_ d: UserDefaults, _ k: String) -> String? { d.string(forKey: k) }
-    static func huskWrite(_ v: String, _ d: UserDefaults, _ k: String) { d.set(v, forKey: k) }
 }
 
 // MARK: - @StateObject (iOS 14.0)
@@ -364,6 +389,11 @@ extension View {
     }
 }
 
+/// `UIColor(Color)` is iOS 14, and AppTheme converts a Color to hex twice.
+///
+/// There is no Color accessor below 14 -- `getRed(_:green:blue:alpha:)` on Color
+/// is 14 too -- so the conversion goes through a view that has a layer and asks
+/// the layer for its colour. It is the long-standing trick and it costs one
 // MARK: - LazyVGrid / LazyHGrid (iOS 14.0)
 //
 // iOS 13 has no grid at all -- LazyVGrid, LazyHGrid, Grid and GridRow all arrive
@@ -391,18 +421,6 @@ extension View {
     // `Section(header:footer:content:)` exists on 13, so this shape only arises
     // where a Form's Section was turned into a huskSection. It is here so that a
     // section with a footer keeps its footer instead of failing to compile.
-    func huskSection<F: View, C: View>(@ViewBuilder header: () -> some View,
-                                      @ViewBuilder footer: () -> F,
-                                      @ViewBuilder content: () -> C) -> some View {
-        HuskSectionGroup(header: header, content: {
-            content()
-            footer()
-                .font(.footnote)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 16)
-                .padding(.top, 6)
-        })
-    }
 }
 
 // MARK: - LazyVStack (iOS 14.0)
@@ -456,11 +474,18 @@ extension View {
 
 /// A titled group of rows, for inside huskList.
 private struct HuskSectionGroup<Header: View, Content: View>: View {
-    // Stored closures are escaping; the extension methods below hand these
-    // non-escaping builders straight through, and without the annotation that is
-    // four errors rather than none.
-    @ViewBuilder let header: @escaping () -> Header
-    @ViewBuilder let content: @escaping () -> Content
+    // `@escaping` is a function-parameter attribute and a property declaration
+    // is not one, so it goes on the initialiser's parameters instead. The
+    // builders are stored, so they do escape; saying so here is what lets the
+    // View extension below pass its own non-escaping builders through.
+    let header: () -> Header
+    let content: () -> Content
+
+    init(@ViewBuilder header: @escaping () -> Header,
+         @ViewBuilder content: @escaping () -> Content) {
+        self.header = header
+        self.content = content
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -484,19 +509,19 @@ private struct HuskPlainSection<Content: View>: View {
 }
 
 extension View {
-    // Three shapes, because the call sites use three: `Section { } header: { }`,
-    // `Section(header: Text(...)) { }`, and a bare `Section { }`. The struct is
-    // named HuskSectionGroup rather than huskSection because the method and the
-    // type cannot share a name -- the first version did, and the method called
-    // itself.
+    // Three shapes are in use -- `Section { } header: { }`,
+    // `Section(header: Text(...)) { }`, and a bare `Section { }` -- and three
+    // overloads could not tell them apart: a trailing closure is a trailing
+    // closure whichever overload the solver lands on, so
+    // `huskSection { ... } header: { ... }` matched the Text-taking one and the
+    // compiler said "trailing closure passed to parameter of type 'Text'". Six
+    // sites, three overloads, all of them wrong.
+    //
+    // One entry point, with the header named and no Text overload. The bare form
+    // is the same call with no header, which the default parameter covers.
     func huskSection<H: View, C: View>(@ViewBuilder header: () -> H,
                                       @ViewBuilder content: () -> C) -> some View {
         HuskSectionGroup(header: header, content: content)
-    }
-
-    func huskSection<C: View>(header: Text,
-                              @ViewBuilder content: () -> C) -> some View {
-        HuskSectionGroup(header: { header }, content: content)
     }
 
     func huskSection<C: View>(@ViewBuilder content: () -> C) -> some View {

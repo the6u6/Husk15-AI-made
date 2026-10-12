@@ -225,6 +225,7 @@ struct CrashReportSheet: View {
             .navigationTitle("Crash Report")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(
+                leading: AnyView(EmptyView()),
                 trailing: AnyView(Button("Done") { huskPM.wrappedValue.dismiss() })
             )
         }

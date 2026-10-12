@@ -95,7 +95,7 @@ private struct AppWindow: View {
     let app: TLApp
     let container: CGSize
     @ObservedObject private var windows = AppWindows.shared
-    @ObservedObject private var model = ObservedObject(wrappedValue: TLUnityModel())
+    @ObservedObject private var model = TLUnityModel()
     @State private var stoppedWhy: AppDiagnosis?
     /// The frame as a drag or a resize began.
     @State private var startFrame: CGRect?
@@ -223,7 +223,7 @@ private struct AppWindow: View {
                     Image(systemName: "chevron.backward").font(.system(size: 13, weight: .semibold)).frame(width: 28, height: 28)
                 }
                 .buttonStyle(.plain)
-                .accessibility(label: "Back")
+                .accessibility(label: Text("Back"))
             }
             ItemIcon(item: .game(app), size: 18)
             Text(app.label).font(.footnote.weight(.semibold)).lineLimit(1)
@@ -251,7 +251,7 @@ private struct AppWindow: View {
         }
         .buttonStyle(.plain)
         .frame(width: 22)
-        .accessibility(label: label)
+        .accessibility(label: Text(label))
     }
 
     private var moveGesture: some Gesture {
@@ -284,7 +284,7 @@ private struct AppWindow: View {
                     }
                     .onEnded { _ in startFrame = nil }
             )
-            .accessibility(label: "Resize")
+            .accessibility(label: Text("Resize"))
     }
 }
 
@@ -329,7 +329,7 @@ private struct WindowDock: View {
                 Button { windows.close() } label: { huskLabel("Close", systemImage: "xmark") }
                     .foregroundColor(Color.red)
             }
-            .accessibility(label: "\(app.label), minimised")
+            .accessibility(label: Text("\(app.label)), minimised")
             
     }
 }

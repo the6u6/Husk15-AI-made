@@ -136,7 +136,10 @@ private struct SnowCap: ViewModifier {
                     .offset(y: -height * 0.3)
                     .shadow(color: .black.opacity(0.14), radius: 1.2, y: 0.8)
                     .allowsHitTesting(false)
-                    .accessibilityHidden(true)
+                    // .accessibilityHidden is iOS 14. .accessibilityElement(children:) is iOS 13
+                // and says the same thing: this is decoration, and a screen
+                // reader should not offer it.
+                .accessibilityElement(children: .ignore)
             }
         }
     }
@@ -179,7 +182,10 @@ struct ChristmasTree: View {
         }
         .frame(width: size, height: size)
         .onReceive(clock) { _ in tick &+= 1 }
-        .accessibilityHidden(true)
+        // .accessibilityHidden is iOS 14. .accessibilityElement(children:) is iOS 13
+                // and says the same thing: this is decoration, and a screen
+                // reader should not offer it.
+                .accessibilityElement(children: .ignore)
     }
 
     private func tier(width: CGFloat, top: CGFloat, bottom: CGFloat) -> some View {

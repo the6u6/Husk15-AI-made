@@ -56,7 +56,7 @@ enum BundleUnpacker {
         // The end-of-central-directory record is in the last 64 KB plus 22 bytes.
         let tail = min(size, 70_000)
         try file.seek(toOffset: size - tail)
-        guard let end = try file.readData(ofLength: Int(tail)), end.count >= 22 else { throw Failure.notAZip }
+        let end = try file.readData(ofLength: Int(tail)); guard end.count >= 22 else { throw Failure.notAZip }
         let bytes = [UInt8](end)
         var e = bytes.count - 22
         while e >= 0, !(bytes[e] == 0x50 && bytes[e + 1] == 0x4b && bytes[e + 2] == 5 && bytes[e + 3] == 6) { e -= 1 }
@@ -66,7 +66,7 @@ enum BundleUnpacker {
         if dirOffset == 0xffff_ffff || count == 0xffff { throw Failure.unsupported("That bundle uses a zip format (Zip64) Husk does not read yet.") }
 
         try file.seek(toOffset: dirOffset)
-        guard let directory = try file.readData(ofLength: Int(dirSize)), directory.count == Int(dirSize) else { throw Failure.notAZip }
+        let directory = try file.readData(ofLength: Int(dirSize)); guard directory.count == Int(dirSize) else { throw Failure.notAZip }
         let cd = [UInt8](directory)
 
         var names: [String] = []
@@ -87,7 +87,7 @@ enum BundleUnpacker {
 
             // The local header has its own name and extra lengths; the data follows them.
             try file.seek(toOffset: localOffset)
-            guard let local = try file.readData(ofLength: 30), local.count == 30 else { throw Failure.notAZip }
+            let local = try file.readData(ofLength: 30); guard local.count == 30 else { throw Failure.notAZip }
             let lh = [UInt8](local)
             let dataStart = localOffset + 30 + UInt64(le16(lh, 26)) + UInt64(le16(lh, 28))
             try file.seek(toOffset: dataStart)
@@ -99,7 +99,7 @@ enum BundleUnpacker {
             var left = compressed
             while left > 0 {
                 let chunk = Int(min(left, 4 << 20))
-                guard let data = try file.readData(ofLength: chunk), !data.isEmpty else { throw Failure.notAZip }
+                let data = try file.readData(ofLength: chunk); guard !data.isEmpty else { throw Failure.notAZip }
                 try out.write(data)
                 left -= UInt64(data.count)
             }

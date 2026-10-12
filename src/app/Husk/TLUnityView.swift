@@ -679,14 +679,14 @@ final class TLUnityModel: ObservableObject {
 struct TLCocosAttemptView: View {
     let app: TLApp
     @Environment(\.presentationMode) private var huskPM
-    @ObservedObject private var model = ObservedObject(wrappedValue: TLUnityModel())
+    @ObservedObject private var model = TLUnityModel()
     /// Why the app stopped, when its log says: shown over the screen
     @State private var stoppedWhy: AppDiagnosis?
     @huskAppStorage("husk.tl.unity.showLog") private var showLogSetting = false
     @huskAppStorage(TranslationLayer.devInfoKey) private var devInfo = false
     @State private var stats = "starting"
     @ObservedObject private var pads = HuskGamepads.shared
-    @ObservedObject private var virtualPad = ObservedObject(wrappedValue: VirtualPad())
+    @ObservedObject private var virtualPad = VirtualPad()
     /// Where the player has put the pad's controls in this game, and whether they are moving them now.
     @State private var padLayout = PadLayout()
     @State private var editingPad = false

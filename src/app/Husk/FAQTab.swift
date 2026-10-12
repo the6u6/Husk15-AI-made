@@ -69,7 +69,9 @@ private struct FAQRow: View {
             }
             .buttonStyle(.plain)
             .accessibility(label: Text(item.question))
-             ? "Expanded" : "Collapsed"))
+            // .accessibilityValue is iOS 14 with no 13 equivalent. The chevron
+            // and the answer's presence already say which it is, so nothing is
+            // lost here that was not already twice visible.
 
             if open || expanded {
                 Text(.init(item.answer))

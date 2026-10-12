@@ -151,7 +151,7 @@ struct HomeView: View {
                     if holiday { ChristmasTree(size: 30).padding(.leading, 2) }
                     Spacer()
                     HeaderButton(systemImage: "plus") { router.addSomething() }
-                        .accessibility(label: "Add a Game or App")
+                        .accessibility(label: Text("Add a Game or App"))
                 }
                 .padding(.horizontal, 4)
                 .padding(.bottom, 6)
@@ -182,7 +182,7 @@ struct HomeView: View {
                         ForEach(rest.prefix(UIDevice.current.userInterfaceIdiom == .pad ? 16 : 8)) { item in
                             NavigationLink(destination: libraryDestination(item.route)) { LibrarySquare(item: item) }
                                 .buttonStyle(CardButtonStyle())
-                                .accessibility(label: item.title)
+                                .accessibility(label: Text(item.title))
                         }
                     }
                 }
@@ -266,7 +266,7 @@ private struct LeadTile: View {
                         .huskBackground(Color.accentColor, in: Circle())
                 }
                 .buttonStyle(CardButtonStyle())
-                .accessibility(label: (item.isGame ? "Play " : "Open ") + item.title)
+                .accessibility(label: Text((item.isGame ? "Play " : "Open ")) + item.title)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
@@ -527,7 +527,7 @@ struct LibraryScreen: View {
                         .font(.system(size: 28, weight: .heavy, design: .rounded))
                     Spacer()
                     HeaderButton(systemImage: "plus") { router.addSomething() }
-                        .accessibility(label: "Add a Game or App")
+                        .accessibility(label: Text("Add a Game or App"))
                 }
                 .padding(.horizontal, 4)
                 .padding(.bottom, 6)
@@ -700,7 +700,7 @@ struct SearchField: View {
                         Image(systemName: "xmark.circle.fill").foregroundColor(Color(.tertiaryLabel))
                     }
                     .buttonStyle(.plain)
-                    .accessibility(label: "Clear")
+                    .accessibility(label: Text("Clear"))
                 }
             }
             .padding(.horizontal, 10)

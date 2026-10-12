@@ -762,7 +762,7 @@ struct TLAttemptView: View {
 /// same three-finger way to hide it, and the game's own settings.
 struct TLClassicAttemptView: View {
     let app: TLApp
-    @ObservedObject private var runner = ObservedObject(wrappedValue: TLAttemptRunner())
+    @ObservedObject private var runner = TLAttemptRunner()
     @Environment(\.presentationMode) private var huskPM
     @huskAppStorage("husk.tl.showLog") private var showLogSetting = false
     @huskAppStorage(TranslationLayer.devInfoKey) private var devInfo = false

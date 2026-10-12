@@ -38,6 +38,7 @@ struct DiscoverView: View {
         .navigationTitle("Discover")
         .navigationBarTitleDisplayMode(.large)
         .navigationBarItems(
+            leading: AnyView(EmptyView()),
             trailing: AnyView(
                 Button { Task { await manager.fetchSources() } } label: {
                     huskLabel("Refresh", systemImage: "arrow.clockwise")
@@ -217,7 +218,8 @@ struct DiscoverView: View {
                 }
             }
             .navigationTitle("Add Source")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode                leading: AnyView(EmptyView()),
+(.inline)
             .navigationBarItems(
                 leading: AnyView(
                     Button("Cancel") { newSourceURL = ""; showingAddSource = false }
@@ -272,13 +274,14 @@ struct DiscoverView: View {
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
-                            .accessibility(label: Text("Remove \(url)"))
+                            .accessibility(label: Text( Text("Remove \(url))"))
                         }
                         .padding(.vertical, 2)
                     }
                 } header: { Text("Active Repositories") }
             }
-            .navigationTitle("Repositories")
+            .navigationTitle("Repositori                leading: AnyView(EmptyView()),
+es")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(
                 leading: AnyView(

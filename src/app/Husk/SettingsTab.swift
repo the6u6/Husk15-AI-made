@@ -344,7 +344,7 @@ struct AppearanceSettings: View {
                             swatch(preset.color, selected: preset.color.themeHex == theme.accentColor.themeHex)
                         }
                         .buttonStyle(.plain)
-                        .accessibility(label: preset.name)
+                        .accessibility(label: Text(preset.name))
                     }
                 }
                 .padding(.vertical, 6)

@@ -250,7 +250,7 @@ private final class ZipReader {
         defer { try? out.close() }
         var left = e.size
         while left > 0 {
-            guard let chunk = try file.readData(ofLength: Int(min(left, 1 << 20))), !chunk.isEmpty else { throw SaveBackup.Failure("That backup is damaged.") }
+            let chunk = try file.readData(ofLength: Int(min(left, 1 << 20))); guard !chunk.isEmpty else { throw SaveBackup.Failure("That backup is damaged.") }
             try out.write(chunk); left -= UInt64(chunk.count)
         }
     }
