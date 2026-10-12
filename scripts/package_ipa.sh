@@ -219,8 +219,22 @@ BANNED_KEYS=(
     "com.apple.private.skip-library-validation"
 )
 if [ "$TROLLSTORE" = true ]; then
+    # Only remove keys that are actually there.
+    #
+    # plutil reports "No value to remove at key path ..." on stdout, not stderr,
+    # so the `2>/dev/null` that used to be here suppressed nothing and every
+    # build logged a line of noise per absent key. Two of the three are absent:
+    # the VM removal took com.apple.private.cs.debugger and
+    # com.apple.private.skip-library-validation out of Husk.entitlements with it.
+    #
+    # Checking first is also what makes this idempotent -- a second run over an
+    # already-clean plist now does nothing and says nothing, instead of failing
+    # three times into a log where a real failure could hide.
     for key in "${BANNED_KEYS[@]}"; do
-        plutil -remove "$key" "$ENT" 2>/dev/null || true
+        if /usr/libexec/PlistBuddy -c "Print :$key" "$ENT" >/dev/null 2>&1; then
+            plutil -remove "$key" "$ENT"
+            echo "==> removed $key"
+        fi
     done
 fi
 SAPP="$STAGE/Payload/$(basename "$APP")"
