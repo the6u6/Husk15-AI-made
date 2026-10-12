@@ -218,7 +218,7 @@ Button("Cancel pairing") { pairing.cancel() }
                     .foregroundColor(Theme.textDim)
                 Text(pin).font(.system(size: 40, weight: .bold, design: .monospaced)).tracking(6)
                     .foregroundColor(Theme.text)
-                    .accessibilityLabel("Pairing code \(pin.map(String.init).joined(separator: " "))")
+                    .accessibility(label: "Pairing code \(pin.map(String.init).joined(separator: " "))")
             }
             .frame(maxWidth: .infinity)
             .padding(18).huskCard(high: true)

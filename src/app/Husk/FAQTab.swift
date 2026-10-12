@@ -68,8 +68,8 @@ private struct FAQRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(Text(item.question))
-            .accessibilityValue(Text((open || expanded) ? "Expanded" : "Collapsed"))
+            .accessibility(label: Text(item.question))
+             ? "Expanded" : "Collapsed"))
 
             if open || expanded {
                 Text(.init(item.answer))

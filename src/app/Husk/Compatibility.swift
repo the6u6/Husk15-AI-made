@@ -220,7 +220,7 @@ struct CompatibilitySection: View {
         Section {
             if let entry, let status = entry.status {
                 HStack(spacing: 12) {
-                    Image(systemName: status.symbol).font(.title3).foregroundColor(status.color)
+                    Image(systemName: status.symbol).font(.headline).foregroundColor(status.color)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(status.label).font(.body.weight(.semibold))
                         Text(entry.official?.note.isEmpty == false ? entry.official!.note : status.explanation)

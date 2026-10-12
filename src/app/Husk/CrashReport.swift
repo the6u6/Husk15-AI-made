@@ -186,7 +186,7 @@ struct CrashReportSheet: View {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 30)).foregroundColor(.orange)
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(report.cause.title).font(.title3.weight(.semibold))
+                            Text(report.cause.title).font(.headline.weight(.semibold))
                             Text(report.game).foregroundColor(.secondary)
                         }
                     }

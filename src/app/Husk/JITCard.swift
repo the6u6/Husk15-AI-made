@@ -104,7 +104,7 @@ struct JITCard: View {
     private var on: some View {
         HStack(spacing: 12) {
             Image(systemName: "checkmark.circle.fill")
-                .font(.title2)
+                .font(.title)
                 .foregroundColor(.green)
             VStack(alignment: .leading, spacing: 2) {
                 Text("JIT is on").font(.headline)
@@ -121,10 +121,10 @@ struct JITCard: View {
             HStack(spacing: 12) {
                 ZStack {
                     Circle().fill(Color.accentColor.opacity(0.16)).frame(width: 44, height: 44)
-                    Image(systemName: "bolt.fill").font(.title3).foregroundColor(Color.accentColor)
+                    Image(systemName: "bolt.fill").font(.headline).foregroundColor(Color.accentColor)
                 }
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(offered == .builtIn ? "StikJIT" : offered.title).font(.title3.weight(.semibold))
+                    Text(offered == .builtIn ? "StikJIT" : offered.title).font(.headline.weight(.semibold))
                     Text("Turn on JIT").font(.subheadline).foregroundColor(.secondary)
                 }
                 Spacer(minLength: 0)

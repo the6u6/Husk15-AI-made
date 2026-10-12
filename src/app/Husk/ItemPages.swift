@@ -20,7 +20,7 @@ private struct PageHero<Action: View>: View {
                         .shadow(color: .black.opacity(0.35), radius: 12, y: 5)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(item.title)
-                            .font(.system(.title2, design: .rounded).weight(.heavy))
+                            .font(.system(.title, design: .rounded).weight(.heavy))
                             .lineLimit(2)
                             .minimumScaleFactor(0.8)
                         Text(subtitle)

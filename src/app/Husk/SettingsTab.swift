@@ -100,7 +100,7 @@ struct SettingsTab: View {
         HStack(spacing: 14) {
             HuskMark(size: 56)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Husk").font(.title3.weight(.semibold))
+                Text("Husk").font(.headline.weight(.semibold))
                 Text("Version \(Bundle.main.version) · \(Bundle.main.commit)")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -315,7 +315,6 @@ struct AppearanceSettings: View {
     @Environment(\.colorScheme) private var scheme
     @State private var custom: Color = AppTheme.shared.accentColor
 
-    private let iconColumns = [GridItem(.adaptive(minimum: 92), spacing: 14)]
 
     var body: some View {
         Form {
@@ -336,7 +335,7 @@ struct AppearanceSettings: View {
             }
 
             Section {
-                huskLazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 14) {
+                huskLazyVGrid(count: 5, spacing: 14) {
                     ForEach(AppTheme.presets) { preset in
                         Button {
                             theme.accentColor = preset.color
@@ -345,7 +344,7 @@ struct AppearanceSettings: View {
                             swatch(preset.color, selected: preset.color.themeHex == theme.accentColor.themeHex)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(preset.name)
+                        .accessibility(label: preset.name)
                     }
                 }
                 .padding(.vertical, 6)
@@ -361,7 +360,7 @@ struct AppearanceSettings: View {
             }
 
             Section {
-                huskLazyVGrid(columns: iconColumns, spacing: 14) {
+                huskLazyVGrid(count: 3, spacing: 14) {
                     ForEach(HuskAppIcon.allCases) { icon in
                         Button {
                             appIcon = icon
@@ -425,7 +424,7 @@ struct AboutSettings: View {
             huskSection {
                 VStack(spacing: 8) {
                     HuskMark(size: 84)
-                    Text("Husk").font(.title2.weight(.semibold))
+                    Text("Husk").font(.title.weight(.semibold))
                     Text("Version \(Bundle.main.version)")
                         .font(.subheadline).foregroundColor(.secondary)
                 }

@@ -97,7 +97,7 @@ struct OnboardingView: View {
             }
             Text("Husk").font(.system(size: 40, weight: .semibold, design: .rounded))
             Text("Android apps, on your iPhone.")
-                .font(.title3).foregroundColor(.secondary)
+                .font(.headline).foregroundColor(.secondary)
             // This said "runs a real Android system and opens APKs inside it",
             // which is exactly what the VM removal makes false -- and it was the
             // first thing a new user read.

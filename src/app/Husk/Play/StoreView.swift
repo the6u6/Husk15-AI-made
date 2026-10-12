@@ -38,7 +38,7 @@ struct StoreView: View {
                                 Text(s.isAnonymous ? "Guest Account (Aurora)" : s.email)
                                     .font(.caption)
                                 if s.isAnonymous {
-                                    Text(s.email).font(.caption2).foregroundColor(.secondary)
+                                    Text(s.email).font(.caption).foregroundColor(.secondary)
                                 }
                                 Divider()
                             }
@@ -116,7 +116,7 @@ Button(action: {
 
             VStack(spacing: 8) {
                 Text("Google Play Store")
-                    .font(.title2.weight(.bold))
+                    .font(.title.weight(.bold))
                     .foregroundColor(Theme.text)
 
                 Text("Browse and download apps using an anonymous Aurora guest account, or sign in with your Google account.")
@@ -265,7 +265,7 @@ Button(action: {
                                     .font(.system(size: 10))
                                     .foregroundColor(.yellow)
                                 Text(String(format: "%.1f", app.rating))
-                                    .font(.caption2.weight(.medium))
+                                    .font(.caption.weight(.medium))
                                     .foregroundColor(Theme.textDim)
                             }
                         }
@@ -343,7 +343,7 @@ struct PlayAppDetailSheet: View {
 
                         VStack(alignment: .leading, spacing: 4) {
                             Text(app.title)
-                                .font(.title3.weight(.bold))
+                                .font(.headline.weight(.bold))
                                 .foregroundColor(Theme.text)
                                 .lineLimit(2)
 
@@ -462,7 +462,7 @@ struct PlayAppDetailSheet: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundColor(Theme.text)
             Text(title)
-                .font(.caption2)
+                .font(.caption)
                 .foregroundColor(Theme.textDim)
         }
     }

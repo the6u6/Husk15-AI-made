@@ -20,6 +20,7 @@
 import SwiftUI
 import UIKit
 import Combine
+import Combine
 
 // MARK: - Label (iOS 14.0)
 //
@@ -36,8 +37,11 @@ extension View {
     func huskLabel<S: StringProtocol, I: StringProtocol>(_ title: S,
                                                         systemImage: I) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: I(systemImage))
-            Text(title)
+            // String(...) on both: Image(systemName:) takes a String, and
+            // Text(title) would be Text's LocalizedStringKey overload, which a
+            // StringProtocol-constrained generic cannot be.
+            Image(systemName: String(systemImage))
+            Text(String(title))
         }
     }
 
@@ -96,23 +100,20 @@ private struct HuskUIKitProgress: UIViewRepresentable {
     var fraction: Double?
 
     func makeUIView(context: Context) -> UIProgressView {
-        let v = UIProgressView(progressViewStyle: style)
-        v.progressTintColor = UIColor(tint)
-        return v
+        UIProgressView(progressViewStyle: style)
     }
 
     func updateUIView(_ v: UIProgressView, context: Context) {
-        v.progressTintColor = UIColor(tint)
         if let fraction {
             // Determinate: the value, never animated. Animating it would mean a
             // bar still moving after the work it reports has finished.
             v.setProgress(Float(min(max(fraction, 0), 1)), animated: false)
         } else {
-            // Indeterminate: progress stays at zero and the spinner spins. A
-            // negative progress is the "unknown" sentinel in some contexts and
-            // stops the animation in this one, so it is not used.
+            // Indeterminate. UIProgressView has no startAnimating -- that is
+            // UIActivityIndicatorView -- and an indeterminate bar is simply
+            // progress left at zero. There is no tint either: UIColor(Color) is
+            // iOS 14, and the bar takes the window's tint, which the app sets.
             v.setProgress(0, animated: false)
-            v.startAnimating()
         }
     }
 }
@@ -197,35 +198,54 @@ struct huskAppStorage<Value: huskStorable> {
     }
 }
 
-/// How a value gets into UserDefaults. Bool/Int/Double/String are stored as
-/// themselves; anything RawRepresentable over String is stored as its raw value.
+/// How a value gets into UserDefaults, specialised per type rather than through
+/// a `Self`-typed requirement.
+///
+/// The first version declared `static func huskRead(_:_:) -> Self?` and
+/// `huskWrite(_ value: Self, ...)` and tried to satisfy them from
+/// `where Self == Bool` extensions. Swift cannot do that: a `Self`-typed
+/// requirement cannot be witnessed from an extension constrained to a concrete
+/// type, and it says so once per scalar -- "no type for 'Self' can satisfy both
+/// 'Self == Bool' and 'Self : huskStorable'".
+///
+/// The conformances below are therefore ordinary concrete conformances on
+/// *constrained extensions of the protocol*, which is the form that works. Storing
+/// the scalars as themselves is what makes this interchangeable with what
+/// `@AppStorage` wrote before it: the same key holds the same type of value, so an
+/// install that has been through either one reads correctly.
 protocol huskStorable {
     static func huskRead(_ defaults: UserDefaults, _ key: String) -> Self?
     static func huskWrite(_ value: Self, _ defaults: UserDefaults, _ key: String)
 }
-
 extension huskStorable where Self: RawRepresentable, Self.RawValue == String {
-    static func huskRead(_ defaults: UserDefaults, _ key: String) -> Self? {
-        guard let raw = defaults.string(forKey: key) else { return nil }
+    static func huskRead(_ d: UserDefaults, _ k: String) -> Self? {
+        guard let raw = d.string(forKey: k) else { return nil }
         return Self(rawValue: raw)
     }
-    static func huskWrite(_ value: Self, _ defaults: UserDefaults, _ key: String) {
-        defaults.set(value.rawValue, forKey: key)
+
+    static func huskWrite(_ v: Self, _ d: UserDefaults, _ k: String) {
+        d.set(v.rawValue, forKey: k)
     }
 }
 
 extension huskStorable where Self == Bool {
-    static func huskRead(_ d: UserDefaults, _ k: String) -> Bool? { d.object(forKey: k) as? Bool }
+    static func huskRead(_ d: UserDefaults, _ k: String) -> Bool? {
+        d.object(forKey: k) as? Bool
+    }
     static func huskWrite(_ v: Bool, _ d: UserDefaults, _ k: String) { d.set(v, forKey: k) }
 }
 
 extension huskStorable where Self == Int {
-    static func huskRead(_ d: UserDefaults, _ k: String) -> Int? { d.object(forKey: k) as? Int }
+    static func huskRead(_ d: UserDefaults, _ k: String) -> Int? {
+        d.object(forKey: k) as? Int
+    }
     static func huskWrite(_ v: Int, _ d: UserDefaults, _ k: String) { d.set(v, forKey: k) }
 }
 
 extension huskStorable where Self == Double {
-    static func huskRead(_ d: UserDefaults, _ k: String) -> Double? { d.object(forKey: k) as? Double }
+    static func huskRead(_ d: UserDefaults, _ k: String) -> Double? {
+        d.object(forKey: k) as? Double
+    }
     static func huskWrite(_ v: Double, _ d: UserDefaults, _ k: String) { d.set(v, forKey: k) }
 }
 
@@ -264,22 +284,16 @@ extension View {
 // `Grid` was in the census and `LazyVGrid` was not, which is the rule-list
 // lesson again: a family is not covered because its better-known sibling is.
 extension View {
-    func huskLazyVGrid<C: View>(columns: [GridItem],
-                                alignment: HorizontalAlignment = .center,
+    // A column *count*, not [GridItem]: GridItem is iOS 14, so a shim whose own
+    // signature named it could not compile at the floor it exists for. Every use
+    // in the app is a uniform flexible grid, which a count expresses exactly.
+    func huskLazyVGrid<C: View>(count: Int,
                                 spacing: CGFloat? = nil,
                                 @ViewBuilder content: () -> C) -> some View {
-        VStack(alignment: alignment, spacing: spacing) {
+        VStack(alignment: .center, spacing: spacing) {
             HStack(alignment: .top, spacing: spacing) { content() }
         }
-    }
-
-    func huskLazyHGrid<C: View>(rows: [GridItem],
-                                alignment: HorizontalAlignment = .center,
-                                spacing: CGFloat? = nil,
-                                @ViewBuilder content: () -> C) -> some View {
-        VStack(alignment: alignment, spacing: spacing) {
-            HStack(alignment: .top, spacing: spacing) { content() }
-        }
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -352,8 +366,11 @@ extension View {
 
 /// A titled group of rows, for inside huskList.
 private struct HuskSectionGroup<Header: View, Content: View>: View {
-    @ViewBuilder let header: () -> Header
-    @ViewBuilder let content: () -> Content
+    // Stored closures are escaping; the extension methods below hand these
+    // non-escaping builders straight through, and without the annotation that is
+    // four errors rather than none.
+    @ViewBuilder let header: @escaping () -> Header
+    @ViewBuilder let content: @escaping () -> Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -487,14 +504,19 @@ extension View {
     /// Reports the app's foreground state through the environment. Put this on
     /// the root; read it with `@Environment(\.huskScenePhase)`.
     func huskScenePhaseTracking() -> some View {
-        modifier(HuskScenePhaseTracker())
+        HuskScenePhaseProvider(content: self)
     }
 }
 
-private struct HuskScenePhaseTracker: ViewModifier {
+/// A View rather than a ViewModifier: a modifier's `body(content:)` and a
+/// provider's `body` are easy to confuse when reading, and the compiler's
+/// complaints about this one were about the wrapper, not the phase.
+private struct HuskScenePhaseProvider<Content: View>: View {
+    let content: Content
     @State private var phase: HuskScenePhase = .active
 
-    var body(content: Content) -> some View {
+    var body: some View {
+        content
         content
             .environment(\.huskScenePhase, phase)
             .onReceive(NotificationCenter.default

@@ -112,7 +112,7 @@ private struct DownloadRow: View {
                     Button {
                         if job.paused || job.failed { Downloads.shared.resume(job.id) } else { Downloads.shared.pause(job.id) }
                     } label: {
-                        Image(systemName: job.paused || job.failed ? "arrow.clockwise.circle.fill" : "pause.circle.fill").font(.title2)
+                        Image(systemName: job.paused || job.failed ? "arrow.clockwise.circle.fill" : "pause.circle.fill").font(.title)
                     }
                     .huskBorderless()
                 }

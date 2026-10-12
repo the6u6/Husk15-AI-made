@@ -113,7 +113,7 @@ struct IncomingChooser: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Add to Husk").font(.title2.weight(.bold))
+                Text("Add to Husk").font(.title.weight(.bold))
                 Text(title).font(.subheadline).foregroundColor(.secondary).lineLimit(2)
             }
 

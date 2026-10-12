@@ -205,7 +205,7 @@ struct DiscoverView: View {
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(name).foregroundColor(.primary)
-                                    Text(url).font(.caption2).foregroundColor(.secondary).lineLimit(1)
+                                    Text(url).font(.caption).foregroundColor(.secondary).lineLimit(1)
                                 }
                                 Spacer()
                                 if newSourceURL == url {
@@ -254,7 +254,7 @@ struct DiscoverView: View {
                                     Text(source.name).font(.body.weight(.medium))
                                     Text("\(source.apps.count) apps").font(.caption).foregroundColor(.secondary)
                                 }
-                                Text(url).font(.caption2).foregroundColor(.secondary).lineLimit(1)
+                                Text(url).font(.caption).foregroundColor(.secondary).lineLimit(1)
                             }
                             // Swipe-to-delete belongs to List and has no
                             // counterpart on 13, so the row carries its own
@@ -272,7 +272,7 @@ struct DiscoverView: View {
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel(Text("Remove \(url)"))
+                            .accessibility(label: Text("Remove \(url)"))
                         }
                         .padding(.vertical, 2)
                     }
