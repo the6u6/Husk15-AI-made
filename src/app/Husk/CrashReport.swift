@@ -168,6 +168,10 @@ struct CrashReportSheet: View {
     @State private var reporting: CompatSubject?
 
     /// The game, for a report to the compatibility list.
+    ///
+    /// MainActor because TranslationLayerStore is, and this sheet is a plain
+    /// View -- unlike CrashReport itself, which is annotated.
+    @MainActor
     private var subject: CompatSubject? {
         guard let app = TranslationLayerStore.shared.apps.first(where: { $0.id == report.appID }), let pkg = app.packageName else { return nil }
         return CompatSubject(package: pkg, name: app.label, isGame: LibraryItem.game(app).isGame, iconPath: app.iconPath,
@@ -211,7 +215,7 @@ struct CrashReportSheet: View {
                             Label("Report to the Compatibility List", systemImage: "list.bullet.clipboard")
                                 .frame(maxWidth: .infinity).padding(.vertical, 6)
                         }
-                        .buttonStyle(.bordered)
+                        .huskBordered()
                     }
                     Text("The report holds the full log of that run and which device and build it was on. Nothing is sent anywhere unless you share it.")
                         .font(.footnote).foregroundColor(.secondary)

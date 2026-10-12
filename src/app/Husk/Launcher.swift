@@ -3,19 +3,16 @@ import SwiftUI
 
 // MARK: - one library
 
-/// Anything Husk can open: a game run on the translation layer, an app installed in Android, or Android itself.
+/// Anything Husk can open: a game, run on the translation layer.
 ///
 /// The person never has to know which way something runs -- Husk does -- so the launcher sorts by what a thing is (a game,
-/// an app), not by how it is run. The only trace of the second is a small badge on what opens inside Android, because that
-/// needs Android started first.
+/// an app), not by how it is run.
 enum LibraryItem: Identifiable, Hashable {
     case game(TLApp)
-    case android
 
     var id: String {
         switch self {
         case .game(let g): return "tl:" + g.id
-        case .android: return "android-system"
         }
     }
 
@@ -25,14 +22,12 @@ enum LibraryItem: Identifiable, Hashable {
     var title: String {
         switch self {
         case .game(let g): return g.label
-        case .android: return "Android"
         }
     }
 
     var iconPath: String? {
         switch self {
         case .game(let g): return g.iconPath
-        case .android: return nil
         }
     }
 
@@ -40,14 +35,12 @@ enum LibraryItem: Identifiable, Hashable {
     var isGame: Bool {
         switch self {
         case .game(let g): return (g.report?.nativeEngine != .flutter && g.report?.engine != "Flutter" && g.report?.webKind == nil) || g.isGameCategory
-        case .android: return false
         }
     }
 
     var packageName: String? {
         switch self {
         case .game(let g): return g.packageName
-        case .android: return nil
         }
     }
 
@@ -61,14 +54,12 @@ enum LibraryItem: Identifiable, Hashable {
     var lastUsed: Date? {
         switch self {
         case .game(let g): return g.lastPlayed
-        case .android: return UserDefaults.standard.object(forKey: "husk.android.lastOpened") as? Date
         }
     }
 
     var route: LibraryRoute {
         switch self {
         case .game(let g): return .game(g.id)
-        case .android: return .androidSystem
         }
     }
 
@@ -176,8 +167,7 @@ struct HomeView: View {
                         JITTile()
                         DownloadsTile()
                     }
-                    AndroidTile()
-                }
+                        }
                 if let error = jit.error, !Launcher.jitOn {
                     Text(error).font(.caption).foregroundColor(.orange).fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 4)
@@ -366,32 +356,6 @@ private struct DownloadsTile: View {
 }
 
 /// Android itself, for what the translation layer cannot run yet.
-private struct AndroidTile: View {
-    @ObservedObject private var router = Router.shared
-
-    var body: some View {
-        Tile(padding: 14) {
-            HStack(spacing: 12) {
-                NavigationLink(destination: libraryDestination(LibraryItem.android.route)) {
-                    HStack(spacing: 12) {
-                        TileGlyph(systemImage: "apps.iphone", color: AndroidMark.green, size: 40)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Android").font(.headline).foregroundColor(.primary)
-                            Text("For apps the translation layer can't run yet")
-                                .font(.footnote).foregroundColor(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-}
-
-/// One square in Home's library grid: the app's own icon.
 private struct LibrarySquare: View {
     let item: LibraryItem
 
@@ -488,7 +452,7 @@ struct ItemBackdrop: View {
             if let art = item.artworkPath {
                 Color.clear.huskOverlay { PictureView(path: art, pixels: pixels) }.clipped()
             } else {
-                IconBackdrop(path: item.iconPath, fallback: item == .android ? AndroidMark.green.opacity(0.55) : fallback)
+                IconBackdrop(path: item.iconPath, fallback: fallback)
             }
         }
         .allowsHitTesting(false)
@@ -501,8 +465,8 @@ struct ItemIcon: View {
     let size: CGFloat
 
     var body: some View {
-        if item == .android {
-            AndroidMark(size: size)
+        if false {
+            EmptyView()
         } else {
             AppIcon(path: item.iconPath, size: size)
                 .huskOverlay {
@@ -574,12 +538,11 @@ struct LibraryScreen: View {
                 .pickerStyle(.segmented)
                 if let busy = store.busy { BusyStrip(text: busy) }
         
-                let items = Launcher.items(store: store, host: host)
+                let items = Launcher.items(store: store)
                     .filter { matches(query, $0.title) }
                     .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
                 let games = items.filter(\.isGame)
-                // Android, as an app of its own: pinned first, and found by search like anything else.
-                let apps = (matches(query, "Android") ? [LibraryItem.android] : []) + items.filter { !$0.isGame }
+                let apps = items.filter { !$0.isGame }
 
                 if router.libraryFilter != .apps {
                     section("Games", games, empty: query.isEmpty ? "Add a game with the + button." : nil)
@@ -630,7 +593,6 @@ struct LibraryScreen: View {
         case .game(let g):
             if g.packageName == GeodeSupport.launcherPackage { return "Geode" }
             return g.report?.canRun == true ? nil : "May not run"
-        case .app: return nil
         }
     }
 }

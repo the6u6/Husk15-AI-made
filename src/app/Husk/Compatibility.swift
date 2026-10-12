@@ -229,7 +229,7 @@ struct CompatibilitySection: View {
                 }
                 .padding(.vertical, 2)
                 if entry.community.reports > 0 {
-                    LabeledContent("Player Reports", value: "\(entry.community.reports)")
+                    HuskLabeledContent("Player Reports", value: "\(entry.community.reports)")
                 }
             } else {
                 Text("Not on the list yet. Be the first to say how it runs.")
@@ -267,7 +267,7 @@ struct CompatReportSheet: View {
                                 Label(s == .opens ? "Opens, but Has Problems" : s.label, systemImage: s.symbol)
                                     .foregroundColor(.primary)
                                 Spacer()
-                                if status == s { Image(systemName: "checkmark").foregroundColor(.tint) }
+                                if status == s { Image(systemName: "checkmark").foregroundColor(.accentColor) }
                             }
                         }
                     }
@@ -339,9 +339,13 @@ struct CompatReportSheet: View {
 struct CompatBadge: View {
     let status: CompatibilityStore.Status
     var body: some View {
-        Label(status.label, systemImage: status.symbol)
-            .labelStyle(.titleAndIcon)
-            .font(.caption.weight(.medium))
+        // .labelStyle(.titleAndIcon) is iOS 14.5, still above the floor. It
+        // draws the icon and the text on one line with the text weighted; this
+        // is that, spelled out.
+        HStack(spacing: 4) {
+            Image(systemName: status.symbol)
+            Text(status.label).font(.caption.weight(.medium))
+        }
             .foregroundColor(status.color)
     }
 }

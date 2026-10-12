@@ -31,7 +31,10 @@ struct FAQTab: View {
                 }
             }
             .navigationTitle("FAQ")
-            .searchable(text: $query, prompt: "Search problems")
+            // .searchable is iOS 15. huskSearchBar is the older search field, and
+            // it wraps its content rather than decorating it, which is why it goes
+            // here and not on the NavigationView.
+            .huskSearchBar(text: $query, prompt: "Search problems")
         }
     }
 }

@@ -7,26 +7,23 @@
 # Both land in build/, which the workflow caches. The image is ~1.1 GB, so this
 # runs once per cache miss rather than once per build.
 #
-# The URL is derived from GuestImage.swift rather than repeated here: the tag
-# and the image version are that file's constants, and a hardcoded copy is how
-# the two drift apart.
+# Why an image is downloaded at all when there is no guest: it is the only copy
+# of Android's CA certificates, system fonts and APEX modules that anyone has,
+# and the translation layer's Java and Flutter support is built out of them.
+#
+# These two used to be read out of src/app/Husk/GuestImage.swift, which the VM
+# removal deleted. Reading them was to avoid drifting from that file's constants;
+# with the file gone there is nothing to drift from, so they live here. They were
+# "lineage-v2" and "v12" at the point it was deleted -- if the release moves,
+# change them here.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SRC="$ROOT/src/app/Husk/GuestImage.swift"
 BUILD="$ROOT/build"
 mkdir -p "$BUILD"
 
-[ -f "$SRC" ] || { echo "error: $SRC not found" >&2; exit 1; }
-
-const() { # const <name>  -> the string literal assigned to that static let
-  v="$(sed -n "s/.*static let $1 *= *\"\([^\"]*\)\".*/\1/p" "$SRC" | head -1)"
-  [ -n "$v" ] || { echo "error: could not read '$1' from GuestImage.swift" >&2; exit 1; }
-  printf '%s' "$v"
-}
-
-TAG="$(const dependenciesTag)"
-VER="$(const imageVersion)"
+TAG="lineage-v2"
+VER="v12"
 IMG="$BUILD/lineage-vda.qcow2"
 URL="https://github.com/Leviidev/Husk/releases/download/$TAG/vda-$VER.qcow2"
 

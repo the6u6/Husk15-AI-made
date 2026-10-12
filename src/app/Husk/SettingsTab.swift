@@ -67,9 +67,9 @@ struct SettingsTab: View {
                             }
                         } icon: {
                             RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                .fill(Color.green.gradient)
+                                .fill(LinearGradient(colors: [Color.green], startPoint: .top, endPoint: .bottom))
                                 .frame(width: 30, height: 30)
-                                .overlay {
+                                .huskOverlay {
                                     Image(systemName: "list.bullet.clipboard")
                                         .font(.system(size: 14, weight: .medium))
                                         .foregroundColor(.white)
@@ -404,7 +404,7 @@ struct AppearanceSettings: View {
             .huskOverlay {
                 if selected {
                     Image(systemName: "checkmark")
-                        .font(.caption).fontWeight(.bold)
+                        .font(.system(size: 11, weight: .bold))
                         .foregroundColor(color.isLight ? .black : .white)
                 }
             }

@@ -95,16 +95,6 @@ final class IncomingFiles: ObservableObject {
         TranslationLayerStore.shared.add(urls, move: true)
     }
 
-    /// The confirm sheet's action. Android used to be a second destination here,
-    /// held until the guest could take it; there is one destination now and no
-    /// readiness to wait for.
-    func sendToTranslationLayer() {
-        let urls = waiting
-        waiting = []
-        guard !urls.isEmpty else { return }
-        TranslationLayerStore.shared.add(urls, move: true)
-    }
-
     func discard() {
         for url in waiting { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         waiting = []
