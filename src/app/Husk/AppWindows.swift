@@ -53,7 +53,24 @@ import UIKit
     func toggleMaximized() { withAnimation(.snappy(duration: 0.25)) { maximized.toggle() } }
 }
 
-/// The layer the window and the dock live in, over the tabs. Empty space in it lets touches through to Husk underneath.
+/// The layer the window and the dock live in, over the tabs.
+///
+/// It takes touches only while it has a window open. That is not a nicety: the
+/// GeometryReader below fills the screen whatever it contains, and a full-screen
+/// layer that draws nothing still absorbs every touch underneath it. With no
+/// `.allowsHitTesting` here the whole app is inert -- the tabs are drawn, the tab
+/// bar is drawn, and nothing responds to a tap or a scroll, because this layer
+/// sits over the TabView in ContentView's ZStack.
+///
+/// Upstream kept the guard at the call site, as `.allowsHitTesting(showGuestScreen)`
+/// on AppWindowLayer, alongside the same idiom on GuestScreenView. Removing QEMU
+/// removed `showGuestScreen`, and the modifier that referred to it went with it,
+/// which left this layer unconditionally on top of the tab UI.
+///
+/// It lives here rather than back at the call site so that it cannot be lost the
+/// same way again: the thing that needs the guard is the GeometryReader, and the
+/// guard is now attached to it. `windows.app != nil` is the honest condition --
+/// with no window open there is nothing here to be touched.
 struct AppWindowLayer: View {
     @ObservedObject private var windows = AppWindows.shared
 
@@ -68,6 +85,7 @@ struct AppWindowLayer: View {
                 }
             }
         }
+        .allowsHitTesting(windows.app != nil)
     }
 }
 

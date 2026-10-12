@@ -77,9 +77,28 @@ struct ContentView: View {
 
             // Christmas: snow over the tabs. Never over an app's window, which
             // comes after it.
-            if holiday { Snowfall().ignoresSafeArea() }
+            if holiday {
+                Snowfall()
+                    .ignoresSafeArea()
+                    // Belt and braces with the isUserInteractionEnabled = false in
+                    // SnowView.makeUIView. Upstream relied on Canvas being inert,
+                    // which was a property of that primitive; the UIView this became
+                    // has to earn it. Nothing in the snow takes touches by design --
+                    // Appearance turns the whole thing off.
+                    .allowsHitTesting(false)
+            }
 
             // Multitasking: an app in a window over everything else in Husk (AppWindows.swift).
+            //
+            // No .allowsHitTesting here any more, and that is deliberate: upstream
+            // had `.allowsHitTesting(showGuestScreen)` on this layer, because a
+            // full-screen layer that draws nothing still absorbs every touch under
+            // it, and with QEMU gone so was `showGuestScreen` and the guard that
+            // named it. The whole tab UI went inert -- drawn, and dead to the touch.
+            //
+            // The guard now lives inside AppWindowLayer, on its GeometryReader,
+            // where `windows.app != nil` is the honest condition and where it
+            // cannot be lost again by editing this file. See AppWindows.swift.
             AppWindowLayer()
                 .ignoresSafeArea(.keyboard)
 

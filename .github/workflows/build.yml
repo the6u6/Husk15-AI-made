@@ -322,6 +322,25 @@ jobs:
           set -euo pipefail
           python3 tests/test_link_symbols.py
 
+      - name: assert every layer above the tab UI declares its hit-testing policy
+        # The app once built, ran, drew every screen -- and answered nothing.
+        # Not a tab, not a button, not a scroll. The cause was AppWindowLayer: a
+        # GeometryReader spanning the screen, sitting over the TabView in the
+        # root ZStack, with no .allowsHitTesting. A view that occupies the screen
+        # and draws nothing still absorbs the touches meant for what is beneath
+        # it, and nothing in the source suggests that.
+        #
+        # Upstream knew: `.allowsHitTesting(showGuestScreen)` on AppWindowLayer,
+        # the same idiom on GuestScreenView. Removing QEMU removed showGuestScreen,
+        # and the modifier naming it went with it -- silently, because the line it
+        # guarded was still valid Swift.
+        #
+        # The guard now lives inside AppWindowLayer, so the check reads either
+        # route: a policy at the call site, or one in the layer's own type.
+        run: |
+          set -euo pipefail
+          python3 tests/test_hit_testing_policy.py
+
       - name: prove that check still catches what it exists for
         # A gate that has only ever run against a correct tree has not been
         # shown to fail on an incorrect one. This removes JitAbsent.c, watches
