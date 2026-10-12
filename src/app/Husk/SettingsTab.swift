@@ -5,6 +5,7 @@ import SwiftUI
 /// push a page of their own. What belongs to the app, what belongs to the emulator, and what the thing is.
 struct SettingsTab: View {
     @AppStorage(AppWindows.defaultKey) private var multitask = false
+    @AppStorage(CompatibilityStore.askKey) private var askCompat = true
 
     var body: some View {
         NavigationView {
@@ -56,6 +57,39 @@ struct SettingsTab: View {
                        + "Each app can override this in its own settings.")
                 }
 
+                Section {
+                    Toggle(isOn: $askCompat) {
+                        Label {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("Ask How Games Ran")
+                                // .foregroundStyle is iOS 15, and cannot be shimmed:
+                                // ShapeStyle and HierarchicalShapeStyle are too. This
+                                // is the spelling the rest of the tree uses.
+                                Text("After playing, once per game per update").font(.caption).foregroundColor(.secondary).lineLimit(1)
+                            }
+                        } icon: {
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .fill(Color.green.gradient)
+                                .frame(width: 30, height: 30)
+                                .overlay {
+                                    Image(systemName: "list.bullet.clipboard")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(.white)
+                                }
+                        }
+                    }
+                    Link(destination: CompatibilityStore.site) {
+                        Label("Compatibility List", systemImage: "safari")
+                    }
+                } header: {
+                    Text("Compatibility")
+                } footer: {
+                    Text("Game pages and the Store show how each app runs for everyone, from antiweb.lol. Your reports go there "
+                       + "with your device, iOS version, Husk build and JIT method.")
+                }
+
+                // .indigo is iOS 15 as a Color; Color(.systemIndigo) is the
+                // equivalent, and is what this row had before.
                 Section(header: Text("Emulator")) {
                     row(InputSettings(), "hand.tap.fill", Color(.systemIndigo), "Input", "Screen, touch, keyboard")
                     row(NetworkSettings(), "globe", .green, "Network", "Internet and saved sessions")
@@ -712,6 +746,7 @@ Button(action: { askWhichToDelete = true }) {
 struct AppearanceSettings: View {
     @State private var appIcon = HuskAppIcon.current
     @AppStorage(Theme.Appearance.key) private var appearance = Theme.Appearance.system
+    @AppStorage(Holiday.key) private var holiday = true
     @ObservedObject private var theme = AppTheme.shared
     @Environment(\.colorScheme) private var scheme
     @State private var custom: Color = AppTheme.shared.accentColor
@@ -728,6 +763,7 @@ struct AppearanceSettings: View {
                 .onChange(of: appearance) { v in
                     HuskLog.log("ui", "appearance: \(v.rawValue)")
                 }
+                Toggle("Holiday Decorations", isOn: $holiday)
             } header: {
                 Text("Theme")
             } footer: {
@@ -804,7 +840,7 @@ struct AppearanceSettings: View {
             .huskOverlay {
                 if selected {
                     Image(systemName: "checkmark")
-                        .font(.caption.bold())
+                        .font(.caption).fontWeight(.bold)
                         .foregroundColor(color.isLight ? .black : .white)
                 }
             }

@@ -177,6 +177,20 @@ extension View {
         }
     }
 
+    /// `.presentationDetents(...)` with more than one detent. huskDetent takes
+    /// one; upstream's `.presentationDetents([.medium, .large])` means the user
+    /// may pick either, and collapsing the set to .large would take the
+    /// half-height sheet away on iOS 16+ for nothing.
+    @ViewBuilder
+    func huskDetents(_ detents: HuskDetent...) -> some View {
+        if #available(iOS 16.0, *) {
+            self.presentationDetents(
+                detents.reduce(into: Set<PresentationDetent>()) { $0.formUnion($1.swiftUIDetents) })
+        } else {
+            self
+        }
+    }
+
     /// `.presentationDragIndicator(.visible)`.
     @ViewBuilder
     func huskDragIndicator() -> some View {

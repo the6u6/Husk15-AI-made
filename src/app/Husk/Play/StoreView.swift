@@ -5,6 +5,7 @@ import SwiftUI
 /// Lets users sign in with their Google account, browse/search Play Store, view app details,
 /// and download/install apps (triggering the IncomingFiles chooser for translation layer or Android).
 struct StoreView: View {
+    @ObservedObject private var compat = CompatibilityStore.shared
     @ObservedObject private var manager = PlayStoreManager.shared
     @State private var searchText = ""
     @State private var debouncedSearchText = ""
@@ -256,6 +257,8 @@ Button(action: {
                             .foregroundColor(Theme.textDim)
                             .lineLimit(1)
 
+                        if let status = compat.entry(app.id)?.status { CompatBadge(status: status) }
+
                         if app.rating > 0 {
                             HStack(spacing: 3) {
                                 Image(systemName: "star.fill")
@@ -316,6 +319,10 @@ Button(action: {
 struct PlayAppDetailSheet: View {
     let app: PlayAPI.PlayApp
     @Environment(\.presentationMode) private var huskPM
+    // Upstream adds @Environment(\.dismiss) here as well. Nothing in this file
+    // calls it -- both dismiss sites go through huskPM -- and it is iOS 15, so on
+    // this floor it is a compile error whether it is used or not.
+    @ObservedObject private var compat = CompatibilityStore.shared
     @ObservedObject private var manager = PlayStoreManager.shared
 
     var body: some View {
@@ -344,6 +351,8 @@ struct PlayAppDetailSheet: View {
                                 .font(.subheadline)
                                 .foregroundColor(Theme.textDim)
                                 .lineLimit(1)
+
+                            if let status = compat.entry(app.id)?.status { CompatBadge(status: status) }
 
                             Spacer(minLength: 4)
 

@@ -103,8 +103,16 @@ struct GamePage: View {
     /// was one of the two that silently did nothing.
     @State private var dialog: Dialog? = nil
     private enum Dialog { case quit, remove, restore(URL) }
+    // The compatibility report is a sheet rather than an alert, so it is not in
+    // the enum: sheets do not share the one-per-view limit that makes the three
+    // alerts above collapse into one.
+    @State private var reporting: CompatSubject?
 
     private var runs: Bool { app.report?.canRun == true }
+
+    private var compatSubject: CompatSubject? {
+        app.packageName.map { CompatSubject(package: $0, name: app.label, isGame: LibraryItem.game(app).isGame, iconPath: app.iconPath) }
+    }
 
     /// Another game already loaded in this run of Husk: engines cannot be unloaded, so this one cannot start until Husk is
     /// closed and opened again.
@@ -186,6 +194,10 @@ struct GamePage: View {
                 }
             }
 
+            if let compatSubject, !isGeodeLauncher {
+                CompatibilitySection(subject: compatSubject, reporting: $reporting)
+            }
+
             if !ShowcaseStore.shared.pictures(for: app.packageName).isEmpty {
                 Section(header: Text("Screenshots")) {
                     ShowcaseGallery(package: app.packageName)
@@ -236,7 +248,8 @@ Button(action: { dialog = .remove }) {
         .listStyle(.insetGrouped)
         .navigationTitle(app.label)
         .navigationBarTitleDisplayMode(.inline)
-        .fullScreenCover(isPresented: $playing) { TLAttemptView(app: app) }
+        .fullScreenCover(isPresented: $playing, onDismiss: askHowItRan) { TLAttemptView(app: app) }
+        .sheet(item: $reporting) { CompatReportSheet(subject: $0) }
         .sheet(item: Binding(get: { backupFile.map(IdentifiedURL.init) }, set: { backupFile = $0?.url })) { f in
             ShareSheet(items: [f.url])
         }
@@ -299,6 +312,14 @@ Button(action: { dialog = .remove }) {
             return
         }
         start()
+    }
+
+    /// After a session that got going: how did it run? Once per game per build, and only when it played (a crash has its own sheet).
+    private func askHowItRan() {
+        guard var subject = compatSubject, CompatibilityStore.shared.shouldAsk(subject.package),
+              GameStatusStore.shared.status(app.id)?.result == .plays else { return }
+        subject.afterPlaying = true
+        Task { try? await Task.sleep(nanoseconds: 500_000_000); reporting = subject }
     }
 
     /// Full screen, or in a window over Husk when Multitasking says so for this app.
