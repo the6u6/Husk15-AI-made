@@ -274,9 +274,15 @@ struct CompatReportSheet: View {
                 } header: {
                     Text(subject.afterPlaying ? "How did \(subject.name) run?" : "How does \(subject.name) run?")
                 }
-                Section("Notes") {
-                    TextField("What worked, what didn\u{2019}t, how far you got", text: $notes, axis: .vertical)
-                        .lineLimit(3...8)
+                // Section("Notes") is iOS 15; Section(header:content:) is 13.
+                // TextField(_:text:axis:) and .lineLimit(3...8) are iOS 16
+                // together -- a TextField is one line until then, and there is no
+                // older spelling of either half. TextEditor is iOS 14 and is the
+                // multi-line control they wanted; the height stands in for the
+                // range, and it scrolls if it overruns.
+                Section(header: Text("Notes")) {
+                    TextEditor(text: $notes)
+                        .frame(height: 88)
                 }
                 Section {
                     TextField("Anonymous", text: $author)

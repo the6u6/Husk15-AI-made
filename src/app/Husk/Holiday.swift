@@ -55,7 +55,7 @@ struct Snowfall: UIViewRepresentable {
         var tint: UIColor = .white { didSet { if tint != oldValue { setNeedsDisplay() } } }
         private var link: CADisplayLink?
 
-        init(flakes: [SnowFlake]) {
+        fileprivate init(flakes: [SnowFlake]) {
             self.flakes = flakes
             super.init(frame: .zero)
             // Nothing to show until there is a size to lay flakes out in.
@@ -162,19 +162,19 @@ struct ChristmasTree: View {
     var body: some View {
         ZStack {
         Rectangle().fill(Color(red: 0.45, green: 0.28, blue: 0.16))
-            .frame(width: size * 0.14, height: size * 0.14).offset(y: size * 0.44)
+        .frame(width: size * 0.14, height: size * 0.14).offset(y: size * 0.44)
         tier(width: 1.0, top: 0.42, bottom: 0.93)
         tier(width: 0.78, top: 0.24, bottom: 0.68)
         tier(width: 0.56, top: 0.07, bottom: 0.45)
         Image(systemName: "star.fill").font(.system(size: size * 0.24)).foregroundColor(.yellow)
-            .offset(y: -size * 0.44)
+        .offset(y: -size * 0.44)
         ForEach(lights.indices, id: \.self) { i in
-            let (x, y, c) = lights[i]
-            let lit = (i + tick) % 3 != 0
-            Circle().fill(c.opacity(lit ? 1 : 0.25))
-                .frame(width: size * 0.09, height: size * 0.09)
-                .shadow(color: lit ? c : .clear, radius: size * 0.08)
-                .position(x: x * size, y: y * size)
+        let (x, y, c) = lights[i]
+        let lit = (i + tick) % 3 != 0
+        Circle().fill(c.opacity(lit ? 1 : 0.25))
+        .frame(width: size * 0.09, height: size * 0.09)
+        .shadow(color: lit ? c : .clear, radius: size * 0.08)
+        .position(x: x * size, y: y * size)
         }
         }
         .frame(width: size, height: size)
