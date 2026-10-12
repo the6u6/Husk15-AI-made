@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 import SwiftUI
 
-/// Apps from the repositories you add, to install into Android. Pushed from Settings, so it has no navigation stack of its own.
+/// Apps from the repositories you add, installed into the translation layer. Pushed from Settings, so it has no navigation
+/// stack of its own.
 struct DiscoverView: View {
     @ObservedObject private var manager = SourceManager.shared
-    @ObservedObject private var host = AndroidHost.shared
+    @ObservedObject private var store = TranslationLayerStore.shared
+    @ObservedObject private var router = Router.shared
 
     @State private var showingSources = false
     @State private var showingAddSource = false
@@ -147,13 +149,18 @@ struct DiscoverView: View {
 
             Spacer(minLength: 8)
 
-            let isInstalled = host.packages.contains { $0.id == app.bundleIdentifier }
+            // The translation layer's list, matched on package name. It used to
+            // ask the guest, which stopped being true the moment downloadAndInstall
+            // stopped installing into it: the app went in, and the row still said
+            // Get, so a successful download could be repeated indefinitely.
+            let installed = store.apps.first { $0.packageName == app.bundleIdentifier }
             let progress = manager.downloadProgress[app.bundleIdentifier]
 
-            if isInstalled {
+            if let installed = installed {
                 Button("Open") {
-                    let intent = "am start -n \(app.bundleIdentifier)/\(app.bundleIdentifier).MainActivity"
-                    _ = try? GuestBridge.shared.shell(intent, timeout: 5)
+                    router.tab = .library
+                    router.library = [.game(installed.id)]
+                    router.autoPlay = installed.id
                 }
                 .huskBordered()
             } else if let progress = progress {

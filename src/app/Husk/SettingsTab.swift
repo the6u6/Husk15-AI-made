@@ -24,8 +24,6 @@ struct SettingsTab: View {
 
                 Section(header: Text("General")) {
                     row(DiscoverView(), "sparkle.magnifyingglass",Color(.systemMintFallback), "Discover", "Find apps in F-Droid and other repositories")
-                    row(LibrarySettings(), "square.grid.2x2.fill", .blue, "Library", "Your apps and their icons")
-                    row(PerformanceSettings(), "speedometer", .orange, "Performance", "Renderer, sound")
                     row(AppearanceSettings(), "paintbrush.fill", .pink, "Appearance", "Light or dark, accent colour, app icon")
                 }
 
@@ -91,10 +89,7 @@ struct SettingsTab: View {
                 // .indigo is iOS 15 as a Color; Color(.systemIndigo) is the
                 // equivalent, and is what this row had before.
                 Section(header: Text("Emulator")) {
-                    row(InputSettings(), "hand.tap.fill", Color(.systemIndigo), "Input", "Screen, touch, keyboard")
-                    row(NetworkSettings(), "globe", .green, "Network", "Internet and saved sessions")
-                    row(SavedMachineSettings(), "externaldrive.fill",Color(.systemTeal), "Saved Machine", "Snapshots and automatic saving")
-                }
+                    }
             }
             .listStyle(.insetGrouped)
             .navigationTitle("Settings")
@@ -148,341 +143,10 @@ extension View {
     func huskForm() -> some View { modifier(HuskForm()) }
 }
 
-// MARK: - Library
-
-struct LibrarySettings: View {
-    @ObservedObject private var host = AndroidHost.shared
-    @State private var working = false
-
-    var body: some View {
-        Form {
-            Section {
-                DetailRow(label: "Apps", value: "\(host.packages.count)", mono: false)
-                DetailRow(label: "With icons",
-                          value: "\(host.packages.filter { $0.iconPath != nil }.count)",
-                          mono: false)
-            } footer: {
-                Text("The list is written to disk, so it is on screen before Android "
-                   + "has finished starting.")
-            }
-
-            Section {
-                Button {
-                    working = true
-                    Task { await host.refreshPackages(); working = false }
-                } label: {
-                    Label(working ? "Refreshing…" : "Refresh from Android",
-                          systemImage: "arrow.clockwise")
-                }
-                .disabled(working || !host.isReady)
-
-                Button {
-                    AndroidHost.forgetIcons()
-                    working = true
-                    Task { await host.refreshPackages(); working = false }
-                } label: {
-                    Label("Re-fetch icons", systemImage: "photo.on.rectangle")
-                }
-                .disabled(working || !host.isReady)
-            } footer: {
-                Text("Names and icons come from Android's own launcher, which keeps "
-                   + "the version it draws. Re-fetching throws away Husk's copies and "
-                   + "asks again.")
-            }
-        }
-        .huskForm()
-        .navigationTitle("Library")
-    }
-}
-
-// MARK: - Performance
-
-struct PerformanceSettings: View {
-    @ObservedObject private var runner = QemuRunner.shared
-    @State private var gpuMode =
-        UserDefaults.standard.object(forKey: "husk.gpuMode") as? Bool ?? true
-    @State private var sound = UserDefaults.standard.bool(forKey: "husk.sound")
-    @State private var soundDevice =
-        UserDefaults.standard.object(forKey: "husk.soundDevice") as? Bool ?? true
-
-    var body: some View {
-        Form {
-            Section {
-                Picker("Renderer", selection: $gpuMode) {
-                    Text("GPU").tag(true)
-                    Text("CPU").tag(false)
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: gpuMode) { v in
-                    UserDefaults.standard.set(v, forKey: "husk.gpuMode")
-                    HuskLog.log("ui", v ? "GPU renderer selected" : "CPU renderer selected")
-                }
-            } header: {
-                Text("Renderer")
-            } footer: {
-                Text(gpuMode
-                     ? "Android draws on the real GPU through Metal — about four times "
-                     + "the frame rate. This is the default."
-                     : "Every pixel is drawn by the emulated CPU. Much slower, and only "
-                     + "worth choosing if the GPU misbehaves.")
-            }
-
-            Section {
-                DetailRow(label: "Frame rate",
-                          value: runner.fps > 0
-                                 ? String(format: "%.0f fps", runner.fps) : "—")
-                DetailRow(label: "Guest screen",
-                          value: "\(QemuRunner.lastGuestRes.w)×\(QemuRunner.lastGuestRes.h)")
-            } header: {
-                Text("Now")
-            }
-
-            Section {
-                Toggle("Sound", isOn: $sound)
-                    .onChange(of: sound) { v in
-                        UserDefaults.standard.set(v, forKey: "husk.sound")
-                        HuskLog.log("ui", v ? "sound on" : "sound off")
-                    }
-                if sound {
-                    Toggle("Attach the sound device", isOn: $soundDevice)
-                        .onChange(of: soundDevice) { v in
-                            UserDefaults.standard.set(v, forKey: "husk.soundDevice")
-                        }
-                }
-            } header: {
-                Text("Sound")
-            } footer: {
-                Text("Adds a sound device. While it is attached Android cannot be "
-                   + "saved — QEMU refuses to snapshot a machine with one — so every "
-                   + "launch boots from cold. Turning it on or off costs a cold boot "
-                   + "either way.")
-            }
-        }
-        .huskForm()
-        .navigationTitle("Performance")
-    }
-}
-
 // MARK: - Input
 
-struct InputSettings: View {
-    @State private var landscapeGuest =
-        UserDefaults.standard.bool(forKey: "husk.landscapeGuest")
-    @State private var customRes = UserDefaults.standard.bool(forKey: "husk.customRes")
-    @State private var widthText = InputSettings.stored("husk.resWidth", 720)
-    @State private var heightText = InputSettings.stored("husk.resHeight", 1280)
-
-    /// Sizes worth offering without typing. Deliberately short: these are the
-    /// shapes a phone guest is actually run at, not a catalogue of every panel
-    /// ever made.
-    private static let presets: [(name: String, w: Int, h: Int)] = [
-        ("Small — 360 × 800", 360, 800),
-        ("HD — 720 × 1280", 720, 1280),
-        ("Full HD — 1080 × 1920", 1080, 1920),
-        ("Landscape HD — 1280 × 720", 1280, 720),
-        ("Tablet — 1280 × 800", 1280, 800),
-    ]
-
-    private static func stored(_ key: String, _ fallback: Int) -> String {
-        let v = UserDefaults.standard.integer(forKey: key)
-        return String(v > 0 ? v : fallback)
-    }
-
-    /// What the typed numbers actually come to, or nothing if they are not a
-    /// size the guest can be given.
-    private var effective: (w: Int, h: Int)? {
-        QemuRunner.validResolution(w: Int(widthText) ?? 0, h: Int(heightText) ?? 0)
-    }
-
-    var body: some View {
-        Form {
-            screenSection
-            resolutionSection
-            controlsSection
-        }
-        .huskForm()
-        .navigationTitle("Input")
-    }
-
-    private var screenSection: some View {
-        Section {
-            Picker("Screen", selection: $landscapeGuest) {
-                Text("Portrait").tag(false)
-                Text("Landscape").tag(true)
-            }
-            .pickerStyle(.segmented)
-            .disabled(customRes)
-            .onChange(of: landscapeGuest) { v in
-                UserDefaults.standard.set(v, forKey: "husk.landscapeGuest")
-                HuskLog.log("ui", v ? "guest panel will be landscape"
-                                    : "guest panel will be portrait")
-            }
-        } header: {
-            Text("Screen")
-        } footer: {
-            // A ternary whose branches are each a chain of `+` over literals is
-            // one of the two shapes the type checker gives up on. Naming the
-            // value as a String gives every `+` one overload to resolve.
-            let text: String = customRes
-                ? "A custom resolution sets the shape itself, so this does nothing "
-                    + "while it is on. Type a wide size for landscape."
-                : "Android cannot reshape a screen once it is running, so a "
-                    + "landscape game on a portrait screen gets letterboxed into a "
-                    + "band and looks tiny. Creating it landscape is the only way it "
-                    + "can fill it — portrait apps are letterboxed instead. Costs one "
-                    + "cold boot."
-            Text(text)
-        }
-    }
-
-    private var resolutionSection: some View {
-        Section {
-            Toggle("Custom resolution", isOn: $customRes)
-                .onChange(of: customRes) { v in
-                    UserDefaults.standard.set(v, forKey: "husk.customRes")
-                    store()
-                    // Anchored for the same reason as the footers: a
-                    // ternary whose branch is a `+` over an interpolated
-                    // literal.
-                    let resolutionLog: String = v ? "custom resolution on: "
-                        + "\(widthText)x\(heightText)"
-                        : "custom resolution off"
-                    HuskLog.log("ui", resolutionLog)
-                }
-
-            if customRes {
-                Picker("Preset", selection: Binding(
-                    get: { presetIndex },
-                    set: { i in
-                        guard i >= 0, i < Self.presets.count else { return }
-                        widthText = String(Self.presets[i].w)
-                        heightText = String(Self.presets[i].h)
-                        store()
-                    })) {
-                    ForEach(0..<Self.presets.count, id: \.self) { i in
-                        Text(Self.presets[i].name).tag(i)
-                    }
-                    Text("Custom").tag(-1)
-                }
-
-                HStack {
-                    Text("Width")
-                    Spacer()
-                    TextField("720", text: $widthText)
-                        .keyboardType(.numberPad)
-                        .multilineTextAlignment(.trailing)
-                        .font(.technical())
-                        .frame(width: 90)
-                        .onChange(of: widthText) { _ in store() }
-                }
-                HStack {
-                    Text("Height")
-                    Spacer()
-                    TextField("1280", text: $heightText)
-                        .keyboardType(.numberPad)
-                        .multilineTextAlignment(.trailing)
-                        .font(.technical())
-                        .frame(width: 90)
-                        .onChange(of: heightText) { _ in store() }
-                }
-
-                if let size = effective {
-                    DetailRow(label: "Android will get",
-                              value: "\(size.w) × \(size.h)")
-                } else {
-                    Text("Both sides must be between 240 and 2560.")
-                        .font(.caption).foregroundColor(.orange)
-                }
-            }
-
-            DetailRow(label: "Running now", value: running)
-        } header: {
-            Text("Resolution")
-        } footer: {
-            // The same anchor, for a plain seven-term `+` chain.
-            let text: String = "The panel is built when the machine starts, so a change costs "
-                + "one cold boot, and the next save replaces the machine saved at "
-                + "the old size — changing back costs another. Sizes are rounded "
-                + "to a multiple of eight. Bigger is slower: every pixel is drawn "
-                + "by an emulated phone. Android's density does not change with "
-                + "the panel, so a larger one shows more rather than bigger."
-            Text(text)
-        }
-    }
-
-    private var controlsSection: some View {
-        Section {
-            Text("Touch is always on. The keyboard and the rotate control are "
-               + "in the pill at the bottom of the guest's screen; a gamepad "
-               + "and a pointer are not wired through yet.")
-                .font(.footnote).foregroundColor(.secondary)
-        } header: {
-            Text("Controls")
-        }
-    }
-
-
-    /// The panel the guest actually has, which only means anything while there
-    /// is a guest: the stored value is last launch's until one starts.
-    private var running: String {
-        guard QemuRunner.shared.isRunning else { return "not started" }
-        return "\(QemuRunner.lastGuestRes.w) × \(QemuRunner.lastGuestRes.h)"
-    }
-
-    /// Which preset the typed numbers are, if any.
-    private var presetIndex: Int {
-        guard let size = effective else { return -1 }
-        return Self.presets.firstIndex { $0.w == size.w && $0.h == size.h } ?? -1
-    }
-
-    private func store() {
-        UserDefaults.standard.set(Int(widthText) ?? 0, forKey: "husk.resWidth")
-        UserDefaults.standard.set(Int(heightText) ?? 0, forKey: "husk.resHeight")
-    }
-}
-
-// MARK: - Network
-
-struct NetworkSettings: View {
-    @State private var keepNetwork =
-        UserDefaults.standard.object(forKey: "husk.keepNetwork") as? Bool ?? true
-
-    var body: some View {
-        Form {
-            Section {
-                Toggle("Keep the network across saves", isOn: $keepNetwork)
-                    .onChange(of: keepNetwork) { v in
-                        UserDefaults.standard.set(v, forKey: "husk.keepNetwork")
-                    }
-            } footer: {
-                Text(keepNetwork
-                     ? "Saving closes apps but leaves Android's framework running, so "
-                     + "the network still works after a restore."
-                     : "Saving stops the framework too. Clears every GPU resource, "
-                     + "which is steadier — but the network may not come back until a "
-                     + "cold boot.")
-            }
-
-            Section {
-                Text("Android reaches the internet through a virtual ethernet card "
-                   + "on QEMU's own network. Nothing on your phone's network can see "
-                   + "the guest, and the guest cannot see it.")
-                    .font(.footnote).foregroundColor(.secondary)
-            } header: {
-                Text("How it connects")
-            }
-        }
-        .huskForm()
-        .navigationTitle("Network")
-    }
-}
-
-// MARK: - JIT and sideloading
-
 struct JITSettings: View {
-    @ObservedObject private var runner = QemuRunner.shared
     @ObservedObject private var jit = JITCoordinator.shared
-    @State private var autoStart = Onboarding.autoStart
     @AppStorage(JITCoordinator.autoEnableKey) private var autoJIT = false
     @State private var keepAttached = JITBootstrap.keepDebuggerAttached
 
@@ -500,8 +164,7 @@ struct JITSettings: View {
             methodSection
             jitSection
             autoJITSection
-            autoStartSection
-            keepAttachedSection
+                    keepAttachedSection
             sideloadingSection
         }
         .huskForm()
@@ -616,17 +279,6 @@ struct JITSettings: View {
         }
     }
 
-    private var autoStartSection: some View {
-        Section {
-            Toggle("Start Android on launch", isOn: $autoStart)
-                .onChange(of: autoStart) { v in
-                    UserDefaults.standard.set(v, forKey: "husk.autoStart")
-                }
-        } footer: {
-            Text("Boots the guest as soon as Husk opens, when JIT is available.")
-        }
-    }
-
     private var keepAttachedSection: some View {
         Section {
             Toggle("Keep debugger attached", isOn: $keepAttached)
@@ -654,94 +306,6 @@ struct JITSettings: View {
 }
 
 // MARK: - Saved machine
-
-struct SavedMachineSettings: View {
-    @ObservedObject private var runner = QemuRunner.shared
-    @State private var autoSave =
-        UserDefaults.standard.object(forKey: "husk.autoSave") as? Bool ?? true
-    @State private var useSnapshot =
-        UserDefaults.standard.object(forKey: "husk.downloadSnapshot") as? Bool ?? true
-    @State private var askWhichToDelete = false
-    @State private var deleteResult: String?
-    @AppStorage(GuestImage.askUpdatesKey) private var askUpdates = true
-
-    var body: some View {
-        Form {
-            Section {
-                Toggle("Save automatically", isOn: $autoSave)
-                    .onChange(of: autoSave) { v in
-                        UserDefaults.standard.set(v, forKey: "husk.autoSave")
-                        HuskLog.log("ui", v ? "automatic saving on" : "automatic saving off")
-                    }
-                Button {
-                    QemuRunner.shared.saveState(reason: "asked from settings")
-                } label: {
-                    Label(runner.isSavingState ? "Saving…" : "Save now",
-                          systemImage: "externaldrive.badge.checkmark")
-                }
-                .disabled(runner.isSavingState)
-            } footer: {
-                Text("Husk restores a saved machine instead of booting it, which takes "
-                   + "seconds rather than minutes. The picture freezes while it writes. "
-                   + "With this off, nothing saves by itself — including after an "
-                   + "install.")
-            }
-
-            Section {
-Button(action: { askWhichToDelete = true }) {
-                    Label("Delete saved machine", systemImage: "trash")
-                }
-                    .foregroundColor(Color.red)
-                .disabled(!QemuRunner.shared.hasSnapshot)
-                if let deleteResult {
-                    Text(deleteResult).font(.caption).foregroundColor(.secondary)
-                }
-            } footer: {
-                Text(QemuRunner.shared.hasSnapshot
-                     ? "Currently saved: "
-                     + ((QemuRunner.shared.snapshotDisplay ?? "sw").contains("gl")
-                        ? "GPU" : "software") + "."
-                     : "Nothing is saved, so Android boots from cold.")
-            }
-
-            Section {
-                Toggle("Download pre-booted snapshot", isOn: $useSnapshot)
-                    .onChange(of: useSnapshot) { v in
-                        UserDefaults.standard.set(v, forKey: "husk.downloadSnapshot")
-                    }
-            } footer: {
-                Text("Adds about 2 GB to the first download. It was captured on the "
-                   + "software renderer, so it is not used on GPU — which cold-boots "
-                   + "once and then saves its own.")
-            }
-
-            Section {
-                Toggle("Ask about Android updates", isOn: $askUpdates)
-            } footer: {
-                Text("When a new Android image or snapshot is published, Husk asks once whether to download it. "
-                   + "Never asked before Android has been downloaded.")
-            }
-        }
-        .huskForm()
-        .navigationTitle("Saved machine")
-        .sheet(isPresented: $askWhichToDelete) {
-            SavedMachineChooser(
-                note: "Android will boot from cold once, then save a new one.",
-                onGPU: { forget("gl", "GPU") },
-                onSoftware: { forget("sw", "software") })
-        }
-    }
-
-    private func forget(_ mode: String, _ name: String) {
-        if QemuRunner.shared.forgetSnapshot(mode: mode) {
-            deleteResult = "Deleted the \(name) machine. The next launch boots from cold."
-        } else {
-            deleteResult = "No \(name) machine is saved, so nothing was deleted."
-        }
-    }
-}
-
-// MARK: - Appearance
 
 struct AppearanceSettings: View {
     @State private var appIcon = HuskAppIcon.current
@@ -851,7 +415,6 @@ struct AppearanceSettings: View {
 // MARK: - About
 
 struct AboutSettings: View {
-    @ObservedObject private var runner = QemuRunner.shared
     @State private var showLogs = false
     @AppStorage(TranslationLayer.devInfoKey) private var devInfo = false
 
@@ -871,11 +434,6 @@ struct AboutSettings: View {
 
             Section {
                 HuskLabeledContent("Build", value: Bundle.main.commit)
-                HuskLabeledContent("Guest image", value: GuestImage.imageVersion)
-                HuskLabeledContent("Renderer",
-                               value: runner.displayKind == .gl ? "GPU"
-                                    : runner.displayKind == .software ? "CPU"
-                                    : "Not started")
             }
 
             Section {
@@ -916,42 +474,5 @@ extension Bundle {
     }
     var commit: String {
         (infoDictionary?["HuskBuildCommit"] as? String) ?? "?"
-    }
-}
-
-
-/// Which saved machine to delete.
-///
-/// This was a `confirmationDialog` with three actions. `Alert` -- the only
-/// dialog that exists below iOS 15 -- has a primary and a secondary button and
-/// no third, so it could not be spelled any other way; the substitute is a
-/// sheet rather than another overload. It suits the question better anyway:
-/// "which one?" is a list.
-private struct SavedMachineChooser: View {
-    let note: String
-    let onGPU: () -> Void
-    let onSoftware: () -> Void
-
-    @Environment(\.presentationMode) private var huskpM
-
-    var body: some View {
-        NavigationView {
-            List {
-                Section {
-                    Button(action: { huskpM.wrappedValue.dismiss(); onGPU() }) {
-                        Label("GPU machine", systemImage: "cpu")
-                    }
-                    .foregroundColor(Color.red)
-                    Button(action: { huskpM.wrappedValue.dismiss(); onSoftware() }) {
-                        Label("Software machine", systemImage: "desktopcomputer")
-                    }
-                    .foregroundColor(Color.red)
-                } footer: {
-                    Text(note)
-                }
-            }
-            .navigationTitle("Which saved machine?")
-            .navigationBarTitleDisplayMode(.inline)
-        }
     }
 }

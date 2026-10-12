@@ -119,7 +119,6 @@ struct ContentView: View {
             Task { await updates.check() }
             Task { await CompatibilityStore.shared.refresh() }
         }
-        .sheet(isPresented: $router.showFiles) { FilesTab() }
         .sheet(isPresented: $router.showDownloads) { DownloadsTab() }
         // Pictures for the apps here: read the index on launch and whenever the
         // set of apps changes. .task(id:) is iOS 15, so the two halves are

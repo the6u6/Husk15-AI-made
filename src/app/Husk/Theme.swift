@@ -374,45 +374,6 @@ struct Toast: Equatable, Identifiable {
     var detail: String?
     var good = true
 }
-
-struct ToastView: View {
-    let toast: Toast
-    let onClose: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: toast.good ? "checkmark.circle.fill"
-                                         : "exclamationmark.triangle.fill")
-                .font(.system(size: 19))
-                .foregroundColor(toast.good ? Theme.good : .orange)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(toast.title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(Theme.text)
-                if let detail = toast.detail {
-                    Text(detail)
-                        .font(.system(size: 12))
-                        .foregroundColor(Theme.textDim)
-                        .lineLimit(2)
-                }
-            }
-            Spacer(minLength: 8)
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(Theme.textDim)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 14).padding(.vertical, 12)
-        .huskBackground(Theme.surfaceHigh,
-                    in: RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Theme.rowCorner, style: .continuous)
-                    .stroke(Theme.hairline, lineWidth: 0.5))
-        .shadow(color: Theme.shadow, radius: 18, y: 8)
-    }
-}
-
 /// One control over the guest's picture.
 struct GuestControl: View {
     let systemImage: String

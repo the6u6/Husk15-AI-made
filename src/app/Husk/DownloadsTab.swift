@@ -5,7 +5,6 @@ import SwiftUI
 struct DownloadsTab: View {
     @ObservedObject private var downloads = Downloads.shared
     @ObservedObject private var updates = AppUpdates.shared
-    @ObservedObject private var guest = GuestImage.shared
     @State private var adding = false
     @Environment(\.presentationMode) private var huskPM
 
@@ -72,14 +71,7 @@ struct DownloadsTab: View {
                     Button("View") { UIApplication.shared.open(release.page) }.huskBordered()
                 }
             }
-            if guest.update.isSomething {
-                HStack {
-                    Label(guest.update.title, systemImage: "shippingbox.fill")
-                    Spacer()
-                    Button("Download") { guest.applyUpdate() }.huskBordered()
-                }
-            }
-            if updates.available == nil && !guest.update.isSomething {
+            if updates.available == nil {
                 Label("Everything is up to date", systemImage: "checkmark.circle").foregroundColor(.secondary)
             }
         }

@@ -22,25 +22,17 @@ enum Onboarding {
     }
 
     /// Start the guest as soon as the app opens, when JIT is available.
-    static var autoStart: Bool {
-        UserDefaults.standard.bool(forKey: "husk.autoStart")
     }
-}
 
 struct OnboardingView: View {
     let onDone: () -> Void
 
     @State private var page = 0
-    @State private var autoStart = false
-    @State private var landscape = UserDefaults.standard.bool(forKey: "husk.landscapeGuest")
-    @State private var sound = UserDefaults.standard.bool(forKey: "husk.sound")
-    @State private var autoSave =
-        UserDefaults.standard.object(forKey: "husk.autoSave") as? Bool ?? true
     @Environment(\.colorScheme) private var scheme
     @ObservedObject private var jit = JITCoordinator.shared
     @State private var settingUpJIT = false
 
-    private let pages = 4
+    private let pages = 3
 
     var body: some View {
         ZStack {
@@ -49,9 +41,8 @@ struct OnboardingView: View {
             VStack(spacing: 0) {
                 TabView(selection: $page) {
                     welcome.tag(0)
-                    choices.tag(1)
-                    jitPage.tag(2)
-                    ready.tag(3)
+                    jitPage.tag(1)
+                    ready.tag(2)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .sheet(isPresented: $settingUpJIT) { JITSetupFlow() }
@@ -88,13 +79,8 @@ struct OnboardingView: View {
 
     private func save() {
         let d = UserDefaults.standard
-        d.set(autoStart, forKey: "husk.autoStart")
-        d.set(landscape, forKey: "husk.landscapeGuest")
-        d.set(sound, forKey: "husk.sound")
-        d.set(autoSave, forKey: "husk.autoSave")
         Onboarding.complete()
-        HuskLog.log("ui", "setup complete: autoStart=\(autoStart) landscape=\(landscape) "
-                        + "sound=\(sound) autoSave=\(autoSave)")
+        HuskLog.log("ui", "setup complete")
     }
 
     // MARK: pages
@@ -112,68 +98,17 @@ struct OnboardingView: View {
             Text("Husk").font(.system(size: 40, weight: .semibold, design: .rounded))
             Text("Android apps, on your iPhone.")
                 .font(.title3).foregroundColor(.secondary)
-            Text("Husk runs a real Android system and opens APKs inside it. "
-               + "A few questions first — all of them can be changed later in Settings.")
+            // This said "runs a real Android system and opens APKs inside it",
+            // which is exactly what the VM removal makes false -- and it was the
+            // first thing a new user read.
+            Text("Husk runs the game on the iPhone itself, translating what it needs "
+               + "from Android. One question first, and it changes what runs.")
                 .font(.callout).foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 34).padding(.top, 4)
             Spacer()
         }
     }
-
-    private var choices: some View {
-        ScrollView {
-            VStack(spacing: 14) {
-                Text("How should Husk behave?")
-                    .font(.title2.weight(.semibold))
-                    .padding(.top, 34).padding(.bottom, 6)
-
-                choice(icon: "bolt.fill", title: "Start Android on launch",
-                       detail: "Boots the guest as soon as Husk opens, once JIT is "
-                             + "available. Off means you start it yourself.",
-                       isOn: $autoStart)
-
-                choice(icon: "rectangle.landscape.rotate", title: "Landscape screen",
-                       detail: "Gives Android a landscape screen, which games fill "
-                             + "properly. Portrait apps get letterboxed instead.",
-                       isOn: $landscape)
-
-                choice(icon: "speaker.wave.2.fill", title: "Sound",
-                       detail: "Adds a sound device. Android cannot be saved while "
-                             + "this is on, so every launch boots from cold.",
-                       isOn: $sound)
-
-                choice(icon: "externaldrive.badge.checkmark", title: "Save automatically",
-                       detail: "Saves the machine once Android settles, so later "
-                             + "launches restore in seconds instead of booting.",
-                       isOn: $autoSave)
-            }
-            .padding(.horizontal, 20).padding(.bottom, 20)
-        }
-    }
-
-    private func choice(icon: String, title: String, detail: String,
-                        isOn: Binding<Bool>) -> some View {
-        HStack(alignment: .top, spacing: 14) {
-            Image(systemName: icon)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(Theme.accent)
-                .frame(width: 30, height: 30)
-                .huskBackground(Theme.accentSoft, in: RoundedRectangle(cornerRadius: 9,
-                                                                   style: .continuous))
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title).font(.body.weight(.medium))
-                Text(detail).font(.caption).foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 8)
-            Toggle("", isOn: isOn).labelsHidden().accentColor(Theme.accent)
-        }
-        .padding(16)
-        .huskCard()
-    }
-
-    /// What the JIT page says is already in place, if anything.
     private var jitState: String? {
         if JITBootstrap.ready { return "JIT is on." }
         if jit.method == .stikDebug { return "Husk will use StikDebug." }
