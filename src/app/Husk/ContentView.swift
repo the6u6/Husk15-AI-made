@@ -209,16 +209,13 @@ struct ContentView: View {
                 .huskDetent(.medium)
                 .huskDragIndicator()
         }
-        // APKs meant for Android wait until it can take them.
+        // An APK asked for while Android was off: open it now.
         .onChange(of: host.isReady) { ready in
-            incoming.installForAndroidIfReady()
-            // An app asked for while Android was off: open it now.
             if ready, let pkg = router.pendingAndroidLaunch {
                 router.pendingAndroidLaunch = nil
                 host.launch(pkg) { showGuestScreen = true }
             }
         }
-        .onChange(of: host.busy) { _ in incoming.installForAndroidIfReady() }
         .sheet(isPresented: $jit.showSetup) { JITSetupFlow() }
         // The built-in helper attaches while Husk stays in the foreground, so
         // there is no relaunch to trigger the region claim below; this is it.

@@ -6,16 +6,15 @@ import UniformTypeIdentifiers
 ///
 /// Each arrives as a URL that may only be readable for a moment (a security-scoped file in another app's container, or a copy
 /// in Documents/Inbox that iOS made), so it is copied straight away to a folder of Husk's own, and then the person is asked
-/// where it goes: the Translation Layer, which runs a game on the iPhone itself, or Android. Several shared at once -- a base
-/// APK and its splits -- arrive one URL at a time and are gathered into one question.
+/// to confirm before several gigabytes are moved. It goes to the Translation Layer, which runs the game on the iPhone itself.
+///
+/// Several shared at once -- a base APK and its splits -- arrive one URL at a time and are gathered into one question.
 @MainActor
 final class IncomingFiles: ObservableObject {
     static let shared = IncomingFiles()
 
     /// Files waiting for the person to say where they go.
     @Published var waiting: [URL] = []
-    /// Files meant for Android, held until Android is up to take them.
-    @Published private(set) var forAndroid: [URL] = []
 
     private var gathering: [URL] = []
     private var gatherTask: Task<Void, Never>?
@@ -96,20 +95,14 @@ final class IncomingFiles: ObservableObject {
         TranslationLayerStore.shared.add(urls, move: true)
     }
 
-    /// Installed into Android -- now if it is up, otherwise as soon as it is.
-    func sendToAndroid() {
+    /// The confirm sheet's action. Android used to be a second destination here,
+    /// held until the guest could take it; there is one destination now and no
+    /// readiness to wait for.
+    func sendToTranslationLayer() {
         let urls = waiting
         waiting = []
         guard !urls.isEmpty else { return }
-        forAndroid += urls
-        installForAndroidIfReady()
-    }
-
-    func installForAndroidIfReady() {
-        guard AndroidHost.shared.isReady, AndroidHost.shared.busy == nil, !forAndroid.isEmpty else { return }
-        let urls = forAndroid
-        forAndroid = []
-        AndroidHost.shared.install(urls)
+        TranslationLayerStore.shared.add(urls, move: true)
     }
 
     func discard() {
@@ -121,8 +114,6 @@ final class IncomingFiles: ObservableObject {
 /// Where a shared APK goes. Two choices, each saying what it means, and a way out.
 struct IncomingChooser: View {
     @ObservedObject private var incoming = IncomingFiles.shared
-    @ObservedObject private var host = AndroidHost.shared
-    @ObservedObject private var guest = GuestImage.shared
 
     private var title: String {
         guard let first = incoming.waiting.first else { return "" }
@@ -136,13 +127,9 @@ struct IncomingChooser: View {
                 Text(title).font(.subheadline).foregroundColor(.secondary).lineLimit(2)
             }
 
-            choice(icon: "bolt.fill", title: "Translation Layer",
-                   detail: "Runs the game directly on your iPhone, without starting Android. Best for games.") {
+            choice(icon: "bolt.fill", title: "Add to Husk",
+                   detail: "Runs the game directly on your iPhone.") {
                 incoming.sendToTranslationLayer()
-            }
-            choice(icon: "apps.iphone", title: "Android",
-                   detail: androidDetail) {
-                incoming.sendToAndroid()
             }
 
 Button("Cancel") { incoming.discard() }
@@ -150,12 +137,6 @@ Button("Cancel") { incoming.discard() }
                 .padding(.top, 2)
         }
         .padding(22)
-    }
-
-    private var androidDetail: String {
-        if host.isReady { return "Installs it into Android, where any app can run." }
-        if guest.state == .ready { return "Installs it into Android the next time Android starts." }
-        return "Installs it into Android once Android is downloaded and started."
     }
 
     private func choice(icon: String, title: String, detail: String, action: @escaping () -> Void) -> some View {

@@ -191,7 +191,12 @@ final class SourceManager: ObservableObject {
                 let dest = downloadDir.appendingPathComponent("\(app.bundleIdentifier)-\(app.version).apk")
                 try? FileManager.default.removeItem(at: dest)
                 if (try? FileManager.default.moveItem(at: localURL, to: dest)) != nil {
-                    AndroidHost.shared.install([dest])
+                    // The translation layer, not a guest: it is the only place an
+                    // APK can be run now, and going through it is what gets the app
+                    // scanned and described. Downloads.swift does the same for a
+                    // download Husk made itself. Moved, as that does, because
+                    // Documents/Downloaded_APKs is ours and keeps nothing.
+                    TranslationLayerStore.shared.add([dest], move: true)
                 }
             }
         }
