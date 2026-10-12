@@ -369,7 +369,7 @@ final class TLUnityUIView: UIView, UIKeyInput {
         done.titleLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
         done.frame = CGRect(x: 100, y: 0, width: 80, height: 44)
         done.autoresizingMask = [.flexibleLeftMargin]
-        done.addAction(UIAction { [weak self] _ in self?.finishTyping() }, for: .touchUpInside)
+        done.addTarget(self, action: #selector(doneTapped), for: .touchUpInside)
         bar.addSubview(done)
         return bar
     }()
@@ -411,6 +411,14 @@ final class TLUnityUIView: UIView, UIKeyInput {
         else { husk_cocos_insert_text("\n") }
         resignFirstResponder()
     }
+
+    /// The Done button's target/action pair.
+    ///
+    /// UIControl.addAction(_:for:) is iOS 14. Below it a control takes a target
+    /// and a selector, so the button carries one instead of a closure. The
+    /// selector is on the same object that owns the bar, which is why the bar is
+    /// that object's `lazy var` rather than a free-standing closure.
+    @objc fileprivate func doneTapped() { finishTyping() }
 
     /// A Flutter app's text fields ask for the keyboard (on its platform thread), and the app may close itself from its first screen.
     static func installFlutterHandlers() {

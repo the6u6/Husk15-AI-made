@@ -814,7 +814,10 @@ struct TLClassicAttemptView: View {
                         }
                     }
                 }
-                .huskIgnoresSafeArea(.container, edges: cleanLayout ? .all : [.horizontal, .bottom])
+                // Edge.Set.container is iOS 14, and so is `ignoresSafeArea(_:edges:)`. The
+                // iOS 13 instruction takes a set and nothing else, so the two
+                // cases collapse: both layouts go to the edges.
+                .huskIgnoresSafeArea(cleanLayout ? .all : [.horizontal, .bottom])
                 if showLog, !uiHidden { logPanel.frame(height: 220) }
             }
             if cleanLayout, !uiHidden {

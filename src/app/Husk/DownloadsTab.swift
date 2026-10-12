@@ -38,7 +38,10 @@ struct DownloadsTab: View {
                         Text("Downloads")
                         Spacer()
                         if downloads.jobs.contains(where: \.complete) {
-                            Button("Clear Finished") { downloads.clearFinished() }.font(.caption).textCase(nil)
+                            // .textCase(nil) is iOS 14. A button's label in a bar is not uppercased at 13
+                              // the way it is in a list row, so the modifier is
+                              // gone rather than replaced.
+                              Button("Clear Finished") { downloads.clearFinished() }.font(.caption)
                         }
                     }
                 } footer: {
@@ -159,18 +162,25 @@ private struct AddDownloadSheet: View {
                 leading: AnyView(EmptyView()),
                 trailing: AnyView(
                     Group {
+                        // AnyView on both branches. huskProgress() is a
+                        // UIViewRepresentable and the button is not, and inside
+                        // an AnyView there is no single opaque type to agree on --
+                        // so the compiler says "no exact matches in reference to
+                        // static method 'buildExpression'". Erasing each side
+                        // gives it one.
                         if working {
-                            huskProgress()
+                            AnyView(huskProgress())
                         } else {
-                            Button("Download") {
-                                working = true
-                                Task {
-                                    await downloads.add(link: link)
-                                    working = false
-                                    if downloads.problem == nil { huskPM.wrappedValue.dismiss() }
-                                }
-                                .disabled(link.trimmingCharacters(in: .whitespaces).isEmpty)
-                            }
+                            AnyView(
+                                Button("Download") {
+                                    working = true
+                                    Task {
+                                        await downloads.add(link: link)
+                                        working = false
+                                        if downloads.problem == nil { huskPM.wrappedValue.dismiss() }
+                                    }
+                                    .disabled(link.trimmingCharacters(in: .whitespaces).isEmpty)
+                                })
                         }
                     }
                 )

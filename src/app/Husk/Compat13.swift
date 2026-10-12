@@ -434,6 +434,63 @@ extension View {
     }
 }
 
+// MARK: - fullScreenCover (iOS 14.0)
+//
+// SwiftUI has no full-screen cover below 14 at all: `.sheet` is a sheet, and
+// there is nothing that is meant to be "full screen" the way this one is.
+//
+// So this is a sheet that fills the screen. The four call sites -- onboarding,
+// the what's-new sheet, an app running, a picture -- all want "the tab UI is
+// gone", and a sheet that ignores the safe area and fills the frame is the
+// nearest thing iOS 13 can present.
+//
+// The difference a user will see: the sheet's grabber is still there, and it
+// comes up from the bottom rather than fading in. Everything behind it is
+// covered either way.
+//
+// Named `fullScreenCover` rather than `huskFullScreenCover` because SwiftUI's is
+// version-gated out of scope at this floor, so these are the only ones in scope
+// and the call sites keep their spelling.
+extension View {
+    func fullScreenCover<C: View>(isPresented: Binding<Bool>,
+                                  @ViewBuilder content: @escaping () -> C) -> some View {
+        sheet(isPresented: isPresented) {
+            content()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .huskIgnoresSafeArea()
+        }
+    }
+
+    /// The three-argument form, with `onDismiss:`. One call site uses it.
+    ///
+    /// iOS 13's sheet has no onDismiss, so it is run by watching the binding: when
+    /// it goes false, the sheet is on its way out and that is the moment the
+    /// caller meant by "dismissed". Not identical -- SwiftUI calls it after the
+    /// animation rather than before it -- and the one caller uses it to ask a
+    /// question, where a moment earlier is better rather than worse.
+    func fullScreenCover<C: View>(isPresented: Binding<Bool>,
+                                  onDismiss: @escaping () -> Void,
+                                  @ViewBuilder content: @escaping () -> C) -> some View {
+        fullScreenCover(isPresented: Binding(
+            get: { isPresented.wrappedValue },
+            set: { new in
+                if isPresented.wrappedValue && !new { onDismiss() }
+                isPresented.wrappedValue = new
+            }),
+                      content: content)
+    }
+
+    func fullScreenCover<T, C: View>(item: Binding<T?>,
+                                    @ViewBuilder content: @escaping (T) -> C) -> some View
+        where T: Identifiable {
+        sheet(item: item) { value in
+            content(value)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .huskIgnoresSafeArea()
+        }
+    }
+}
+
 // MARK: - LazyVGrid / LazyHGrid (iOS 14.0)
 //
 // iOS 13 has no grid at all -- LazyVGrid, LazyHGrid, Grid and GridRow all arrive
