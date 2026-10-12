@@ -179,8 +179,14 @@ private struct AddDownloadSheet: View {
                                         working = false
                                         if downloads.problem == nil { huskPM.wrappedValue.dismiss() }
                                     }
-                                    .disabled(link.trimmingCharacters(in: .whitespaces).isEmpty)
-                                })
+                                }
+                                // On the Button, not on the Task inside its
+                                // action. A pass that re-indented this block
+                                // left the modifier inside the closure, where it
+                                // is applied to a Task -- not a View -- and the
+                                // compiler said "no exact matches in reference
+                                // to static method 'buildExpression'".
+                                .disabled(link.trimmingCharacters(in: .whitespaces).isEmpty))
                         }
                     }
                 )
