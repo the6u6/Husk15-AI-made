@@ -10,13 +10,11 @@ import SwiftUI
 /// needs Android started first.
 enum LibraryItem: Identifiable, Hashable {
     case game(TLApp)
-    case app(AndroidHost.Package)
     case android
 
     var id: String {
         switch self {
         case .game(let g): return "tl:" + g.id
-        case .app(let p): return "android:" + p.name
         case .android: return "android-system"
         }
     }
@@ -27,7 +25,6 @@ enum LibraryItem: Identifiable, Hashable {
     var title: String {
         switch self {
         case .game(let g): return g.label
-        case .app(let p): return p.label
         case .android: return "Android"
         }
     }
@@ -35,7 +32,6 @@ enum LibraryItem: Identifiable, Hashable {
     var iconPath: String? {
         switch self {
         case .game(let g): return g.iconPath
-        case .app(let p): return p.iconPath
         case .android: return nil
         }
     }
@@ -44,7 +40,6 @@ enum LibraryItem: Identifiable, Hashable {
     var isGame: Bool {
         switch self {
         case .game(let g): return (g.report?.nativeEngine != .flutter && g.report?.engine != "Flutter" && g.report?.webKind == nil) || g.isGameCategory
-        case .app(let p): return p.category == "Game"
         case .android: return false
         }
     }
@@ -52,7 +47,6 @@ enum LibraryItem: Identifiable, Hashable {
     var packageName: String? {
         switch self {
         case .game(let g): return g.packageName
-        case .app(let p): return p.name
         case .android: return nil
         }
     }
@@ -61,14 +55,12 @@ enum LibraryItem: Identifiable, Hashable {
     @MainActor var artworkPath: String? { ShowcaseStore.shared.pictures(for: packageName).first }
 
     var runsInAndroid: Bool {
-        if case .app = self { return true }
         return false
     }
 
     var lastUsed: Date? {
         switch self {
         case .game(let g): return g.lastPlayed
-        case .app(let p): return p.lastUsed
         case .android: return UserDefaults.standard.object(forKey: "husk.android.lastOpened") as? Date
         }
     }
@@ -76,7 +68,6 @@ enum LibraryItem: Identifiable, Hashable {
     var route: LibraryRoute {
         switch self {
         case .game(let g): return .game(g.id)
-        case .app(let p): return .android(p)
         case .android: return .androidSystem
         }
     }
@@ -107,8 +98,10 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
 /// Everything, from both stores, in one list.
 @MainActor
 enum Launcher {
-    static func items(store: TranslationLayerStore, host: AndroidHost) -> [LibraryItem] {
-        store.apps.map(LibraryItem.game) + host.packages.map(LibraryItem.app)
+    /// Every game Husk can run: the translation layer's apps. It was the union
+    /// of these and the guest's packages, and the guest is gone.
+    static func items(store: TranslationLayerStore) -> [LibraryItem] {
+        store.apps.map(LibraryItem.game)
     }
 
     /// Most recently used first; never-used ones after, by name.
@@ -128,18 +121,18 @@ enum Launcher {
 
 // MARK: - Home
 
-/// Home as tiles: what you used last, the two things a game needs (JIT and its files), Android, and the rest of the library.
+/// Home as tiles: what you used last, the two things a game needs (JIT and its
+/// files), and the rest of the library.
 struct HomeView: View {
     @ObservedObject private var router = Router.shared
     @ObservedObject private var store = TranslationLayerStore.shared
-    @ObservedObject private var host = AndroidHost.shared
     @ObservedObject private var jit = JITCoordinator.shared
     @ObservedObject private var incoming = IncomingFiles.shared
     @Environment(\.colorScheme) private var scheme
     @AppStorage(Holiday.key) private var holiday = true
 
     /// Everything, most recent first.
-    private var all: [LibraryItem] { Launcher.byRecent(Launcher.items(store: store, host: host)) }
+    private var all: [LibraryItem] { Launcher.byRecent(Launcher.items(store: store)) }
 
     var body: some View {
         // NavigationStack is iOS 16. Upstream inlines the Home screen inside one;
@@ -174,8 +167,7 @@ struct HomeView: View {
 
                 if let busy = incoming.preparing { BusyStrip(text: busy) }
                 if let busy = store.busy { BusyStrip(text: busy) }
-                if let busy = host.busy { BusyStrip(text: busy) }
-
+        
                 let items = all
                 let lead = items.first { $0.lastUsed != nil } ?? items.first
                 VStack(spacing: 12) {
@@ -342,7 +334,6 @@ private struct JITTile: View {
 private struct DownloadsTile: View {
     @ObservedObject private var downloads = Downloads.shared
     @ObservedObject private var updates = AppUpdates.shared
-    @ObservedObject private var guest = GuestImage.shared
     @ObservedObject private var router = Router.shared
 
     private var status: String {
@@ -355,7 +346,6 @@ private struct DownloadsTile: View {
         }
         if downloads.jobs.contains(where: \.failed) { return "Something failed" }
         if let release = updates.available { return "Husk \(release.version) is out" }
-        if guest.update.isSomething { return "Android update ready" }
         return "Up to date"
     }
 
@@ -396,17 +386,6 @@ private struct AndroidTile: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                Button {
-                    if router.androidStarted { router.openGuest() } else { router.startAndroid() }
-                } label: {
-                    Text(router.androidStarted ? "Open" : "Start")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundColor(.primary)
-                        .padding(.horizontal, 14)
-                        .frame(height: 34)
-                        .huskBackground(Color(.tertiarySystemFill), in: Capsule())
-                }
-                .buttonStyle(CardButtonStyle())
             }
         }
     }
@@ -566,8 +545,6 @@ struct AndroidBadge: View {
 struct LibraryScreen: View {
     @ObservedObject private var router = Router.shared
     @ObservedObject private var store = TranslationLayerStore.shared
-    @ObservedObject private var host = AndroidHost.shared
-    @ObservedObject private var guest = GuestImage.shared
     @State private var query = ""
 
     var body: some View {
@@ -596,8 +573,7 @@ struct LibraryScreen: View {
                 }
                 .pickerStyle(.segmented)
                 if let busy = store.busy { BusyStrip(text: busy) }
-                if let busy = host.busy { BusyStrip(text: busy) }
-
+        
                 let items = Launcher.items(store: store, host: host)
                     .filter { matches(query, $0.title) }
                     .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
@@ -654,9 +630,6 @@ struct LibraryScreen: View {
         case .game(let g):
             if g.packageName == GeodeSupport.launcherPackage { return "Geode" }
             return g.report?.canRun == true ? nil : "May not run"
-        case .android:
-            if AndroidHost.shared.isReady { return "Running" }
-            return guest.state == .ready ? nil : "Not installed"
         case .app: return nil
         }
     }
@@ -816,10 +789,6 @@ private struct LibraryRouteView: View {
             if let app = store.apps.first(where: { $0.id == id }) { TLAppSettingsView(app: app) } else { GoneView() }
         case .gameReport(let id):
             if let app = store.apps.first(where: { $0.id == id }) { TLTechnicalView(app: app) } else { GoneView() }
-        case .android(let pkg):
-            AndroidAppPage(app: pkg)
-        case .androidSystem:
-            AndroidSystemPage()
         }
     }
 }
