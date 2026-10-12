@@ -142,9 +142,6 @@ struct TLAppSettingsView: View {
     @State private var name: String
     @State private var dataSize: String = "…"
     @State private var confirmReset = false
-    // @FocusState carried a default; @State does not, and the init below
-    // was written against that default. Named here so the init is complete.
-    @State private var nameFocused: Bool = false
 
     init(app: TLApp) {
         self.app = app
@@ -171,17 +168,25 @@ struct TLAppSettingsView: View {
                 HStack(spacing: 14) {
                     AppIcon(path: app.iconPath, size: 52)
                     TextField("Name", text: $name)
-                        .onAppear { nameFocused = true }
                         .font(.system(size: 18, weight: .semibold))
-                    // .onSubmit is iOS 15, so the keyboard's return key no
-                    // longer commits. This is the explicit way in.
-                    if nameFocused {
-                        Button { nameFocused = false; rename() } label: {
+                    // .onSubmit is iOS 15, so the keyboard's return key no longer
+                    // commits, and this is the explicit way in.
+                    //
+                    // Shown when the name differs rather than while the field is
+                    // focused: @FocusState is iOS 15, and the flag that stood in
+                    // for it was set on .onAppear -- so the checkmark was on
+                    // screen the moment the page opened, and committing on focus
+                    // loss would have saved the name whenever the user tapped
+                    // away. rename() no-ops when nothing changed, so this cannot
+                    // be out of step with the field.
+                    if nameCommitted != app.label {
+                        Button { rename() } label: {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 15, weight: .bold))
                         }
                         .buttonStyle(.plain)
                         .foregroundColor(Theme.accent)
+                        .accessibilityLabel("Save Name")
                     }
                 }
                 .padding(.vertical, 2)
@@ -290,7 +295,7 @@ Button(action: { confirmReset = true }) {
         .onChange(of: settings.geode) { on in
             if on { Task { await geode.prepare(app) } } else { geode.remove(app) }
         }
-        .onChange(of: nameFocused) { focused in if !focused { rename() } }
+        // Leaving the page commits, same as pressing the checkmark.
         .onDisappear { rename() }
         // .task is iOS 15.
         .onAppear { Task { dataSize = await Self.measure(dataDirs) } }
@@ -322,9 +327,16 @@ Button(action: { confirmReset = true }) {
         }
     }
 
-    private func rename() {
+    /// What the field would commit: trimmed, and blank treated as "unchanged"
+    /// so the checkmark does not appear for a field the user has cleared.
+    private var nameCommitted: String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, trimmed != app.label else { return }
+        return trimmed.isEmpty ? app.label : trimmed
+    }
+
+    private func rename() {
+        let trimmed = nameCommitted
+        guard trimmed != app.label else { return }
         store.rename(app, to: trimmed)
     }
 
