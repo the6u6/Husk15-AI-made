@@ -37,8 +37,8 @@ struct DiscoverView: View {
         .background(Theme.backdrop)
         .navigationTitle("Discover")
         .navigationBarTitleDisplayMode(.large)
-        .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
+        .navigationBarItems(
+            trailing: AnyView(
                 Button { Task { await manager.fetchSources() } } label: {
                     huskLabel("Refresh", systemImage: "arrow.clockwise")
                 }
@@ -50,8 +50,8 @@ struct DiscoverView: View {
                         huskLabel("Manage Repositories", systemImage: "list.bullet")
                     }
                 } label: { huskLabel("Repositories", systemImage: "ellipsis.circle") }
-            }
-        }
+            )
+        )
         .sheet(isPresented: $showingSources) { sourcesSheet }
         .sheet(isPresented: $showingAddSource) { addSourceSheet }
         .onAppear {
@@ -218,11 +218,11 @@ struct DiscoverView: View {
             }
             .navigationTitle("Add Source")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+            .navigationBarItems(
+                leading: AnyView(
                     Button("Cancel") { newSourceURL = ""; showingAddSource = false }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
+                ,
+                trailing: AnyView(
                     Button("Add") {
                         let url = newSourceURL
                         newSourceURL = ""
@@ -236,8 +236,8 @@ struct DiscoverView: View {
                     // bold is a font with a bold weight; 17pt is what a toolbar
                     // button uses by default, so only the weight changes.
                     .font(.system(size: 17, weight: .semibold))
-                }
-            }
+                )
+            )
         }
     }
 
@@ -280,16 +280,16 @@ struct DiscoverView: View {
             }
             .navigationTitle("Repositories")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+            .navigationBarItems(
+                leading: AnyView(
                     Button("Done") { showingSources = false }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
+                ,
+                trailing: AnyView(
                     Button { showingSources = false; showingAddSource = true } label: {
                         Image(systemName: "plus")
                     }
-                }
-            }
+                )
+            )
         }
     }
 }

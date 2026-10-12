@@ -582,7 +582,7 @@ private final class SchemeHandler: NSObject, WKURLSchemeHandler {
             return
         }
         let mime = Self.mimeTypes[file.pathExtension.lowercased()]
-            ?? UTType(filenameExtension: file.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
+            ?? huskMIMEType(forExtension: file.pathExtension) ?? "application/octet-stream"
         let headers = ["Content-Type": mime, "Content-Length": "\(data.count)", "Cache-Control": "no-cache",
                        "Access-Control-Allow-Origin": "*"]
         task.didReceive(HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: headers)!)

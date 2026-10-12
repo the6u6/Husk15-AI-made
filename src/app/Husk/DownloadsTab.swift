@@ -52,12 +52,13 @@ struct DownloadsTab: View {
                 }
             }
             .navigationTitle("Downloads")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Done") { huskPM.wrappedValue.dismiss() } }
-                ToolbarItem(placement: .primaryAction) {
+            .navigationBarItems(
+                leading: AnyView(
+                ,
+                trailing: AnyView(
                     Button { adding = true } label: { huskLabel("Add", systemImage: "plus") }
-                }
-            }
+                )
+            )
             .sheet(isPresented: $adding) { AddDownloadSheet() }
         }
     }
@@ -155,9 +156,10 @@ private struct AddDownloadSheet: View {
             }
             .navigationTitle("Add Download")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { huskPM.wrappedValue.dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
+            .navigationBarItems(
+                leading: AnyView(
+                ,
+                trailing: AnyView(
                     if working { huskProgress() } else {
                         Button("Download") {
                             working = true
@@ -169,8 +171,8 @@ private struct AddDownloadSheet: View {
                         }
                         .disabled(link.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
-                }
-            }
+                )
+            )
             .onAppear { downloads.problem = nil }
         }
     }

@@ -274,6 +274,96 @@ extension View {
     }
 }
 
+// MARK: - Navigation bar chrome (iOS 14.0)
+//
+// `.navigationTitle`, `.navigationBarTitleDisplayMode` and `View.toolbar` with
+// `ToolbarItem` are all iOS 14 in their SwiftUI form. Their iOS 13 equivalents
+// have different names, and there are 38 call sites for the first two across 15
+// files.
+//
+// So these are extensions under the iOS 14 names rather than renames at the call
+// sites. At a 13 floor SwiftUI's own declarations are version-gated out of
+// existence, so the module's `navigationTitle` is the only one in scope and the
+// call sites keep their exact spelling. Renaming 38 sites would have been 38
+// chances to mistype one; this is zero.
+//
+// The display mode is a no-op, and that is a real loss: iOS 13 has
+// navigationBarTitleTextFormatMode, and SwiftUI's own navigation title never
+// took one. The 17 sites asking for .inline will get iOS 13's default sizing,
+// which is the same trade every SwiftUI app made before 14.
+extension View {
+    func navigationTitle(_ title: Text) -> some View { navigationBarTitle(title) }
+
+    func navigationTitle(_ title: LocalizedStringKey) -> some View {
+        navigationBarTitle(Text(title))
+    }
+
+    func navigationTitle(_ title: String) -> some View {
+        navigationBarTitle(Text(title))
+    }
+
+    func navigationTitle<S: StringProtocol>(_ title: S) -> some View {
+        navigationBarTitle(Text(title))
+    }
+
+    /// Accepted and ignored -- see above.
+    func navigationBarTitleDisplayMode(_ mode: HuskTitleDisplayMode) -> some View {
+        self
+    }
+}
+
+/// Stand-in for NavigationBarItem.TitleDisplayMode, iOS 13. Named apart from
+/// SwiftUI's because that one is version-gated at 14 and the call sites pass
+/// `.inline` unqualified, which resolves against whichever enum the parameter
+/// asks for.
+enum HuskTitleDisplayMode {
+    case automatic, inline, large
+}
+
+// MARK: - Menu (iOS 14.0)
+//
+// SwiftUI's Menu is version-gated, so at a 13 floor this module's own type is
+// what the name resolves to and the three call sites keep their spelling.
+//
+// iOS 13 has no menu and nothing to wrap: no SwiftUI actionSheet (that is 15),
+// no Menu. The buttons inside are ordinary Buttons and they still work, so this
+// presents the content in a sheet instead of a popup. That is a real
+// behavioural difference -- one more tap, and the menu is modal rather than
+// anchored -- and it is the honest ceiling: a control that behaves like Menu on
+// 13 would mean building the popover presentation by hand for three call sites.
+struct Menu<Label: View, Content: View>: View {
+    @ViewBuilder let content: () -> Content
+    @ViewBuilder let label: () -> Label
+    @State private var showing = false
+
+    var body: some View {
+        Button { showing = true } label: { label() }
+            .sheet(isPresented: $showing) {
+                NavigationView {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 8) { content() }
+                            .padding()
+                    }
+                    .navigationTitle("Menu")
+                }
+            }
+    }
+}
+
+/// `Link` is iOS 14. The older spelling is a Button that opens the URL, which is
+/// what Link does anyway -- it exists so a link looks like a link, not to change
+/// what happens on tap.
+extension View {
+    func Link<D: View>(destination: URL, @ViewBuilder label: () -> D) -> some View {
+        Button {
+            guard UIApplication.shared.canOpenURL(destination) else { return }
+            UIApplication.shared.open(destination)
+        } label: {
+            label()
+        }
+    }
+}
+
 // MARK: - LazyVGrid / LazyHGrid (iOS 14.0)
 //
 // iOS 13 has no grid at all -- LazyVGrid, LazyHGrid, Grid and GridRow all arrive

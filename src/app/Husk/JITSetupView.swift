@@ -32,12 +32,12 @@ struct JITSetupFlow: View {
             }
         }
         .accentColor(Theme.accent)
-        .fileImporter(isPresented: $importing, allowedContentTypes: [.propertyList, .data]) { result in
-            switch result {
-            case .success(let url): jit.importPairingFile(url)
-            case .failure(let failure):
-                HuskLog.log("jit", "pairing import failed: \(failure.localizedDescription)")
-            }
+        // .fileImporter is iOS 14. HuskFilePicker presents the same picker from
+        // the topmost view controller instead -- see HuskFilePicker.swift for why
+        // that is the more reliable route -- so this is huskFilePicker with the
+        // two content types as UTI strings: `.propertyList` and `.data`.
+        .huskFilePicker(isPresented: $importing, types: ["com.apple.property-list", "public.data"]) { urls in
+            if let url = urls.first { jit.importPairingFile(url) }
         }
         .onAppear {
             jit.refreshPairingStatus()
@@ -462,18 +462,16 @@ Button("Reset Developer Disk Image") { jit.resetDDI() }
                 .background(Theme.backdrop)
         }
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            // `choose` is the root of the stack and has nothing to go back to;
-            // `step != nil` is exactly the case that used to be a push.
-            ToolbarItem(placement: .cancellationAction) {
+        .navigationBarItems(
+            leading: AnyView(
                 if step != nil {
                     Button("Back") { step = nil }
                 }
-            }
-            ToolbarItem(placement: .confirmationAction) {
+            ,
+            trailing: AnyView(
                 Button("Close") { close() }
-            }
-        }
+            )
+        )
     }
 
     private func point(_ number: Int, _ text: String, done: Bool = false) -> some View {

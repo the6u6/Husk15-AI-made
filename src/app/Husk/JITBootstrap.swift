@@ -20,7 +20,10 @@ private let CS_DEBUGGED = UInt32(0x10000000)
 /// Husk's own built-in StikJIT helper (JITSetup.swift), which runs the same
 /// script from an app extension.
 enum JITBootstrap {
-    private static let log = Logger(subsystem: "com.husk.app", category: "jit")
+    // Was `Logger(subsystem:category:)`, iOS 14, and never called: every
+    // "log." in this file was the word inside a comment or an identifier.
+    // Deleted rather than ported to os_log(3), because there was nothing to
+    // port -- it would have been a mirror of nothing.
 
     enum State: Equatable {
         case unknown

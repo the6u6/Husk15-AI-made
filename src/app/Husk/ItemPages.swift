@@ -354,7 +354,7 @@ Button(action: { dialog = .remove }) {
     }
 
     private func pickRestore() {
-        HuskFilePicker.present(types: [.zip], multiple: false) { urls in
+        HuskFilePicker.present(types: ["public.zip-archive"], multiple: false) { urls in
             if let url = urls.first { dialog = .restore(url) }
         } onFail: { savesMessage = $0 }
     }

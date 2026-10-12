@@ -30,47 +30,47 @@ struct StoreView: View {
             .background(Theme.backdrop)
             .navigationTitle("Store")
             .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    if manager.isSignedIn {
-                        Menu {
-                            if let s = manager.session {
-                                Text(s.isAnonymous ? "Guest Account (Aurora)" : s.email)
-                                    .font(.caption)
-                                if s.isAnonymous {
-                                    Text(s.email).font(.caption).foregroundColor(.secondary)
-                                }
-                                Divider()
-                            }
-Button(action: {
-                                manager.signOut()
-                            }) {
-                                huskLabel("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
-                            }
-                                .foregroundColor(Color.red)
-                        } label: {
-                            Image(systemName: manager.session?.isAnonymous == true ? "person.badge.shield.checkmark" : "person.crop.circle")
-                                .font(.system(size: 18))
-                        }
-                    } else {
-                        Menu {
-                            Button {
-                                Task { await manager.signInAsGuest() }
-                            } label: {
-                                huskLabel("Use Guest Account (Aurora)", systemImage: "person.crop.circle.badge.checkmark")
-                            }
-                            Button {
-                                showSignIn = true
-                            } label: {
-                                huskLabel("Sign In with Google", systemImage: "person.badge.key")
-                            }
-                        } label: {
-                            Text("Sign In")
-                                .font(.subheadline.weight(.semibold))
-                        }
-                    }
-                }
-            }
+            .navigationBarItems(
+                trailing: AnyView(
+                                        if manager.isSignedIn {
+                                            Menu {
+                                                if let s = manager.session {
+                                                    Text(s.isAnonymous ? "Guest Account (Aurora)" : s.email)
+                                                        .font(.caption)
+                                                    if s.isAnonymous {
+                                                        Text(s.email).font(.caption).foregroundColor(.secondary)
+                                                    }
+                                                    Divider()
+                                                }
+                    Button(action: {
+                                                    manager.signOut()
+                                                }) {
+                                                    huskLabel("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                                                }
+                                                    .foregroundColor(Color.red)
+                                            } label: {
+                                                Image(systemName: manager.session?.isAnonymous == true ? "person.badge.shield.checkmark" : "person.crop.circle")
+                                                    .font(.system(size: 18))
+                                            }
+                                        } else {
+                                            Menu {
+                                                Button {
+                                                    Task { await manager.signInAsGuest() }
+                                                } label: {
+                                                    huskLabel("Use Guest Account (Aurora)", systemImage: "person.crop.circle.badge.checkmark")
+                                                }
+                                                Button {
+                                                    showSignIn = true
+                                                } label: {
+                                                    huskLabel("Sign In with Google", systemImage: "person.badge.key")
+                                                }
+                                            } label: {
+                                                Text("Sign In")
+                                                    .font(.subheadline.weight(.semibold))
+                                            }
+                                        }
+                )
+            )
             .sheet(isPresented: $showSignIn) {
                 GoogleSignInSheet()
             }
@@ -421,11 +421,11 @@ struct PlayAppDetailSheet: View {
             .background(Theme.backdrop)
             .navigationTitle(app.title)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+            .navigationBarItems(
+                leading: AnyView(
                     Button("Done") { huskPM.wrappedValue.dismiss() }
-                }
-            }
+                )
+            )
         }
     }
 

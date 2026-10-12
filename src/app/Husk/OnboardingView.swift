@@ -44,7 +44,10 @@ struct OnboardingView: View {
                     jitPage.tag(1)
                     ready.tag(2)
                 }
-                .tabViewStyle(.page(indexDisplayMode: .never))
+                // .tabViewStyle(.page(indexDisplayMode:)) is iOS 14. The
+                // TabView still selects by tag, so the dots and the Continue
+                // button drive it; what is lost is the swipe gesture, which on
+                // 13 would have needed a UIPageViewController underneath.
                 .sheet(isPresented: $settingUpJIT) { JITSetupFlow() }
 
                 // One control, always in the same place. A flow that moves its

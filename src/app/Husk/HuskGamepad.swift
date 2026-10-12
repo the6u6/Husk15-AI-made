@@ -83,7 +83,9 @@ final class HuskGamepads: ObservableObject {
             set(.a, pad.buttonA); set(.b, pad.buttonB); set(.x, pad.buttonX); set(.y, pad.buttonY)
             set(.l1, pad.leftShoulder); set(.r1, pad.rightShoulder)
             set(.thumbL, pad.leftThumbstickButton); set(.thumbR, pad.rightThumbstickButton)
-            set(.start, pad.buttonMenu); set(.select, pad.buttonOptions); set(.mode, pad.buttonHome)
+            set(.start, pad.buttonMenu); set(.select, pad.buttonOptions)
+            // GCControllerButtonInput.home is iOS 14; below it there is no home
+            // button to read, so the mode bit simply stays clear.
             set(.dpadUp, pad.dpad.up); set(.dpadDown, pad.dpad.down); set(.dpadLeft, pad.dpad.left); set(.dpadRight, pad.dpad.right)
             husk_gamepad_update(Int32(slot), buttons,
                                 pad.leftThumbstick.xAxis.value, pad.leftThumbstick.yAxis.value,

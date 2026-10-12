@@ -267,16 +267,16 @@ struct LogView: View {
             }
             .navigationTitle("Logs")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+            .navigationBarItems(
+                leading: AnyView(
                     if isSheet {
                         Button("Done") { huskPM.wrappedValue.dismiss() }
                     }
-                }
-                ToolbarItem(placement: .primaryAction) {
+                ,
+                trailing: AnyView(
                     Button { showShare = true } label: { Image(systemName: "square.and.arrow.up") }
-                }
-            }
+                )
+            )
             .sheet(isPresented: $showShare) {
                 // The guest's serial console used to be here too. It is the
                 // native log below that matters now, and that is what made this

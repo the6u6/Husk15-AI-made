@@ -62,7 +62,7 @@ final class HuskAppDelegate: NSObject, UIApplicationDelegate {
         HuskOrientation.mask
     }
 
-    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplicationLaunchOptionsKey: Any]? = nil) -> Bool {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         // The download session reconnects to whatever was running before Husk was closed or relaunched in the background.
         _ = Downloads.shared
 
@@ -103,7 +103,7 @@ final class HuskAppDelegate: NSObject, UIApplicationDelegate {
     /// `.onOpenURL` on a Scene is iOS 14; this is the delegate method it calls,
     /// and it has existed at every version.
     func application(_ app: UIApplication, open url: URL,
-                     options: [UIApplicationOpenURLOptionsKey: Any] = [:]) -> Bool {
+                     options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
         // husk://open_app?unique_identifier=… from a Home Screen clip; anything
         // else may be a shared APK
         if !AppClip.handle(url) { IncomingFiles.shared.receive(url) }

@@ -49,14 +49,14 @@ struct GoogleSignInSheet: View {
             }
             .navigationTitle("Sign in with Google")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+            .navigationBarItems(
+                leading: AnyView(
                     Button("Cancel") {
                         huskPM.wrappedValue.dismiss()
                     }
                     .disabled(manager.isLoading)
-                }
-            }
+                )
+            )
         }
     }
 }

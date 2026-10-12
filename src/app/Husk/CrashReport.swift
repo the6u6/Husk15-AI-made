@@ -224,7 +224,9 @@ struct CrashReportSheet: View {
             }
             .navigationTitle("Crash Report")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { huskPM.wrappedValue.dismiss() } } }
+            .navigationBarItems(
+                trailing: AnyView(Button("Done") { huskPM.wrappedValue.dismiss() })
+            )
         }
         // .task is iOS 15; nothing here is asynchronous.
         .onAppear { file = CrashReport.writeReport(report) }

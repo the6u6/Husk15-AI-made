@@ -598,14 +598,14 @@ final class DirectDownloadDelegate: NSObject, URLSessionDataDelegate {
             completionHandler(.cancel)
             return
         }
-        try? h.seekToEnd()
+        try? h.seekToEndOfFile()
         t.handle = h
         completionHandler(.allow)
     }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
         guard let t = transfer(dataTask), let h = t.handle else { return }
-        do { try h.write(contentsOf: data) } catch { t.error = "cannot write: \(error.localizedDescription)"; dataTask.cancel(); return }
+        do { try h.write(data) } catch { t.error = "cannot write: \(error.localizedDescription)"; dataTask.cancel(); return }
         t.written += Int64(data.count)
         let now = Date()
         if now.timeIntervalSince(t.lastReport) > 0.5 {
@@ -652,8 +652,8 @@ final class BackgroundDownloadDelegate: NSObject, URLSessionDownloadDelegate {
                 // transfer was still writing as it was stopped); the response is exactly the bytes from the offset, so cut it back first.
                 guard let out = try? FileHandle(forWritingTo: part), let inp = try? FileHandle(forReadingFrom: location) else { throw CocoaError(.fileWriteUnknown) }
                 try out.truncate(atOffset: UInt64(tag.offset))
-                try out.seekToEnd()
-                while let chunk = try inp.read(upToCount: 8 << 20), !chunk.isEmpty { try out.write(contentsOf: chunk) }
+                try out.seekToEndOfFile()
+                while let chunk = try inp.readData(ofLength: 8 << 20), !chunk.isEmpty { try out.write(chunk) }
                 try out.close(); try inp.close()
             } else if status == 200 || (status == 206 && tag.offset == 0) {
                 try? fm.removeItem(at: part)

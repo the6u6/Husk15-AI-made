@@ -299,19 +299,19 @@ struct CompatReportSheet: View {
             }
             .navigationTitle(sent ? "Thanks!" : "Report")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+            .navigationBarItems(
+                leading: AnyView(
                     Button(subject.afterPlaying ? "Not Now" : "Cancel") {
                         if subject.afterPlaying { CompatibilityStore.shared.markAsked(subject.package) }
                         huskPM.wrappedValue.dismiss()
                     }
-                }
-                ToolbarItem(placement: .confirmationAction) {
+                ,
+                trailing: AnyView(
                     if sending { huskProgress() } else {
                         Button("Send") { send() }.disabled(status == nil)
                     }
-                }
-            }
+                )
+            )
         }
         .onAppear {
             if let crash = subject.crash {
