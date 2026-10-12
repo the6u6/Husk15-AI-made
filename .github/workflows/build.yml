@@ -171,8 +171,9 @@ jobs:
           fi
           case "$app" in
             15.0) ;;
+            13.0) echo "::warning::building the experimental iOS 13 configuration; see IOS14-EXPERIMENT.md" ;;
             14.0) echo "::warning::building the experimental iOS 14 configuration; see IOS14-EXPERIMENT.md" ;;
-            *) echo "::error::project.yml floor is '$app'; expected 15.0, or 14.0 for the iOS 14 experiment"; exit 1 ;;
+            *) echo "::error::project.yml floor is '$app'; expected 15.0, or 13.0/14.0 for the iOS 13 and iOS 14 experiments"; exit 1 ;;
           esac
 
           # HuskJITHelper's 26.0 floor is only meaningful when the target exists.

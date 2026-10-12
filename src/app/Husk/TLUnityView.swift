@@ -924,17 +924,17 @@ Button("Reset All") { padLayout = PadLayout(); padSelected = nil; padLayout.save
                 }
             }
             .padding(.horizontal, 10).padding(.vertical, 6)
-            ScrollViewReader { proxy in
-                ScrollView {
-                    Text(model.logText.isEmpty ? "Starting…" : model.logText)
-                        .font(.technical(10))
-                        .foregroundColor(Theme.text)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(8)
-                        .id("bottom")
-                }
-                .huskOnChange(of: model.logText) { _ in proxy.scrollTo("bottom") }
+            ScrollView {
+                Text(model.logText.isEmpty ? "Starting…" : model.logText)
+                    .font(.technical(10))
+                    .foregroundColor(Theme.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
             }
+            // ScrollViewReader is iOS 14; this keeps the log at its last line by
+            // moving the enclosing scroll view's offset. The token is the log
+            // itself, so it re-fires whenever the log grows.
+            .huskScrollToBottom(model.logText)
         }
         .background(Theme.bg.opacity(0.85))
     }

@@ -17,9 +17,9 @@ struct FAQTab: View {
 
     var body: some View {
         NavigationView {
-            List {
+            huskList {
                 ForEach(sections) { s in
-                    Section {
+                    huskSection {
                         ForEach(s.items) { item in FAQRow(item: item, expanded: !query.isEmpty) }
                     } header: {
                         huskLabel(s.title, systemImage: s.symbol)
@@ -45,14 +45,40 @@ private struct FAQRow: View {
     @State private var open = false
 
     var body: some View {
-        DisclosureGroup(isExpanded: Binding(get: { open || expanded }, set: { open = $0 })) {
-            Text(.init(item.answer))
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.vertical, 4)
-        } label: {
-            Text(item.question).font(.body.weight(.medium))
+        // DisclosureGroup is iOS 16. This was the one unguarded use of it in the
+        // app, with no shim and, until this commit, no rule in the sweep either --
+        // so nothing had ever complained about it. It was always a button that
+        // reveals the answer, and this is that.
+        //
+        // The reveal stays forced while a search has expanded it: `expanded` is
+        // in the condition, so tapping during a search cannot collapse what the
+        // search is relying on being visible. That is the same thing the old
+        // binding did -- its getter was `open || expanded`, so a tap that set
+        // open to false still read back as open.
+        VStack(alignment: .leading, spacing: 0) {
+            Button { open.toggle() } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: (open || expanded) ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.secondary)
+                    Text(item.question).font(.body.weight(.medium))
+                    Spacer()
+                }
+                .padding(.vertical, 2)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text(item.question))
+            .accessibilityValue(Text((open || expanded) ? "Expanded" : "Collapsed"))
+
+            if open || expanded {
+                Text(.init(item.answer))
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 2)
+                    .padding(.bottom, 4)
+            }
         }
     }
 }

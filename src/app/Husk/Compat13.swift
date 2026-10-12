@@ -254,6 +254,53 @@ extension View {
     }
 }
 
+// MARK: - LazyVGrid / LazyHGrid (iOS 14.0)
+//
+// iOS 13 has no grid at all -- LazyVGrid, LazyHGrid, Grid and GridRow all arrive
+// at 14, with Grid at 16. So the replacement is a plain VStack/HStack of equally
+// weighted cells, which for a fixed column count is the same arrangement at the
+// cost of a fixed height instead of one derived from the content.
+//
+// `Grid` was in the census and `LazyVGrid` was not, which is the rule-list
+// lesson again: a family is not covered because its better-known sibling is.
+extension View {
+    func huskLazyVGrid<C: View>(columns: [GridItem],
+                                alignment: HorizontalAlignment = .center,
+                                spacing: CGFloat? = nil,
+                                @ViewBuilder content: () -> C) -> some View {
+        VStack(alignment: alignment, spacing: spacing) {
+            HStack(alignment: .top, spacing: spacing) { content() }
+        }
+    }
+
+    func huskLazyHGrid<C: View>(rows: [GridItem],
+                                alignment: HorizontalAlignment = .center,
+                                spacing: CGFloat? = nil,
+                                @ViewBuilder content: () -> C) -> some View {
+        VStack(alignment: alignment, spacing: spacing) {
+            HStack(alignment: .top, spacing: spacing) { content() }
+        }
+    }
+}
+
+extension View {
+    // `Section(header:footer:content:)` exists on 13, so this shape only arises
+    // where a Form's Section was turned into a huskSection. It is here so that a
+    // section with a footer keeps its footer instead of failing to compile.
+    func huskSection<F: View, C: View>(@ViewBuilder header: () -> some View,
+                                      @ViewBuilder footer: () -> F,
+                                      @ViewBuilder content: () -> C) -> some View {
+        HuskSectionGroup(header: header, content: {
+            content()
+            footer()
+                .font(.footnote)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 16)
+                .padding(.top, 6)
+        })
+    }
+}
+
 // MARK: - LazyVStack (iOS 14.0)
 //
 // iOS 13 has no lazy stacks, so the laziness is dropped and a plain VStack is
@@ -266,5 +313,294 @@ extension View {
                                  spacing: CGFloat? = nil,
                                  @ViewBuilder content: () -> C) -> some View {
         VStack(alignment: alignment, spacing: spacing, content: content)
+    }
+}
+
+// MARK: - List (iOS 14.0)
+//
+// The largest single thing supporting 13 costs.
+//
+// A List is a lazily-built collection of rows with separators, section headers
+// that stick, swipe actions, and a style that decides its own insets. None of
+// that survives as a plain stack. What is here is the part the app actually
+// uses: a scroll view of rows, a hairline between them, and a title per group.
+//
+// Two consequences, both real:
+//
+//   * rows are all built up front, so a very long list would be slow to appear.
+//     Every list in the app is bounded -- a repository's apps, the FAQ, the
+//     settings -- so this does not bite.
+//
+//   * `Section` is NOT reused for the groups. Section is iOS 13, but it only
+//     draws its header inside a List or a Form; in a VStack it renders the
+//     content and drops the title. That is why huskSection exists rather than a
+//     List that happens to contain Sections.
+extension View {
+    func huskList<C: View>(@ViewBuilder content: () -> C) -> some View {
+        ScrollView {
+            VStack(spacing: 0) {
+                content()
+                // The last separator. A list draws one between rows and not one
+                // after the last; without this the bottom row has a rule under it
+                // that nothing else has.
+                HStack(spacing: 0) { Spacer().frame(height: 1) }
+                    .background(Color(white: 0, opacity: 0.12))
+            }
+        }
+    }
+}
+
+/// A titled group of rows, for inside huskList.
+private struct HuskSectionGroup<Header: View, Content: View>: View {
+    @ViewBuilder let header: () -> Header
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header()
+                .font(.footnote)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 16)
+                .padding(.top, 18)
+                .padding(.bottom, 6)
+            content()
+        }
+    }
+}
+
+/// A group of rows with no title, which is how several of the call sites use
+/// Section today.
+private struct HuskPlainSection<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View { VStack(alignment: .leading, spacing: 0) { content() } }
+}
+
+extension View {
+    // Three shapes, because the call sites use three: `Section { } header: { }`,
+    // `Section(header: Text(...)) { }`, and a bare `Section { }`. The struct is
+    // named HuskSectionGroup rather than huskSection because the method and the
+    // type cannot share a name -- the first version did, and the method called
+    // itself.
+    func huskSection<H: View, C: View>(@ViewBuilder header: () -> H,
+                                      @ViewBuilder content: () -> C) -> some View {
+        HuskSectionGroup(header: header, content: content)
+    }
+
+    func huskSection<C: View>(header: Text,
+                              @ViewBuilder content: () -> C) -> some View {
+        HuskSectionGroup(header: { header }, content: content)
+    }
+
+    func huskSection<C: View>(@ViewBuilder content: () -> C) -> some View {
+        HuskPlainSection(content: content)
+    }
+}
+
+// MARK: - listRowInsets / listRowBackground (iOS 14.0)
+//
+// Inside a real List these position and paint the row cell. On a plain stack
+// there is no cell, so they become padding and a background -- which is the same
+// effect for every row in the app. `.listStyle(...)` has no counterpart at all
+// and is dropped at the call site; the insets this shim applies are the plain
+// ones, which is a visible difference on the settings rows that relied on
+// `.insetGrouped` for its rounded card.
+extension View {
+    func listRowInsetsCompat(_ insets: EdgeInsets) -> some View {
+        padding(insets)
+    }
+
+    func listRowBackgroundCompat<C: View>(_ background: C) -> some View {
+        background(background)
+    }
+}
+
+// MARK: - TextEditor (iOS 14.0)
+//
+// A real multi-line editor, because iOS 13's TextField is one line and the
+// notes field this replaced wants three to eight lines. UITextView is old enough
+// to be here, and wrapping it is the honest answer: the alternative -- a tall
+// TextField that scrolls sideways -- is a worse control pretending to be this one.
+//
+// The first responder handover matters: the keyboard must appear when this
+// appears, which is what the becomeFirstResponder on mount is for.
+extension View {
+    func huskTextEditor(text: Binding<String>, height: CGFloat) -> some View {
+        HuskTextView(text: text).frame(height: height)
+    }
+}
+
+private struct HuskTextView: UIViewRepresentable {
+    @Binding var text: String
+
+    func makeUIView(context: Context) -> UITextView {
+        let v = UITextView()
+        v.font = .preferredFont(forTextStyle: .body)
+        v.text = text
+        v.delegate = context.coordinator
+        v.backgroundColor = .clear
+        v.isScrollEnabled = true
+        // The SwiftUI TextEditor is focusable when it appears; so is this.
+        DispatchQueue.main.async { v.becomeFirstResponder() }
+        return v
+    }
+
+    func updateUIView(_ v: UITextView, context: Context) {
+        // Only write back when they differ. Writing unconditionally would move
+        // the caret to the end on every keystroke, because setting `text` resets
+        // the selection -- which is the bug this guard exists to avoid.
+        if v.text != text { v.text = text }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    final class Coordinator: NSObject, UITextViewDelegate {
+        let parent: HuskTextView
+        init(_ parent: HuskTextView) { self.parent = parent }
+
+        func textViewDidChange(_ v: UITextView) { parent.text = v.text }
+    }
+}
+
+// MARK: - scenePhase (iOS 14.0)
+//
+// SwiftUI's scenePhase is a property of the scene, and scenes arrive at 13.
+// Below that the app has one window and no scene, so the equivalent signal is
+// the four UIApplication notifications that have always existed. They are
+// bridged into an environment value so the call site reads the same way.
+enum HuskScenePhase {
+    case active, inactive, background
+}
+
+private struct HuskScenePhaseKey: EnvironmentKey {
+    static let defaultValue: HuskScenePhase = .active
+}
+
+extension EnvironmentValues {
+    var huskScenePhase: HuskScenePhase {
+        get { self[HuskScenePhaseKey.self] }
+        set { self[HuskScenePhaseKey.self] = newValue }
+    }
+}
+
+extension View {
+    /// Reports the app's foreground state through the environment. Put this on
+    /// the root; read it with `@Environment(\.huskScenePhase)`.
+    func huskScenePhaseTracking() -> some View {
+        modifier(HuskScenePhaseTracker())
+    }
+}
+
+private struct HuskScenePhaseTracker: ViewModifier {
+    @State private var phase: HuskScenePhase = .active
+
+    var body(content: Content) -> some View {
+        content
+            .environment(\.huskScenePhase, phase)
+            .onReceive(NotificationCenter.default
+                        .publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
+                phase = .active
+            }
+            .onReceive(NotificationCenter.default
+                        .publisher(for: UIApplication.willResignActiveNotification)) { _ in
+                phase = .inactive
+            }
+            .onReceive(NotificationCenter.default
+                        .publisher(for: UIApplication.didEnterBackgroundNotification)) { _ in
+                phase = .background
+            }
+            .onReceive(NotificationCenter.default
+                        .publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                phase = .inactive
+            }
+    }
+}
+
+// MARK: - ScrollViewReader (iOS 14.0)
+//
+// All three uses are "keep this log pinned to the bottom", which is one job:
+// find the scroll view this view sits in and move its content offset. The
+// sentinel walks up from a zero-size view planted in the content, which is how
+// it finds the scroll view without needing the proxy that 14 introduced.
+extension View {
+    /// Scrolls the enclosing scroll view to its bottom whenever `token` changes.
+    /// The token is anything Equatable that changes when the content grows --
+    /// the log's length, or its line count.
+    func huskScrollToBottom<V: Equatable>(_ token: V) -> some View {
+        background(HuskScrollToBottomSentinel(token: token))
+    }
+}
+
+private struct HuskScrollToBottomSentinel: View {
+    let token: AnyEquatableToken
+
+    init<V: Equatable>(token: V) { self.token = AnyEquatableToken(token) }
+
+    var body: some View {
+        HuskScrollSentinel(token: token)
+            .frame(width: 0, height: 0)
+            .clipped()
+    }
+}
+
+/// Type-erases an Equatable so one representable can take any of them.
+struct AnyEquatableToken: Equatable {
+    private let value: Any
+    private let isEqual: (Any, Any) -> Bool
+
+    init<V: Equatable>(_ value: V) {
+        self.value = value
+        self.isEqual = { a, b in
+            guard let x = a as? V, let y = b as? V else { return false }
+            return x == y
+        }
+    }
+
+    static func == (lhs: AnyEquatableToken, rhs: AnyEquatableToken) -> Bool {
+        lhs.isEqual(lhs.value, rhs.value)
+    }
+}
+
+private struct HuskScrollSentinel: UIViewRepresentable {
+    let token: AnyEquatableToken
+
+    func makeUIView(context: Context) -> UIView {
+        let v = UIView(frame: .zero)
+        v.isUserInteractionEnabled = false
+        return v
+    }
+
+    func updateUIView(_ v: UIView, context: Context) {
+        guard context.coordinator.last != token else { return }
+        context.coordinator.last = token
+        // The content height is only final after layout, so the scroll is asked
+        // for on the next pass rather than now -- scrolling to a height that is
+        // still the old one leaves it at the bottom of the previous log.
+        DispatchQueue.main.async {
+            guard let scroll = v.enclosingScrollView else { return }
+            let bottom = max(0, scroll.contentSize.height - scroll.bounds.height
+                             + scroll.adjustedContentInset.bottom)
+            scroll.setContentOffset(CGPoint(x: 0, y: bottom), animated: false)
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    final class Coordinator {
+        var last: AnyEquatableToken?
+    }
+}
+
+extension UIView {
+    /// The nearest enclosing UIScrollView, or nil if there is none. Walking up
+    /// rather than down is what makes this work: the sentinel is inside the
+    /// content, so the scroll view is above it.
+    var enclosingScrollView: UIScrollView? {
+        var next = superview
+        while let candidate = next {
+            if let scroll = candidate as? UIScrollView { return scroll }
+            next = candidate.superview
+        }
+        return nil
     }
 }

@@ -177,9 +177,9 @@ Button(action: {
     // MARK: - Store Content
 
     private var storeContent: some View {
-        List {
+        huskList {
             if !debouncedSearchText.isEmpty {
-                Section {
+                huskSection {
                     if manager.isSearching {
                         HStack {
                             Spacer()
@@ -202,7 +202,7 @@ Button(action: {
                 }
             } else {
                 if !manager.featuredApps.isEmpty {
-                    Section {
+                    huskSection {
                         ForEach(manager.featuredApps) { app in
                             appRow(app)
                         }
@@ -210,7 +210,7 @@ Button(action: {
                         Text("Featured Apps")
                     }
                 } else {
-                    Section {
+                    huskSection {
                         Text("No featured apps available. Try searching above.")
                             .font(.subheadline)
                             .foregroundColor(Theme.textDim)

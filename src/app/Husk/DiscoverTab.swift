@@ -76,7 +76,7 @@ struct DiscoverView: View {
     }
 
     private var list: some View {
-        List {
+        huskList {
             ForEach(manager.sources) { source in
                 let filtered = filteredApps(for: source)
                 if !filtered.isEmpty {
@@ -84,7 +84,7 @@ struct DiscoverView: View {
                 }
             }
             if !manager.fetchErrors.isEmpty {
-                Section {
+                huskSection {
                     ForEach(manager.fetchErrors.keys.sorted(), id: \.self) { url in
                         huskLabel {
                             VStack(alignment: .leading, spacing: 2) {
@@ -245,19 +245,37 @@ struct DiscoverView: View {
 
     private var sourcesSheet: some View {
         NavigationView {
-            List {
-                Section {
+            huskList {
+                huskSection {
                     ForEach(manager.sourceURLs, id: \.self) { url in
-                        VStack(alignment: .leading, spacing: 2) {
-                            if let source = manager.sources.first(where: { $0.identifier == url }) {
-                                Text(source.name).font(.body.weight(.medium))
-                                Text("\(source.apps.count) apps").font(.caption).foregroundColor(.secondary)
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                if let source = manager.sources.first(where: { $0.identifier == url }) {
+                                    Text(source.name).font(.body.weight(.medium))
+                                    Text("\(source.apps.count) apps").font(.caption).foregroundColor(.secondary)
+                                }
+                                Text(url).font(.caption2).foregroundColor(.secondary).lineLimit(1)
                             }
-                            Text(url).font(.caption2).foregroundColor(.secondary).lineLimit(1)
+                            // Swipe-to-delete belongs to List and has no
+                            // counterpart on 13, so the row carries its own
+                            // button. Deleting by value rather than by offset:
+                            // remove(atOffsets:) is an extension List provides,
+                            // and the index it would want is not knowable from
+                            // inside a ForEach body.
+                            Button {
+                                manager.sourceURLs.removeAll { $0 == url }
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 15))
+                                    .foregroundColor(.red)
+                                    .frame(width: 34, height: 34)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(Text("Remove \(url)"))
                         }
                         .padding(.vertical, 2)
                     }
-                    .onDelete { manager.sourceURLs.remove(atOffsets: $0) }
                 } header: { Text("Active Repositories") }
             }
             .navigationTitle("Repositories")

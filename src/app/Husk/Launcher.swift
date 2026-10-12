@@ -178,7 +178,7 @@ struct HomeView: View {
                     ShelfHeader(title: "Library") { router.showLibrary(.all) }
                         .padding(.horizontal, 4)
                         .padding(.top, 6)
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4), spacing: 10) {
+                    huskLazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4), spacing: 10) {
                         ForEach(rest.prefix(UIDevice.current.userInterfaceIdiom == .pad ? 16 : 8)) { item in
                             NavigationLink(destination: libraryDestination(item.route)) { LibrarySquare(item: item) }
                                 .buttonStyle(CardButtonStyle())
@@ -572,7 +572,7 @@ struct LibraryScreen: View {
                     if items.isEmpty, let empty {
                         Text(empty).font(.subheadline).foregroundColor(.secondary)
                     } else {
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10, alignment: .top),
+                        huskLazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10, alignment: .top),
                                                  count: UIDevice.current.userInterfaceIdiom == .pad ? 8 : 4),
                                   spacing: 18) {
                             ForEach(items) { item in

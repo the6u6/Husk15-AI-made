@@ -9,12 +9,12 @@ struct SettingsTab: View {
 
     var body: some View {
         NavigationView {
-            List {
-                Section {
+            huskList {
+                huskSection {
                     NavigationLink { AboutSettings() } label: { appCard }
                 }
 
-                Section {
+                huskSection {
                     row(JITSettings(), "bolt.fill", .yellow, "JIT & Sideload", "StikJIT is built in — the recommended way")
                 } header: {
                     Text("JIT")
@@ -22,12 +22,12 @@ struct SettingsTab: View {
                     Text("Android and Translation Layer games need JIT. StikJIT, built into Husk, turns it on without a computer.")
                 }
 
-                Section(header: Text("General")) {
+                huskSection(header: Text("General")) {
                     row(DiscoverView(), "sparkle.magnifyingglass",Color(.systemMintFallback), "Discover", "Find apps in F-Droid and other repositories")
                     row(AppearanceSettings(), "paintbrush.fill", .pink, "Appearance", "Light or dark, accent colour, app icon")
                 }
 
-                Section {
+                huskSection {
                     Toggle(isOn: $multitask) {
                         huskLabel {
                             VStack(alignment: .leading, spacing: 1) {
@@ -55,7 +55,7 @@ struct SettingsTab: View {
                        + "Each app can override this in its own settings.")
                 }
 
-                Section {
+                huskSection {
                     Toggle(isOn: $askCompat) {
                         huskLabel {
                             VStack(alignment: .leading, spacing: 1) {
@@ -88,7 +88,7 @@ struct SettingsTab: View {
 
                 // .indigo is iOS 15 as a Color; Color(.systemIndigo) is the
                 // equivalent, and is what this row had before.
-                Section(header: Text("Emulator")) {
+                huskSection(header: Text("Emulator")) {
                     }
             }
             .listStyle(.insetGrouped)
@@ -175,8 +175,8 @@ struct JITSettings: View {
         Section {
             JITCard()
         }
-        .listRowInsets(EdgeInsets())
-        .listRowBackground(Color.clear)
+        .listRowInsetsCompat(EdgeInsets())
+        .listRowBackgroundCompat(Color.clear)
     }
 
     private var methodSection: some View {
@@ -336,7 +336,7 @@ struct AppearanceSettings: View {
             }
 
             Section {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 14) {
+                huskLazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 14) {
                     ForEach(AppTheme.presets) { preset in
                         Button {
                             theme.accentColor = preset.color
@@ -350,8 +350,10 @@ struct AppearanceSettings: View {
                 }
                 .padding(.vertical, 6)
 
-                ColorPicker("Custom Colour", selection: $custom, supportsOpacity: false)
-                    .huskOnChange(of: custom) { theme.accentColor = $0 }
+                // There is no ColorPicker on 13 and nothing to wrap: UIColor-
+                // PickerViewController is iOS 14 as well. The preset grid above is
+                // the palette, so rather than a second and worse way to choose
+                // from the same set, the custom row is gone. The footer says so.
             } header: {
                 Text("Accent Colour")
             } footer: {
@@ -359,7 +361,7 @@ struct AppearanceSettings: View {
             }
 
             Section {
-                LazyVGrid(columns: iconColumns, spacing: 14) {
+                huskLazyVGrid(columns: iconColumns, spacing: 14) {
                     ForEach(HuskAppIcon.allCases) { icon in
                         Button {
                             appIcon = icon
@@ -419,8 +421,8 @@ struct AboutSettings: View {
     @huskAppStorage(TranslationLayer.devInfoKey) private var devInfo = false
 
     var body: some View {
-        List {
-            Section {
+        huskList {
+            huskSection {
                 VStack(spacing: 8) {
                     HuskMark(size: 84)
                     Text("Husk").font(.title2.weight(.semibold))
@@ -429,14 +431,14 @@ struct AboutSettings: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
-                .listRowBackground(Color.clear)
+                .listRowBackgroundCompat(Color.clear)
             }
 
-            Section {
+            huskSection {
                 HuskLabeledContent("Build", value: Bundle.main.commit)
             }
 
-            Section {
+            huskSection {
                 Toggle(isOn: $devInfo) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Developer Info")

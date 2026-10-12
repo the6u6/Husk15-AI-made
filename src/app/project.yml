@@ -30,7 +30,7 @@ options:
     # deployment target to iOS 15, so only 15.x (iOS 17.5 SDK, floor iOS 12)
     # can express this. Xcode 15.4 runs on macOS Sonoma 14.x only, which on
     # GitHub means the macos-14 image -- fully unsupported from 2026-11-02.
-    iOS: "14.0"
+    iOS: "13.0"
   createIntermediateGroups: true
 
 settings:

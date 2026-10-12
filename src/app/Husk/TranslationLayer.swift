@@ -877,18 +877,17 @@ struct TLClassicAttemptView: View {
     }
 
     private var logPanel: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                Text(runner.logText.isEmpty ? "Starting…" : runner.logText)
-                    .font(.technical(10))
-                    .foregroundColor(.white.opacity(0.85))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(10)
-                    .id("bottom")
-            }
-            .background(Color(white: 0.06))
-            .huskOnChange(of: runner.logText) { _ in proxy.scrollTo("bottom") }
+        ScrollView {
+            Text(runner.logText.isEmpty ? "Starting…" : runner.logText)
+                .font(.technical(10))
+                .foregroundColor(.white.opacity(0.85))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(10)
         }
+        .background(Color(white: 0.06))
+        // ScrollViewReader is iOS 14; this keeps the log at its last line by
+        // moving the enclosing scroll view's offset.
+        .huskScrollToBottom(runner.logText)
     }
 }
 

@@ -999,3 +999,125 @@ the VM Swift, since nothing depends on it.
 The other `HuskJITHelper` references in `build.yml` (lines 178-186, 425-439)
 are already correct: each guards on `grep -qE '^  HuskJITHelper:$'` and has an
 "is absent" branch, so they assert the 26.0 floor only when the target exists.
+## 8. iOS 13.0: how low, and why 12 is not an answer
+
+Asked for the lowest version Xcode 15.4 can build to. That is 12.0, and this
+section is mostly about why the answer is 13.0.
+
+### 12.0 is not available to this app
+
+Not because of anything Husk does. SwiftUI's own minimum is iOS 13.0. It is not
+in iOS 12 at all, and the parts of it this app is built from all arrived with it:
+
+    @State             67
+    @ObservedObject    50
+    @ViewBuilder       26
+    @Environment       18
+    AnyView            10
+    Group {             9
+    @StateObject        4
+    @Binding            3
+    EmptyView           2
+
+and 1206 lines of `if` / `else` / `switch` inside view bodies, none of which
+compile without `@ViewBuilder`. There is no version of "shim the too-new APIs"
+that reaches 12 -- the framework they belong to is not there. Reaching 12 would
+mean writing the app in UIKit.
+
+12.0 is also the floor of the *toolchain* rather than of the app, and the tool
+chain constraint is the smaller half of this: Xcode 16 raised its own minimum
+deployment target to iOS 15, so a 12.0 or 13.0 floor pins the build to Xcode 15.x
+and the `macos-14` image, which GitHub stops supporting on 2026-11-02.
+
+### 13.0 is one version down, and reachable
+
+The whole of the iOS 14 surface had to go. What it cost, by family:
+
+    Label                       66   huskLabel, three overloads
+    .onChange                   19   huskOnChange, keeps the fire-every-time meaning
+    ProgressView                23   huskProgress over UIProgressView
+    @AppStorage                 15   huskAppStorage, backed by @State so writes land
+    ignoresSafeArea             14   edgesIgnoringSafeArea, the older name for it
+    List                        10   huskList, plus 30 Sections inside them
+    LazyVStack                   1
+    LazyVGrid                    4
+    ScrollViewReader             3   huskScrollToBottom
+    @StateObject                 4   the iOS 13 ObservedObject idiom
+    TextEditor                   1   huskTextEditor over UITextView
+    ColorPicker                  1   removed -- see below
+    scenePhase                   1   bridged from the UIApplication notifications
+    .onOpenURL                   1   moved to the delegate
+    WindowGroup                  1   the delegate owns a UIWindow now
+    DisclosureGroup              1   a button that reveals the answer
+
+Nothing in `Compat13.swift` is conditional on the deployment target. That is
+deliberate: a shim branching on `#available` would compile on 13 and then behave
+differently on the devices people actually use. These are the older
+implementations, spelled unconditionally, so the app looks the same everywhere.
+
+### Where 13 is visibly worse than 14
+
+Three things, said plainly rather than buried:
+
+  * Rows are built up front. `List` and `LazyVStack` are lazy; a `VStack` in a
+    `ScrollView` is not. Every list in the app is bounded -- a repository's apps,
+    the FAQ, the settings -- so this does not bite, but a long list would show it.
+
+  * `.listStyle(.insetGrouped)` is gone, and it was drawing the rounded card the
+    settings rows sit in. The rows keep their insets and background through
+    `listRowInsetsCompat` / `listRowBackgroundCompat`, which apply plain padding
+    and a background; they lose the card.
+
+  * Swipe-to-delete is gone. The one place it was used -- the active repositories
+    sheet -- now has a trash button per row. Deleting by value rather than by
+    offset, because `remove(atOffsets:)` is an extension `List` provides and the
+    index is not knowable from inside a `ForEach` body.
+
+And one thing removed rather than replaced: **the custom accent colour picker.**
+`ColorPicker` is iOS 14 and `UIColorPickerViewController` is iOS 14 as well, so
+there is nothing to wrap -- not a worse picker, none. The preset palette is
+already drawn as swatches directly above where that row was, so a second and
+worse way to choose from the same set is gone rather than reimplemented.
+
+### The lifecycle
+
+`App`, `Scene`, `WindowGroup` and `@UIApplicationDelegateAdaptor` are all iOS 14.
+`@main` itself is not 14 -- it is any type with a `static func main()` -- so the
+entry point is now `UIApplicationMain` pointed at `HuskAppDelegate`, which was
+already there for the orientation mask and the background-download handoff and
+now also owns the window and puts a `UIHostingController` in it. The launch order
+in `didFinishLaunchingWithOptions` is the one that was in `HuskApp.init()`,
+unchanged: logging first, then the JIT state, then the trap guard.
+
+`scenePhase` is a property of a scene, and on 13 the app has one window and no
+scene. `huskScenePhaseTracking()` bridges the four `UIApplication` notifications
+that have always existed into an environment value, so the reading code is
+unchanged.
+
+### Three things the iOS 14 work had not found
+
+  * **`LazyVGrid` / `LazyHGrid` / `GridRow`.** The census had `Grid` and `GridRow`
+    and not the Lazy ones, which is the rule-list lesson again: a family is not
+    covered because its better-known sibling is. Found by the sweep, not the
+    census.
+
+  * **`DisclosureGroup`, iOS 16.** Used once, unguarded, with no shim -- and the
+    sweep had no rule for it either, so nothing had ever complained about it. If
+    it really is iOS 16 then a 14.0 build should not have compiled, and the run
+    that has since run will say so. Either way it is now a button and a
+    conditional, which is what it always was.
+
+  * **`src/app/Husk/Play/`.** Six Swift files in a subdirectory that `os.listdir`
+    never returned. The iOS 14 census reported 51 files; there are 57. The same
+    walk is now `os.walk` in the census, in every rewrite script, and in
+    `check_consistent.py`, and the count is asserted rather than assumed. That is
+    the third time in this project a check enumerated its inputs from a
+    remembered list rather than from the filesystem.
+
+### Reverting
+
+Put `iOS: "13.0"` back to `iOS: "14.0"` in `project.yml`, and `13.0` back to
+`14.0` in `scripts/build_ios.sh`, `scripts/build_rppairing_ios.sh` and
+`scripts/build_angle_ios.sh`. Nothing else needs undoing: `Compat13.swift` and
+every `husk*` spelling compile at any deployment floor, and that is what made it
+possible to land this in commits that each still built.

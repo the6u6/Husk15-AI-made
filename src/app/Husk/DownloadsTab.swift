@@ -10,9 +10,9 @@ struct DownloadsTab: View {
 
     var body: some View {
         NavigationView {
-            List {
+            huskList {
                 updatesSection
-                Section {
+                huskSection {
                     if downloads.jobs.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("No downloads").font(.headline)

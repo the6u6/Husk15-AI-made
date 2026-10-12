@@ -52,8 +52,8 @@ struct TLTechnicalView: View {
     private var arm64: [TLLibrary] { (report?.libraries ?? []).filter { $0.abi == "arm64-v8a" } }
 
     var body: some View {
-        List {
-            Section(header: Text("Runtime")) {
+        huskList {
+            huskSection(header: Text("Runtime")) {
                 row("Runs With", report?.runnerName ?? "Not scanned")
                 row("Package", app.packageName ?? "—", mono: true)
                 row("Architectures", report.map { $0.abis.isEmpty ? "None (Java only)" : $0.abis.joined(separator: ", ") } ?? "—")
@@ -62,7 +62,7 @@ struct TLTechnicalView: View {
                 }
             }
 
-            Section(header: Text("Package")) {
+            huskSection(header: Text("Package")) {
                 ForEach(app.apks, id: \.self) { apk in
                     row((apk as NSString).lastPathComponent, size(of: apk), mono: true)
                 }
@@ -74,7 +74,7 @@ struct TLTechnicalView: View {
             }
 
             if !arm64.isEmpty {
-                Section {
+                huskSection {
                     ForEach(arm64) { lib in
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
@@ -93,7 +93,7 @@ struct TLTechnicalView: View {
                 }
             }
 
-            Section {
+            huskSection {
                 if let log, !log.isEmpty {
                     ScrollView(.horizontal) {
                         Text(log)

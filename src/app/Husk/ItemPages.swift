@@ -66,7 +66,7 @@ private struct BigButton: View {
 /// A hero that sits in a List as its first row, edge to edge within the list's margins.
 private extension View {
     func heroRow() -> some View {
-        listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+        listRowInsetsCompat(EdgeInsets()).listRowBackgroundCompat(Color.clear)
     }
 }
 
@@ -165,8 +165,8 @@ struct GamePage: View {
     }
 
     var body: some View {
-        List {
-            Section {
+        huskList {
+            huskSection {
                 PageHero(item: .game(app), subtitle: subtitle) { primary }
             } footer: {
                 if isGeodeLauncher {
@@ -181,16 +181,16 @@ struct GamePage: View {
 
             // what the files say before it starts: a damaged APK, the wrong CPU, a missing piece, protection that refuses Husk
             if let d = preflight {
-                Section {
+                huskSection {
                     AppDiagnosisCard(diagnosis: d)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+                        .listRowInsetsCompat(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
                 }
             }
             // why it stopped last time, until it plays again
             if let d = GameStatusStore.shared.diagnosis(app.id), d != preflight {
-                Section(header: Text("Last Run")) {
+                huskSection(header: Text("Last Run")) {
                     AppDiagnosisCard(diagnosis: d, showsEvidence: true)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+                        .listRowInsetsCompat(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
                 }
             }
 
@@ -199,13 +199,13 @@ struct GamePage: View {
             }
 
             if !ShowcaseStore.shared.pictures(for: app.packageName).isEmpty {
-                Section(header: Text("Screenshots")) {
+                huskSection(header: Text("Screenshots")) {
                     ShowcaseGallery(package: app.packageName)
-                        .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
+                        .listRowInsetsCompat(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
                 }
             }
 
-            Section {
+            huskSection {
                 NavigationLink(destination: libraryDestination(LibraryRoute.gameSettings(app.id))) {
                     huskLabel("Game Settings", systemImage: "slider.horizontal.3")
                 }
@@ -215,7 +215,7 @@ struct GamePage: View {
             }
 
             if !isGeodeLauncher {
-                Section {
+                huskSection {
                     Button { backUp() } label: { huskLabel("Back Up Saves", systemImage: "square.and.arrow.up") }
                         .disabled(savesBusy || !SaveBackup.hasData(app))
                     Button { pickRestore() } label: { huskLabel("Restore Saves", systemImage: "clock.arrow.circlepath") }
@@ -227,7 +227,7 @@ struct GamePage: View {
                 }
             }
 
-            Section(header: Text("About")) {
+            huskSection(header: Text("About")) {
                 HuskLabeledContent("Runs With", value: app.report?.runnerName ?? "Unknown")
                 if let st = GameStatusStore.shared.status(app.id) {
                     HuskLabeledContent("Last Result") {
@@ -238,7 +238,7 @@ struct GamePage: View {
                 HuskLabeledContent("Size", value: fileBytes(app.apks))
             }
 
-            Section {
+            huskSection {
 Button(action: { dialog = .remove }) {
                     huskLabel("Remove Game", systemImage: "trash")
                 }

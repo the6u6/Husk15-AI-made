@@ -7,7 +7,7 @@ struct ContentView: View {
     @ObservedObject private var router = Router.shared
     @ObservedObject private var jit = JITCoordinator.shared
     @State private var showOnboarding = Onboarding.needed
-    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.huskScenePhase) private var scenePhase
     @huskAppStorage(Theme.Appearance.key) private var appearance = Theme.Appearance.system
     @ObservedObject private var theme = AppTheme.shared
     @ObservedObject private var incoming = IncomingFiles.shared
@@ -204,6 +204,10 @@ struct ContentView: View {
             // foreground is the moment worth re-checking, not first launch.
             if phase == .active { evaluate() }
         }
+        // scenePhase is iOS 14 and is a property of a scene; on 13 the app has
+        // one window and no scene, so this bridges the four UIApplication
+        // notifications into the environment value the reader above expects.
+        .huskScenePhaseTracking()
     }
 
     /// Every package Husk holds: what the picture index is read for. It was the
@@ -241,25 +245,25 @@ struct LogView: View {
 
     var body: some View {
         NavigationView {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    huskLazyVStack(alignment: .leading, spacing: 1) {
-                        ForEach(Array(lines.enumerated()), id: \.offset) { i, line in
-                            Text(line)
-                                .font(.system(size: 9, design: .monospaced))
-                                .foregroundColor(color(for: line))
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .id(i)
-                        }
-                    }
-                    .padding(.horizontal, 8)
-                }
-                .onReceive(tick) { _ in
-                    lines = HuskLog.recentLines(800)
-                    if let last = lines.indices.last {
-                        proxy.scrollTo(last)
+            ScrollView {
+                huskLazyVStack(alignment: .leading, spacing: 1) {
+                    ForEach(Array(lines.enumerated()), id: \.offset) { i, line in
+                        Text(line)
+                            .font(.system(size: 9, design: .monospaced))
+                            .foregroundColor(color(for: line))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .id(i)
                     }
                 }
+                .padding(.horizontal, 8)
+            }
+            // ScrollViewReader is iOS 14. What it was asked for here is one
+            // thing -- keep the log at the last line -- and huskScrollToBottom
+            // does that by moving the enclosing scroll view's offset. The token
+            // is the last line's index, which is what scrollTo(last) used.
+            .huskScrollToBottom(lines.count)
+            .onReceive(tick) { _ in
+                lines = HuskLog.recentLines(800)
             }
             .navigationTitle("Logs")
             .navigationBarTitleDisplayMode(.inline)
