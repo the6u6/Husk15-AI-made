@@ -53,8 +53,7 @@ struct DownloadsTab: View {
             }
             .navigationTitle("Downloads")
             .navigationBarItems(
-                leading: AnyView(
-                ,)
+                leading: AnyView(EmptyView()),
                 trailing: AnyView(
                     Button { adding = true } label: { huskLabel("Add", systemImage: "plus") }
                 )
@@ -157,19 +156,22 @@ private struct AddDownloadSheet: View {
             .navigationTitle("Add Download")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(
-                leading: AnyView(
-                ,)
+                leading: AnyView(EmptyView()),
                 trailing: AnyView(
-                    if working { huskProgress() } else {
-                        Button("Download") {
-                            working = true
-                            Task {
-                                await downloads.add(link: link)
-                                working = false
-                                if downloads.problem == nil { huskPM.wrappedValue.dismiss() }
+                    Group {
+                        if working {
+                            huskProgress()
+                        } else {
+                            Button("Download") {
+                                working = true
+                                Task {
+                                    await downloads.add(link: link)
+                                    working = false
+                                    if downloads.problem == nil { huskPM.wrappedValue.dismiss() }
+                                }
+                                .disabled(link.trimmingCharacters(in: .whitespaces).isEmpty)
                             }
                         }
-                        .disabled(link.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
                 )
             )

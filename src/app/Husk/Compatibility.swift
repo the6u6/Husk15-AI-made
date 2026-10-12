@@ -305,10 +305,14 @@ struct CompatReportSheet: View {
                         if subject.afterPlaying { CompatibilityStore.shared.markAsked(subject.package) }
                         huskPM.wrappedValue.dismiss()
                     }
-                ,)
+                ),
                 trailing: AnyView(
-                    if sending { huskProgress() } else {
-                        Button("Send") { send() }.disabled(status == nil)
+                    Group {
+                        if sending {
+                            huskProgress()
+                        } else {
+                            Button("Send") { send() }.disabled(status == nil)
+                        }
                     }
                 )
             )

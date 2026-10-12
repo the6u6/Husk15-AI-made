@@ -269,10 +269,12 @@ struct LogView: View {
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(
                 leading: AnyView(
-                    if isSheet {
-                        Button("Done") { huskPM.wrappedValue.dismiss() }
+                    Group {
+                        if isSheet {
+                            Button("Done") { huskPM.wrappedValue.dismiss() }
+                        }
                     }
-                ,)
+                ),
                 trailing: AnyView(
                     Button { showShare = true } label: { Image(systemName: "square.and.arrow.up") }
                 )

@@ -231,6 +231,24 @@ protocol huskStorable {
     static func huskWrite(_ value: Any, _ defaults: UserDefaults, _ key: String)
 }
 
+/// The conformances, declared.
+///
+/// Four attempts, and the thing none of them had was this: an extension
+/// constrained `where Self == Bool` provides *default implementations* for a
+/// type that already conforms. It does not make Bool conform. Without these four
+/// lines Bool, Int, Double and String simply were not huskStorable, which is why
+/// every one of the fifteen call sites said "requires that 'Bool' conform to
+/// 'huskStorable'" and why the constraint itself said "no type for 'Self' can
+/// satisfy both 'Self == Bool' and 'Self : huskStorable'".
+///
+/// Theme.Appearance and the other String-backed enums conform through the
+/// constrained extension below, which Swift does accept as a conformance
+/// because it is a conditional one.
+extension Bool: huskStorable {}
+extension Int: huskStorable {}
+extension Double: huskStorable {}
+extension String: huskStorable {}
+
 extension huskStorable where Self == Bool {
     static func huskRead(_ d: UserDefaults, _ k: String) -> Any? { d.object(forKey: k) }
     static func huskWrite(_ v: Any, _ d: UserDefaults, _ k: String) {

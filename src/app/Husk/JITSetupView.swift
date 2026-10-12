@@ -464,10 +464,12 @@ Button("Reset Developer Disk Image") { jit.resetDDI() }
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarItems(
             leading: AnyView(
+                Group {
                 if step != nil {
-                    Button("Back") { step = nil }
+                Button("Back") { step = nil }
                 }
-            ,)
+                }
+            ),
             trailing: AnyView(
                 Button("Close") { close() }
             )

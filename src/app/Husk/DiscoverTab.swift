@@ -40,17 +40,23 @@ struct DiscoverView: View {
         .navigationBarItems(
             leading: AnyView(EmptyView()),
             trailing: AnyView(
-                Button { Task { await manager.fetchSources() } } label: {
-                    huskLabel("Refresh", systemImage: "arrow.clockwise")
+                HStack(spacing: 12) {
+                    Button { Task { await manager.fetchSources() } } label: {
+                        huskLabel("Refresh", systemImage: "arrow.clockwise")
+                    }
+                    // Menu is iOS 14; this is Compat13's own type, which presents
+                    // its content in a sheet rather than a popup. Two views side
+                    // by side rather than nested, because a navigation bar item
+                    // cannot hold a Menu that presents a sheet of its own.
+                    Menu {
+                        Button { showingAddSource = true } label: {
+                            huskLabel("Add Source", systemImage: "plus")
+                        }
+                        Button { showingSources = true } label: {
+                            huskLabel("Manage Repositories", systemImage: "list.bullet")
+                        }
+                    } label: { huskLabel("Repositories", systemImage: "ellipsis.circle") }
                 }
-                Menu {
-                    Button { showingAddSource = true } label: {
-                        huskLabel("Add Source", systemImage: "plus")
-                    }
-                    Button { showingSources = true } label: {
-                        huskLabel("Manage Repositories", systemImage: "list.bullet")
-                    }
-                } label: { huskLabel("Repositories", systemImage: "ellipsis.circle") }
             )
         )
         .sheet(isPresented: $showingSources) { sourcesSheet }
@@ -97,7 +103,11 @@ struct DiscoverView: View {
                 } header: { Text("Could Not Load") }
             }
         }
-        .listStyle(.insetGrouped)
+
+// .listStyle(.insetGrouped) is iOS 14 and has no counterpart at
+// this floor: huskList is a ScrollView of rows, so the rounded
+// card the style drew is simply not there. See Compat13.swift.
+
     }
 
     private var totalAppCount: Int {
@@ -218,12 +228,11 @@ struct DiscoverView: View {
                 }
             }
             .navigationTitle("Add Source")
-            .navigationBarTitleDisplayMode                leading: AnyView(EmptyView()),
-(.inline)
+            .navigationBarTitleDisplayMode(.inline)
             .navigationBarItems(
                 leading: AnyView(
                     Button("Cancel") { newSourceURL = ""; showingAddSource = false }
-                ,)
+                ),
                 trailing: AnyView(
                     Button("Add") {
                         let url = newSourceURL

@@ -113,7 +113,11 @@ struct TLTechnicalView: View {
                 Text("The end of the log from the last time the game started. Share it when reporting a problem.")
             }
         }
-        .listStyle(.insetGrouped)
+
+// .listStyle(.insetGrouped) is iOS 14 and has no counterpart at
+// this floor: huskList is a ScrollView of rows, so the rounded
+// card the style drew is simply not there. See Compat13.swift.
+
         .navigationTitle("Technical Details")
         .navigationBarTitleDisplayMode(.inline)
         // .task is iOS 15; onAppear + Task is the same thing minus

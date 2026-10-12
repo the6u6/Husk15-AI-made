@@ -91,7 +91,11 @@ struct SettingsTab: View {
                 huskSection(header: Text("Emulator")) {
                     }
             }
-            .listStyle(.insetGrouped)
+
+// .listStyle(.insetGrouped) is iOS 14 and has no counterpart at
+// this floor: huskList is a ScrollView of rows, so the rounded
+// card the style drew is simply not there. See Compat13.swift.
+
             .navigationTitle("Settings")
         }
     }

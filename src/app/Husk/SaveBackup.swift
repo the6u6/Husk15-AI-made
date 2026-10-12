@@ -161,7 +161,8 @@ private final class ZipWriter {
         try input.seek(toOffset: 0)
         try write(name, size: size, crc: crc) {
             var left = size
-            while left > 0, let chunk = try input.readData(ofLength: Int(Swift.min(left, 1 << 20))), !chunk.isEmpty {
+            var chunk = try input.readData(ofLength: Int(min(UInt64(left), 1 << 20)))
+            while !chunk.isEmpty {
                 try self.out.write(chunk); left -= UInt64(chunk.count)
             }
         }
