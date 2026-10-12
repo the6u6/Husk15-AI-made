@@ -277,12 +277,12 @@ struct CompatReportSheet: View {
                 // Section("Notes") is iOS 15; Section(header:content:) is 13.
                 // TextField(_:text:axis:) and .lineLimit(3...8) are iOS 16
                 // together -- a TextField is one line until then, and there is no
-                // older spelling of either half. TextEditor is iOS 14 and is the
-                // multi-line control they wanted; the height stands in for the
-                // range, and it scrolls if it overruns.
                 Section(header: Text("Notes")) {
-                    TextEditor(text: $notes)
-                        .frame(height: 88)
+                    // TextEditor is iOS 14. Below that a TextField is one line and
+                    // there is nothing in SwiftUI that is not -- so this is
+                    // UITextView, which has been available since iOS 2. The height
+                    // stands in for the 3...8 range, and it scrolls if it overruns.
+                    huskTextEditor(text: $notes, height: 88)
                 }
                 Section {
                     TextField("Anonymous", text: $author)

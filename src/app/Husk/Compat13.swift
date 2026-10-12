@@ -290,6 +290,14 @@ extension huskStorable where Self: RawRepresentable, Self.RawValue == String {
     }
 }
 
+/// The String-backed enums the wrapper is asked to hold.
+///
+/// A constrained extension provides *default implementations*; it does not
+/// declare conformance. So `Theme.Appearance` needed this line for the same
+/// reason Bool did, and reported "requires that 'Theme.Appearance' conform to
+/// 'huskStorable'" at both of the places it is stored until it appeared.
+extension Theme.Appearance: huskStorable {}
+
 // MARK: - @StateObject (iOS 14.0)
 //
 // The pre-14 idiom is `@ObservedObject private var x = ObservedObject(wrappedValue: X())`,
@@ -506,28 +514,19 @@ extension View {
 
 /// A titled group of rows, for inside huskList.
 private struct HuskSectionGroup<Header: View, Content: View>: View {
-    // `@escaping` is a function-parameter attribute and a property declaration
-    // is not one, so it goes on the initialiser's parameters instead. The
-    // builders are stored, so they do escape; saying so here is what lets the
-    // View extension below pass its own non-escaping builders through.
-    let header: () -> Header
-    let content: () -> Content
-
-    init(@ViewBuilder header: @escaping () -> Header,
-         @ViewBuilder content: @escaping () -> Content) {
-        self.header = header
-        self.content = content
-    }
+    /// Views, not builders. See the extension below for why that is the shape.
+    let header: Header
+    let content: Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            header()
+            header
                 .font(.footnote)
                 .foregroundColor(.secondary)
                 .padding(.horizontal, 16)
                 .padding(.top, 18)
                 .padding(.bottom, 6)
-            content()
+            content
         }
     }
 }
@@ -535,9 +534,9 @@ private struct HuskSectionGroup<Header: View, Content: View>: View {
 /// A group of rows with no title, which is how several of the call sites use
 /// Section today.
 private struct HuskPlainSection<Content: View>: View {
-    @ViewBuilder let content: () -> Content
+    let content: Content
 
-    var body: some View { VStack(alignment: .leading, spacing: 0) { content() } }
+    var body: some View { VStack(alignment: .leading, spacing: 0) { content } }
 }
 
 extension View {
@@ -563,11 +562,52 @@ extension View {
     // worked and this did not.
     func huskSection<C: View, H: View>(@ViewBuilder content: () -> C,
                                        @ViewBuilder header: () -> H) -> some View {
-        HuskSectionGroup(header: header, content: content)
+        // The builders are called here, in the View's own body context, and what
+        // is stored is the View each one produced.
+        //
+        // Three earlier versions stored the closures and marked the initialiser's
+        // parameters @escaping, which is the wrong shape twice over: a stored
+        // closure cannot be called without the generic inference the caller
+        // already did, and the `Group` the footer overload built has to call a
+        // non-escaping `content` from inside a builder. Values have neither
+        // problem.
+        HuskSectionGroup(header: header(), content: content())
     }
 
     func huskSection<C: View>(@ViewBuilder content: () -> C) -> some View {
-        HuskPlainSection(content: content)
+        HuskPlainSection(content: content())
+    }
+
+    /// The shape seven call sites use: the header as a finished `Text` rather
+    /// than as a builder.
+    ///
+    /// `content` is declared with no argument label so the trailing closure binds
+    /// to it. With a label it would not, and the compiler would say "extra
+    /// trailing closure passed in call" -- which is what it said at every one of
+    /// them.
+    ///
+    /// This is the one overload that predates the others. It was there first and
+    /// was removed as "the Text-taking one that made the other two ambiguous",
+    /// which was half right: it was the *trailing-closure ordering* that was
+    /// ambiguous, not the Text. Removing it cost seven call sites a rewrite.
+    func huskSection<C: View>(header: Text, @ViewBuilder content: () -> C) -> some View {
+        HuskSectionGroup(header: header, content: content())
+    }
+
+    /// Content, header and footer. Two call sites use this.
+    func huskSection<C: View, H: View, F: View>(@ViewBuilder content: () -> C,
+                                                @ViewBuilder header: () -> H,
+                                                @ViewBuilder footer: () -> F) -> some View {
+        HuskSectionGroup(
+            header: header(),
+            content: VStack(alignment: .leading, spacing: 0) {
+                content()
+                footer()
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 6)
+            })
     }
 
     /// A group with a footer and no header. Two call sites use this shape; the
@@ -575,14 +615,16 @@ extension View {
     /// with it, so both sites lost their footer.
     func huskSection<C: View, F: View>(@ViewBuilder content: () -> C,
                                        @ViewBuilder footer: () -> F) -> some View {
-        HuskPlainSection(content: {
-            content()
-            footer()
-                .font(.footnote)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 16)
-                .padding(.top, 6)
-        })
+        HuskSectionGroup(
+            header: AnyView(EmptyView()),
+            content: VStack(alignment: .leading, spacing: 0) {
+                content()
+                footer()
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 6)
+            })
     }
 }
 
@@ -600,7 +642,10 @@ extension View {
     }
 
     func listRowBackgroundCompat<C: View>(_ background: C) -> some View {
-        background(background)
+        // `self.background(...)`: the bare name resolved to this parameter rather
+        // than to View's own modifier, so the compiler said "cannot call value of
+        // non-function type 'C'".
+        self.background(background)
     }
 }
 
