@@ -4,8 +4,8 @@ import SwiftUI
 /// Settings, as the iOS Settings app lays them out: a card for the app up top, then groups of rows that each
 /// push a page of their own. What belongs to the app, what belongs to the emulator, and what the thing is.
 struct SettingsTab: View {
-    @AppStorage(AppWindows.defaultKey) private var multitask = false
-    @AppStorage(CompatibilityStore.askKey) private var askCompat = true
+    @huskAppStorage(AppWindows.defaultKey) private var multitask = false
+    @huskAppStorage(CompatibilityStore.askKey) private var askCompat = true
 
     var body: some View {
         NavigationView {
@@ -29,7 +29,7 @@ struct SettingsTab: View {
 
                 Section {
                     Toggle(isOn: $multitask) {
-                        Label {
+                        huskLabel {
                             VStack(alignment: .leading, spacing: 1) {
                                 Text("Open Apps in Windows")
                                 Text("Use Husk while an app runs").font(.caption).foregroundColor(.secondary).lineLimit(1)
@@ -57,7 +57,7 @@ struct SettingsTab: View {
 
                 Section {
                     Toggle(isOn: $askCompat) {
-                        Label {
+                        huskLabel {
                             VStack(alignment: .leading, spacing: 1) {
                                 Text("Ask How Games Ran")
                                 // .foregroundStyle is iOS 15, and cannot be shimmed:
@@ -77,7 +77,7 @@ struct SettingsTab: View {
                         }
                     }
                     Link(destination: CompatibilityStore.site) {
-                        Label("Compatibility List", systemImage: "safari")
+                        huskLabel("Compatibility List", systemImage: "safari")
                     }
                 } header: {
                     Text("Compatibility")
@@ -112,7 +112,7 @@ struct SettingsTab: View {
     private func row<D: View>(_ destination: D, _ icon: String, _ tint: Color,
                               _ title: String, _ subtitle: String) -> some View {
         NavigationLink { destination } label: {
-            Label {
+            huskLabel {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)
                     Text(subtitle).font(.caption).foregroundColor(.secondary).lineLimit(1)
@@ -147,7 +147,7 @@ extension View {
 
 struct JITSettings: View {
     @ObservedObject private var jit = JITCoordinator.shared
-    @AppStorage(JITCoordinator.autoEnableKey) private var autoJIT = false
+    @huskAppStorage(JITCoordinator.autoEnableKey) private var autoJIT = false
     @State private var keepAttached = JITBootstrap.keepDebuggerAttached
 
     private var pairingLabel: String {
@@ -197,7 +197,7 @@ struct JITSettings: View {
             Button {
                 jit.showSetup = true
             } label: {
-                Label("Set up JIT", systemImage: "wand.and.stars")
+                huskLabel("Set up JIT", systemImage: "wand.and.stars")
             }
         } header: {
             Text("Other Ways to Turn On JIT")
@@ -245,13 +245,13 @@ struct JITSettings: View {
                 Button {
                     jit.enable()
                 } label: {
-                    Label("Enable JIT with \(jit.resolvedMethod.title)", systemImage: "bolt.fill")
+                    huskLabel("Enable JIT with \(jit.resolvedMethod.title)", systemImage: "bolt.fill")
                 }
                 .disabled(jit.busy)
                 Button {
                     _ = JITBootstrap.requestTrollStoreAttach()
                 } label: {
-                    Label("Enable JIT with TrollStore", systemImage: "sparkles")
+                    huskLabel("Enable JIT with TrollStore", systemImage: "sparkles")
                 }
             }
         } header: {
@@ -282,7 +282,7 @@ struct JITSettings: View {
     private var keepAttachedSection: some View {
         Section {
             Toggle("Keep debugger attached", isOn: $keepAttached)
-                .onChange(of: keepAttached) { v in JITBootstrap.keepDebuggerAttached = v }
+                .huskOnChange(of: keepAttached) { v in JITBootstrap.keepDebuggerAttached = v }
         } footer: {
             Text("Off by default. Husk detaches StikDebug as soon as the "
                + "JIT region is held, because a debugger that iOS has suspended "
@@ -309,8 +309,8 @@ struct JITSettings: View {
 
 struct AppearanceSettings: View {
     @State private var appIcon = HuskAppIcon.current
-    @AppStorage(Theme.Appearance.key) private var appearance = Theme.Appearance.system
-    @AppStorage(Holiday.key) private var holiday = true
+    @huskAppStorage(Theme.Appearance.key) private var appearance = Theme.Appearance.system
+    @huskAppStorage(Holiday.key) private var holiday = true
     @ObservedObject private var theme = AppTheme.shared
     @Environment(\.colorScheme) private var scheme
     @State private var custom: Color = AppTheme.shared.accentColor
@@ -324,7 +324,7 @@ struct AppearanceSettings: View {
                     ForEach(Theme.Appearance.allCases) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented)
-                .onChange(of: appearance) { v in
+                .huskOnChange(of: appearance) { v in
                     HuskLog.log("ui", "appearance: \(v.rawValue)")
                 }
                 Toggle("Holiday Decorations", isOn: $holiday)
@@ -351,7 +351,7 @@ struct AppearanceSettings: View {
                 .padding(.vertical, 6)
 
                 ColorPicker("Custom Colour", selection: $custom, supportsOpacity: false)
-                    .onChange(of: custom) { theme.accentColor = $0 }
+                    .huskOnChange(of: custom) { theme.accentColor = $0 }
             } header: {
                 Text("Accent Colour")
             } footer: {
@@ -416,7 +416,7 @@ struct AppearanceSettings: View {
 
 struct AboutSettings: View {
     @State private var showLogs = false
-    @AppStorage(TranslationLayer.devInfoKey) private var devInfo = false
+    @huskAppStorage(TranslationLayer.devInfoKey) private var devInfo = false
 
     var body: some View {
         List {
@@ -447,14 +447,14 @@ struct AboutSettings: View {
                 }
                 if devInfo {
                     NavigationLink { TLChecksView() } label: {
-                        Label("Device Checks", systemImage: "stethoscope")
+                        huskLabel("Device Checks", systemImage: "stethoscope")
                     }
                     NavigationLink { MassTestView() } label: {
-                        Label("Mass Test", systemImage: "square.stack.3d.down.forward")
+                        huskLabel("Mass Test", systemImage: "square.stack.3d.down.forward")
                     }
                 }
                 Button { showLogs = true } label: {
-                    Label("Open Console", systemImage: "terminal")
+                    huskLabel("Open Console", systemImage: "terminal")
                 }
             } footer: {
                 Text("Husk runs unmodified Android APKs in a real Android system on your iPhone. "

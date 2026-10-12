@@ -17,7 +17,7 @@ struct DiscoverView: View {
     var body: some View {
         Group {
             if manager.isLoading && manager.sources.isEmpty {
-                ProgressView("Fetching Repositories…")
+                huskProgress("Fetching Repositories…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if manager.sources.isEmpty {
                 EmptyState(title: "No Repositories",
@@ -40,16 +40,16 @@ struct DiscoverView: View {
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button { Task { await manager.fetchSources() } } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+                    huskLabel("Refresh", systemImage: "arrow.clockwise")
                 }
                 Menu {
                     Button { showingAddSource = true } label: {
-                        Label("Add Source", systemImage: "plus")
+                        huskLabel("Add Source", systemImage: "plus")
                     }
                     Button { showingSources = true } label: {
-                        Label("Manage Repositories", systemImage: "list.bullet")
+                        huskLabel("Manage Repositories", systemImage: "list.bullet")
                     }
-                } label: { Label("Repositories", systemImage: "ellipsis.circle") }
+                } label: { huskLabel("Repositories", systemImage: "ellipsis.circle") }
             }
         }
         .sheet(isPresented: $showingSources) { sourcesSheet }
@@ -63,7 +63,7 @@ struct DiscoverView: View {
         // longer cancelled between keystrokes, so the box updates a fixed
         // 200ms after the last one rather than as soon as typing stops.
         .onAppear { debounceSearch() }
-        .onChange(of: searchText) { _ in debounceSearch() }
+        .huskOnChange(of: searchText) { _ in debounceSearch() }
     }
 
     private func debounceSearch() {
@@ -86,7 +86,7 @@ struct DiscoverView: View {
             if !manager.fetchErrors.isEmpty {
                 Section {
                     ForEach(manager.fetchErrors.keys.sorted(), id: \.self) { url in
-                        Label {
+                        huskLabel {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(url).font(.footnote).lineLimit(1)
                                 Text(manager.fetchErrors[url] ?? "").font(.caption).foregroundColor(.secondary)
@@ -135,7 +135,7 @@ struct DiscoverView: View {
                 } else if phase.error != nil {
                     Image(systemName: "app.dashed").font(.title).foregroundColor(.secondary)
                 } else {
-                    ProgressView()
+                    huskProgress()
                 }
             }
             .frame(width: 48, height: 48)

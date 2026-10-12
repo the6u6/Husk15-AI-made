@@ -18,7 +18,7 @@ struct StoreView: View {
                 if !manager.isSignedIn {
                     signedOutState
                 } else if manager.isLoading && manager.featuredApps.isEmpty && !manager.isSearching {
-                    ProgressView("Connecting to Google Play…")
+                    huskProgress("Connecting to Google Play…")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     storeContent
@@ -45,7 +45,7 @@ struct StoreView: View {
 Button(action: {
                                 manager.signOut()
                             }) {
-                                Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                                huskLabel("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
                             }
                                 .foregroundColor(Color.red)
                         } label: {
@@ -57,12 +57,12 @@ Button(action: {
                             Button {
                                 Task { await manager.signInAsGuest() }
                             } label: {
-                                Label("Use Guest Account (Aurora)", systemImage: "person.crop.circle.badge.checkmark")
+                                huskLabel("Use Guest Account (Aurora)", systemImage: "person.crop.circle.badge.checkmark")
                             }
                             Button {
                                 showSignIn = true
                             } label: {
-                                Label("Sign In with Google", systemImage: "person.badge.key")
+                                huskLabel("Sign In with Google", systemImage: "person.badge.key")
                             }
                         } label: {
                             Text("Sign In")
@@ -81,7 +81,7 @@ Button(action: {
             // cancellation no longer discards the trailing keystrokes -- the
             // sleep has to finish first, so a fast typist waits it out.
             .onAppear { runSearch() }
-            .onChange(of: searchText) { _ in runSearch() }
+            .huskOnChange(of: searchText) { _ in runSearch() }
             .huskDialog(title: "Error", message: manager.errorMessage ?? "",
                         isPresented: Binding(
                             get: { manager.errorMessage != nil },
@@ -128,7 +128,7 @@ Button(action: {
 
             if manager.isLoading {
                 VStack(spacing: 12) {
-                    ProgressView()
+                    huskProgress()
                     Text(manager.statusMessage ?? "Signing in…")
                         .font(.footnote)
                         .foregroundColor(Theme.textDim)
@@ -183,7 +183,7 @@ Button(action: {
                     if manager.isSearching {
                         HStack {
                             Spacer()
-                            ProgressView("Searching…")
+                            huskProgress("Searching…")
                             Spacer()
                         }
                         .padding(.vertical, 12)
@@ -295,7 +295,7 @@ Button(action: {
                         .trim(from: 0, to: progress ?? 0.05)
                         .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                         .rotationEffect(.degrees(-90))
-                    ProgressView()
+                    huskProgress()
                         .scaleEffect(0.6)
                 }
                 .frame(width: 32, height: 32)
@@ -436,7 +436,7 @@ struct PlayAppDetailSheet: View {
         return Group {
             if isDownloading || progress != nil {
                 HStack(spacing: 8) {
-                    ProgressView()
+                    huskProgress()
                     Text("Downloading…")
                         .font(.caption.weight(.medium))
                         .foregroundColor(Theme.textDim)

@@ -205,14 +205,14 @@ struct CrashReportSheet: View {
 
                     if let file {
                         HuskShareButton(items: [file]) {
-                            Label("Share Report", systemImage: "square.and.arrow.up")
+                            huskLabel("Share Report", systemImage: "square.and.arrow.up")
                                 .frame(maxWidth: .infinity).padding(.vertical, 6)
                         }
                         .huskBorderedProminent()
                     }
                     if let subject {
                         Button { reporting = subject } label: {
-                            Label("Report to the Compatibility List", systemImage: "list.bullet.clipboard")
+                            huskLabel("Report to the Compatibility List", systemImage: "list.bullet.clipboard")
                                 .frame(maxWidth: .infinity).padding(.vertical, 6)
                         }
                         .huskBordered()

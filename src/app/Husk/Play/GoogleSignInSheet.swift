@@ -15,7 +15,7 @@ struct GoogleSignInSheet: View {
     var body: some View {
         NavigationView {
             ZStack {
-                Theme.backdrop.ignoresSafeArea()
+                Theme.backdrop.huskIgnoresSafeArea()
 
                 GoogleLoginWebView(
                     isLoading: $webLoading,
@@ -33,7 +33,7 @@ struct GoogleSignInSheet: View {
 
                 if manager.isLoading {
                     VStack(spacing: 16) {
-                        ProgressView()
+                        huskProgress()
                             .scaleEffect(1.2)
                         Text(manager.statusMessage ?? "Signing in to Google…")
                             .font(.subheadline.weight(.medium))
@@ -43,7 +43,7 @@ struct GoogleSignInSheet: View {
                     .huskBackground(Theme.surfaceHigh, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .shadow(radius: 20)
                 } else if webLoading {
-                    ProgressView("Loading Google Sign-In…")
+                    huskProgress("Loading Google Sign-In…")
                         .font(.footnote)
                 }
             }

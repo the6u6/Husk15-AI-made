@@ -28,7 +28,7 @@ struct DownloadsTab: View {
                             // row; the trade is long-press for swipe.
                             .contextMenu {
                                 Button(action: { downloads.remove(job.id) }) {
-                                    Label("Remove", systemImage: "trash")
+                                    huskLabel("Remove", systemImage: "trash")
                                 }
                                 .foregroundColor(Color.red)
                             }
@@ -55,7 +55,7 @@ struct DownloadsTab: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Done") { huskPM.wrappedValue.dismiss() } }
                 ToolbarItem(placement: .primaryAction) {
-                    Button { adding = true } label: { Label("Add", systemImage: "plus") }
+                    Button { adding = true } label: { huskLabel("Add", systemImage: "plus") }
                 }
             }
             .sheet(isPresented: $adding) { AddDownloadSheet() }
@@ -66,13 +66,13 @@ struct DownloadsTab: View {
         Section(header: Text("Updates")) {
             if let release = updates.available {
                 HStack {
-                    Label("Husk \(release.version)", systemImage: "arrow.down.app.fill")
+                    huskLabel("Husk \(release.version)", systemImage: "arrow.down.app.fill")
                     Spacer()
                     Button("View") { UIApplication.shared.open(release.page) }.huskBordered()
                 }
             }
             if updates.available == nil {
-                Label("Everything is up to date", systemImage: "checkmark.circle").foregroundColor(.secondary)
+                huskLabel("Everything is up to date", systemImage: "checkmark.circle").foregroundColor(.secondary)
             }
         }
     }
@@ -117,7 +117,7 @@ private struct DownloadRow: View {
                     .huskBorderless()
                 }
             }
-            if !job.complete { ProgressView(value: fraction) }
+            if !job.complete { huskProgress(value: fraction) }
             Text(status).font(.caption).foregroundColor(job.failed ? Color.orange : Color.secondary).lineLimit(2)
         }
         .padding(.vertical, 4)
@@ -158,7 +158,7 @@ private struct AddDownloadSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { huskPM.wrappedValue.dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    if working { ProgressView() } else {
+                    if working { huskProgress() } else {
                         Button("Download") {
                             working = true
                             Task {

@@ -122,7 +122,7 @@ private struct SnowCapShape: Shape {
 }
 
 private struct SnowCap: ViewModifier {
-    @AppStorage(Holiday.key) private var on = true
+    @huskAppStorage(Holiday.key) private var on = true
     var height: CGFloat
     func body(content: Content) -> some View {
         // .overlay(alignment:content:) is iOS 15; huskOverlay carries the

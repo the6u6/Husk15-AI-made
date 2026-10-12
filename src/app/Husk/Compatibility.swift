@@ -235,8 +235,8 @@ struct CompatibilitySection: View {
                 Text("Not on the list yet. Be the first to say how it runs.")
                     .font(.footnote).foregroundColor(.secondary)
             }
-            Button { reporting = subject } label: { Label("Report How It Ran", systemImage: "square.and.pencil") }
-            Link(destination: compat.pageURL(subject.package)) { Label("Open on antiweb.lol", systemImage: "safari") }
+            Button { reporting = subject } label: { huskLabel("Report How It Ran", systemImage: "square.and.pencil") }
+            Link(destination: compat.pageURL(subject.package)) { huskLabel("Open on antiweb.lol", systemImage: "safari") }
         } header: {
             Text("Compatibility")
         } footer: {
@@ -250,7 +250,7 @@ struct CompatReportSheet: View {
     let subject: CompatSubject
     // DismissAction is iOS 15.
     @Environment(\.presentationMode) private var huskPM
-    @AppStorage("husk.compatAuthor") private var author = ""
+    @huskAppStorage("husk.compatAuthor") private var author = ""
     @State private var status: CompatibilityStore.Status?
     @State private var notes = ""
     @State private var sending = false
@@ -264,7 +264,7 @@ struct CompatReportSheet: View {
                     ForEach([CompatibilityStore.Status.works, .opens, .broken], id: \.self) { s in
                         Button { status = s } label: {
                             HStack {
-                                Label(s == .opens ? "Opens, but Has Problems" : s.label, systemImage: s.symbol)
+                                huskLabel(s == .opens ? "Opens, but Has Problems" : s.label, systemImage: s.symbol)
                                     .foregroundColor(.primary)
                                 Spacer()
                                 if status == s { Image(systemName: "checkmark").foregroundColor(.accentColor) }
@@ -307,7 +307,7 @@ struct CompatReportSheet: View {
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    if sending { ProgressView() } else {
+                    if sending { huskProgress() } else {
                         Button("Send") { send() }.disabled(status == nil)
                     }
                 }

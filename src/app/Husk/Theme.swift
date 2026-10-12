@@ -81,7 +81,7 @@ enum Theme {
     static let cardCorner: CGFloat = 14
     static let rowCorner: CGFloat = 12
 
-    static var backdrop: some View { bg.ignoresSafeArea() }
+    static var backdrop: some View { bg.huskIgnoresSafeArea() }
 }
 
 extension View {
@@ -320,7 +320,7 @@ struct StatusPill: View {
     var tint: Color = Theme.accent
 
     var body: some View {
-        Label(text, systemImage: systemImage)
+        huskLabel(text, systemImage: systemImage)
             .font(.system(size: 12, weight: .medium))
             .padding(.horizontal, 10).padding(.vertical, 5)
             .huskBackground(tint.opacity(0.16), in: Capsule())
@@ -385,7 +385,7 @@ struct GuestControl: View {
         Button(action: action) {
             ZStack {
                 if busy {
-                    ProgressView().scaleEffect(0.6).accentColor(.white)
+                    huskProgress().scaleEffect(0.6).accentColor(.white)
                 } else {
                     Image(systemName: systemImage)
                         .font(.system(size: 17, weight: .medium))

@@ -262,13 +262,39 @@ jobs:
           pat+='|\.gradient\b|\.scrollIndicators|\.scrollDismissesKeyboard'
           pat+='|\.defersSystemGestures|Locale\.current\.region|\.region\?'
           pat+='|setNeedsUpdateOfSupportedInterfaceOrientations|requestGeometryUpdate'
-          # iOS 14 floor (IOS14-EXPERIMENT.md): the shims stand in for these too
+          # The iOS 13 floor (IOS14-EXPERIMENT.md now covers 13 too): the shims
+          # stand in for these as well.
           pat+='|\.foregroundStyle\(|Color\(uiColor:|\.background\([^)]*, *in:'
           pat+='|buttonStyle\(\.bordered|\.buttonBorderShape\(|\.controlSize\('
           pat+='|\.symbolRenderingMode\(|\.overlay\(alignment:|\.task *[\{\(]'
           pat+='|\.safeAreaInset\(|\.onSubmit\b|\.submitLabel\(|\.refreshable\b'
           pat+='|\bAnyShapeStyle\b'
-          hits="$(grep -rnE "$pat" src/app --include='*.swift' --exclude=Compat15.swift --exclude=Compat14.swift \
+          # iOS 13 floor: the whole of the iOS 14 surface, by type and by member.
+          # Every one of these is a *rename at the call site* rather than a shim
+          # an extension can provide, because each is SwiftUI's own type name and
+          # an extension cannot shadow it. huskLabel/ huskProgress/ huskOnChange/
+          # huskIgnoresSafeArea/ huskLazyVStack/ huskAppStorage are deliberately
+          # NOT matched: grep -E has no lookbehind, but it does not need one,
+          # because \bLabel does not match inside huskLabel -- `k` and `L` are
+          # both word characters, so there is no boundary between them. That is
+          # the property the first version of this list relied on without
+          # knowing, and it is checked here rather than assumed.
+          pat+='|\bLabel *[\(\{]|\bProgressView\b|@AppStorage\b|\bStateObject\b'
+          pat+='|\.onChange\(|\.ignoresSafeArea\b|\bLazyVStack\b|\bScrollViewReader\b'
+          pat+='|\bTextEditor\b|\bColorPicker\b|\bscenePhase\b|\.onOpenURL\b'
+          pat+='|\bList *[\(\{]|\.listStyle\(|\.listRow(Insets|Background|Separator)\b'
+          pat+='|\.onDelete\b|\.onMove\b|\.swipeActions\b'
+          # iOS 14 lifecycle. App, WindowGroup and @UIApplicationDelegateAdaptor
+          # all begin at 14; on 13 the entry point is a UIWindow and a
+          # UIHostingController created by the delegate.
+          pat+='|\bWindowGroup\b|@UIApplicationDelegateAdaptor|struct +\w+ *: *App\b'
+          # iOS 16, found in the code while doing the 13 sweep: DisclosureGroup
+          # was used once, unguarded, with no shim -- and the list had no entry
+          # for it, so nothing had ever complained. If that line really is iOS 16
+          # then a 14.0 build should not have compiled; CI decides that. If it
+          # is not, the rule costs one comment.
+          pat+='|\bDisclosureGroup\b'
+          hits="$(grep -rnE "$pat" src/app --include='*.swift' --exclude=Compat15.swift --exclude=Compat14.swift --exclude=Compat13.swift \
                    | grep -vE '^[^:]+:[0-9]+: *//' || true)"
 
           # `.bold()` and `.fontWeight(_:)` are checked separately because two

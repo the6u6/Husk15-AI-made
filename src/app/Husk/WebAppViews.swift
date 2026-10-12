@@ -66,9 +66,9 @@ struct WebAppScreenView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                Button { huskPM.wrappedValue.dismiss() } label: { Label("Close", systemImage: "xmark").font(.system(size: 13, weight: .semibold)) }
+                Button { huskPM.wrappedValue.dismiss() } label: { huskLabel("Close", systemImage: "xmark").font(.system(size: 13, weight: .semibold)) }
                 Button { WebAppRuntime.runtime(for: app)?.back() } label: {
-                    Label("Back", systemImage: "chevron.backward").font(.system(size: 13, weight: .semibold))
+                    huskLabel("Back", systemImage: "chevron.backward").font(.system(size: 13, weight: .semibold))
                 }
                 Spacer()
                 Text(app.label).font(.system(size: 12, weight: .medium)).foregroundColor(.secondary).lineLimit(1)
@@ -78,7 +78,7 @@ struct WebAppScreenView: View {
             .background(Color(.systemBackground))
             WebAppSurface(app: app)
         }
-        .background(color.ignoresSafeArea())
+        .background(color.huskIgnoresSafeArea())
         .onAppear {
             HuskOrientation.set(portrait ? .portrait : .landscape)
             refreshColor()

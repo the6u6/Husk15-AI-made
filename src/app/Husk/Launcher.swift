@@ -120,7 +120,7 @@ struct HomeView: View {
     @ObservedObject private var jit = JITCoordinator.shared
     @ObservedObject private var incoming = IncomingFiles.shared
     @Environment(\.colorScheme) private var scheme
-    @AppStorage(Holiday.key) private var holiday = true
+    @huskAppStorage(Holiday.key) private var holiday = true
 
     /// Everything, most recent first.
     private var all: [LibraryItem] { Launcher.byRecent(Launcher.items(store: store)) }
@@ -192,7 +192,7 @@ struct HomeView: View {
             .padding(.bottom, 32)
             .id(jit.attachGeneration)
         }
-        .background(Color(.systemBackground).ignoresSafeArea())
+        .background(Color(.systemBackground).huskIgnoresSafeArea())
         .navigationBarHidden(true)
     }
 }
@@ -299,7 +299,7 @@ private struct JITTile: View {
                     HStack {
                         TileGlyph(systemImage: "bolt.fill", color: isOn ? .green : .orange)
                         Spacer()
-                        if jit.busy { ProgressView() }
+                        if jit.busy { huskProgress() }
                     }
                     VStack(alignment: .leading, spacing: 2) {
                         Text(isOn ? "JIT on" : "JIT off").font(.headline).foregroundColor(.primary)
@@ -556,7 +556,7 @@ struct LibraryScreen: View {
             .padding(.top, 8)
             .padding(.bottom, 32)
         }
-        .background(Color(.systemBackground).ignoresSafeArea())
+        .background(Color(.systemBackground).huskIgnoresSafeArea())
         .navigationBarHidden(true)
     }
 
@@ -667,7 +667,7 @@ struct BusyStrip: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            ProgressView()
+            huskProgress()
             Text(text).font(.subheadline).lineLimit(2)
             Spacer(minLength: 0)
         }

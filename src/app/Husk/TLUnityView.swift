@@ -679,14 +679,14 @@ final class TLUnityModel: ObservableObject {
 struct TLCocosAttemptView: View {
     let app: TLApp
     @Environment(\.presentationMode) private var huskPM
-    @StateObject private var model = TLUnityModel()
+    @ObservedObject private var model = ObservedObject(wrappedValue: TLUnityModel())
     /// Why the app stopped, when its log says: shown over the screen
     @State private var stoppedWhy: AppDiagnosis?
-    @AppStorage("husk.tl.unity.showLog") private var showLogSetting = false
-    @AppStorage(TranslationLayer.devInfoKey) private var devInfo = false
+    @huskAppStorage("husk.tl.unity.showLog") private var showLogSetting = false
+    @huskAppStorage(TranslationLayer.devInfoKey) private var devInfo = false
     @State private var stats = "starting"
     @ObservedObject private var pads = HuskGamepads.shared
-    @StateObject private var virtualPad = VirtualPad()
+    @ObservedObject private var virtualPad = ObservedObject(wrappedValue: VirtualPad())
     /// Where the player has put the pad's controls in this game, and whether they are moving them now.
     @State private var padLayout = PadLayout()
     @State private var editingPad = false
@@ -738,7 +738,7 @@ struct TLCocosAttemptView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Color.black.huskIgnoresSafeArea()
             Group {
                 if let other = blockedBy {
                     VStack(spacing: 8) {
@@ -766,7 +766,7 @@ struct TLCocosAttemptView: View {
                                 .huskOverlay { if editingPad { padEditor } }
                         }
                     }
-                    .ignoresSafeArea()
+                    .huskIgnoresSafeArea()
                 }
             }
             if !uiHidden {
@@ -808,10 +808,10 @@ struct TLCocosAttemptView: View {
             model.start()
         }
         // What happened, for the library: ten seconds of frames is a game that plays; a refusal is one that did not start.
-        .onChange(of: model.frames) { f in
+        .huskOnChange(of: model.frames) { f in
             if f > 600, model.state == Int32(HUSK_UNITY_RUNNING) { GameStatusStore.shared.record(app.id, .plays) }
         }
-        .onChange(of: model.state) { st in
+        .huskOnChange(of: model.state) { st in
             if st == Int32(HUSK_UNITY_FAILED) || st == Int32(HUSK_UNITY_ENDED), stoppedWhy == nil, let d = AppDiagnosis.ofCurrentRun() {
                 stoppedWhy = d
                 GameStatusStore.shared.record(app.id, st == Int32(HUSK_UNITY_FAILED) ? .failed : .crashed, diagnosis: d)
@@ -865,12 +865,12 @@ Button("Reset All") { padLayout = PadLayout(); padSelected = nil; padLayout.save
     private var bar: some View {
         HStack(spacing: 12) {
             Button { huskPM.wrappedValue.dismiss() } label: {
-                Label("Close", systemImage: "xmark").font(.system(size: 13, weight: .semibold))
+                huskLabel("Close", systemImage: "xmark").font(.system(size: 13, weight: .semibold))
             }
             .accentColor(.white)
             if engine == .flutter {
                 Button { husk_flutter_back() } label: {
-                    Label("Back", systemImage: "chevron.backward").font(.system(size: 13, weight: .semibold))
+                    huskLabel("Back", systemImage: "chevron.backward").font(.system(size: 13, weight: .semibold))
                 }
                 .accentColor(.white)
             }
@@ -879,17 +879,17 @@ Button("Reset All") { padLayout = PadLayout(); padSelected = nil; padLayout.save
                 .font(.system(size: 12, weight: .medium)).foregroundColor(.white.opacity(0.85)).lineLimit(1)
             Spacer()
             if !pads.names.isEmpty {
-                Label(pads.names.count == 1 ? pads.names[0] : "\(pads.names.count) controllers", systemImage: "gamecontroller.fill")
+                huskLabel(pads.names.count == 1 ? pads.names[0] : "\(pads.names.count) controllers", systemImage: "gamecontroller.fill")
                     .font(.system(size: 11, weight: .medium)).foregroundColor(.white.opacity(0.7)).lineLimit(1)
             }
             if padOffered {
                 Button { settings.padShown.toggle(); settings.save(app.id); if !settings.padShown { editingPad = false } } label: {
-                    Label(settings.padShown ? "Hide pad" : "Pad", systemImage: "gamecontroller").font(.system(size: 12, weight: .semibold))
+                    huskLabel(settings.padShown ? "Hide pad" : "Pad", systemImage: "gamecontroller").font(.system(size: 12, weight: .semibold))
                 }
                 .accentColor(.white)
                 if settings.padShown {
                     Button { padSelected = nil; editingPad.toggle() } label: {
-                        Label(editingPad ? "Done" : "Edit pad", systemImage: "slider.horizontal.below.square.and.square.filled")
+                        huskLabel(editingPad ? "Done" : "Edit pad", systemImage: "slider.horizontal.below.square.and.square.filled")
                             .font(.system(size: 12, weight: .semibold))
                     }
                     .accentColor(editingPad ? .yellow : .white)
@@ -905,7 +905,7 @@ Button("Reset All") { padLayout = PadLayout(); padSelected = nil; padLayout.save
                 .accentColor(.white)
             }
             Button { toggleInterface() } label: {
-                Label("Hide", systemImage: "eye.slash").font(.system(size: 12, weight: .semibold))
+                huskLabel("Hide", systemImage: "eye.slash").font(.system(size: 12, weight: .semibold))
             }
             .accentColor(.white)
         }
@@ -920,7 +920,7 @@ Button("Reset All") { padLayout = PadLayout(); padSelected = nil; padLayout.save
                 Text("ATTEMPT LOG").font(.technical(10, weight: .bold)).foregroundColor(Theme.textDim)
                 Spacer()
                 Button { UIPasteboard.general.string = model.logText } label: {
-                    Label("Copy", systemImage: "doc.on.doc").font(.system(size: 11))
+                    huskLabel("Copy", systemImage: "doc.on.doc").font(.system(size: 11))
                 }
             }
             .padding(.horizontal, 10).padding(.vertical, 6)
@@ -933,7 +933,7 @@ Button("Reset All") { padLayout = PadLayout(); padSelected = nil; padLayout.save
                         .padding(8)
                         .id("bottom")
                 }
-                .onChange(of: model.logText) { _ in proxy.scrollTo("bottom") }
+                .huskOnChange(of: model.logText) { _ in proxy.scrollTo("bottom") }
             }
         }
         .background(Theme.bg.opacity(0.85))

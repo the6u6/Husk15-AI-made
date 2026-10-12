@@ -134,7 +134,7 @@ struct OnboardingView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 34)
             if let state = jitState {
-                Label(state, systemImage: "checkmark.circle.fill")
+                huskLabel(state, systemImage: "checkmark.circle.fill")
                     .font(.callout.weight(.medium)).foregroundColor(.green)
             }
             Button(jitState == nil ? "Set Up StikJIT Now" : "Change JIT Setup") { settingUpJIT = true }

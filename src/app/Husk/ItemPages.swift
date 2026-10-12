@@ -51,7 +51,7 @@ private struct BigButton: View {
 
     var body: some View {
         Button(action: action) {
-            Label(title, systemImage: systemImage)
+            huskLabel(title, systemImage: systemImage)
                 .font(.system(.headline, design: .rounded))
                 .frame(maxWidth: .infinity)
                 .frame(height: 50)
@@ -207,18 +207,18 @@ struct GamePage: View {
 
             Section {
                 NavigationLink(destination: libraryDestination(LibraryRoute.gameSettings(app.id))) {
-                    Label("Game Settings", systemImage: "slider.horizontal.3")
+                    huskLabel("Game Settings", systemImage: "slider.horizontal.3")
                 }
                 NavigationLink(destination: libraryDestination(LibraryRoute.gameReport(app.id))) {
-                    Label("Technical Details", systemImage: "cpu")
+                    huskLabel("Technical Details", systemImage: "cpu")
                 }
             }
 
             if !isGeodeLauncher {
                 Section {
-                    Button { backUp() } label: { Label("Back Up Saves", systemImage: "square.and.arrow.up") }
+                    Button { backUp() } label: { huskLabel("Back Up Saves", systemImage: "square.and.arrow.up") }
                         .disabled(savesBusy || !SaveBackup.hasData(app))
-                    Button { pickRestore() } label: { Label("Restore Saves", systemImage: "clock.arrow.circlepath") }
+                    Button { pickRestore() } label: { huskLabel("Restore Saves", systemImage: "clock.arrow.circlepath") }
                         .disabled(savesBusy || loadedNow)
                 } header: {
                     Text("Saves")
@@ -231,7 +231,7 @@ struct GamePage: View {
                 HuskLabeledContent("Runs With", value: app.report?.runnerName ?? "Unknown")
                 if let st = GameStatusStore.shared.status(app.id) {
                     HuskLabeledContent("Last Result") {
-                        Label(st.result.label, systemImage: st.result.symbol).foregroundColor(st.result.color)
+                        huskLabel(st.result.label, systemImage: st.result.symbol).foregroundColor(st.result.color)
                     }
                 }
                 HuskLabeledContent("Last Played", value: app.lastPlayed.map { huskFormatDateTime($0) } ?? "Never")
@@ -240,7 +240,7 @@ struct GamePage: View {
 
             Section {
 Button(action: { dialog = .remove }) {
-                    Label("Remove Game", systemImage: "trash")
+                    huskLabel("Remove Game", systemImage: "trash")
                 }
                     .foregroundColor(Color.red)
             }
@@ -397,7 +397,7 @@ Button(action: { dialog = .remove }) {
             BigButton(title: "Close Husk to Play", systemImage: "xmark.circle", prominent: false) { dialog = .quit }
         } else if !Launcher.jitOn {
             if jit.busy {
-                HStack(spacing: 10) { ProgressView(); Text(jit.status ?? "Turning on JIT…").foregroundColor(.secondary) }
+                HStack(spacing: 10) { huskProgress(); Text(jit.status ?? "Turning on JIT…").foregroundColor(.secondary) }
                     .frame(maxWidth: .infinity).frame(height: 50)
             } else {
                 BigButton(title: "Turn On JIT to Play", systemImage: "bolt.fill", action: turnOnJIT)

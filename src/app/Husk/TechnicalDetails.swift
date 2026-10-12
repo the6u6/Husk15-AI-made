@@ -102,7 +102,7 @@ struct TLTechnicalView: View {
                             .padding(.vertical, 4)
                     }
                     .frame(maxHeight: 320)
-                    Button { sharing = true } label: { Label("Share Log", systemImage: "square.and.arrow.up") }
+                    Button { sharing = true } label: { huskLabel("Share Log", systemImage: "square.and.arrow.up") }
                 } else {
                     Text(log == nil ? "Reading…" : "No log yet. It is written the first time the game runs.")
                         .font(.footnote).foregroundColor(.secondary)

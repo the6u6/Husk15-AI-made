@@ -568,7 +568,7 @@ struct TLChecksView: View {
             Button {
                 store.runChecks()
             } label: {
-                Label(store.checking ? "Checking…"
+                huskLabel(store.checking ? "Checking…"
                       : store.checks.isEmpty ? "Run checks" : "Run again",
                       systemImage: "stethoscope")
             }
@@ -762,10 +762,10 @@ struct TLAttemptView: View {
 /// same three-finger way to hide it, and the game's own settings.
 struct TLClassicAttemptView: View {
     let app: TLApp
-    @StateObject private var runner = TLAttemptRunner()
+    @ObservedObject private var runner = ObservedObject(wrappedValue: TLAttemptRunner())
     @Environment(\.presentationMode) private var huskPM
-    @AppStorage("husk.tl.showLog") private var showLogSetting = false
-    @AppStorage(TranslationLayer.devInfoKey) private var devInfo = false
+    @huskAppStorage("husk.tl.showLog") private var showLogSetting = false
+    @huskAppStorage(TranslationLayer.devInfoKey) private var devInfo = false
     @State private var settings: TLAppSettings
     @State private var uiHidden: Bool
     @State private var hint = false
@@ -795,7 +795,7 @@ struct TLClassicAttemptView: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Color.black.huskIgnoresSafeArea()
             VStack(spacing: 0) {
                 if !cleanLayout {
                     bar.opacity(uiHidden ? 0 : 1).allowsHitTesting(!uiHidden)
@@ -808,13 +808,13 @@ struct TLClassicAttemptView: View {
                                 Text("The game stopped").font(.headline).foregroundColor(.white)
                                 Button("Run Again") { runner.start(apks: app.apks) }.huskBorderedProminent()
                             } else {
-                                ProgressView().accentColor(.white)
+                                huskProgress().accentColor(.white)
                                 Text("Starting \(app.label)…").font(.subheadline).foregroundColor(.white.opacity(0.7))
                             }
                         }
                     }
                 }
-                .ignoresSafeArea(.container, edges: cleanLayout ? .all : [.horizontal, .bottom])
+                .huskIgnoresSafeArea(.container, edges: cleanLayout ? .all : [.horizontal, .bottom])
                 if showLog, !uiHidden { logPanel.frame(height: 220) }
             }
             if cleanLayout, !uiHidden {
@@ -853,7 +853,7 @@ struct TLClassicAttemptView: View {
     private var bar: some View {
         HStack(spacing: 12) {
             Button { runner.stop(); huskPM.wrappedValue.dismiss() } label: {
-                Label("Close", systemImage: "xmark").font(.system(size: 13, weight: .semibold))
+                huskLabel("Close", systemImage: "xmark").font(.system(size: 13, weight: .semibold))
             }
             .accentColor(.white)
             Circle().fill(runner.statusColor).frame(width: 7, height: 7)
@@ -867,7 +867,7 @@ struct TLClassicAttemptView: View {
                 .accentColor(.white)
             }
             Button { toggleInterface() } label: {
-                Label("Hide", systemImage: "eye.slash").font(.system(size: 12, weight: .semibold))
+                huskLabel("Hide", systemImage: "eye.slash").font(.system(size: 12, weight: .semibold))
             }
             .accentColor(.white)
         }
@@ -887,7 +887,7 @@ struct TLClassicAttemptView: View {
                     .id("bottom")
             }
             .background(Color(white: 0.06))
-            .onChange(of: runner.logText) { _ in proxy.scrollTo("bottom") }
+            .huskOnChange(of: runner.logText) { _ in proxy.scrollTo("bottom") }
         }
     }
 }

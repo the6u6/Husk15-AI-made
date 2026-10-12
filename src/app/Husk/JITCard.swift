@@ -53,7 +53,7 @@ struct JITCard: View {
                 }
                 .buttonStyle(.plain)
                 if jit.busy {
-                    ProgressView()
+                    huskProgress()
                 } else {
                     Button {
                         if offered == .builtIn, HuskBuiltInJIT.isAvailable { jit.method = .builtIn }
@@ -140,7 +140,7 @@ struct JITCard: View {
 
             if jit.busy {
                 HStack(spacing: 10) {
-                    ProgressView()
+                    huskProgress()
                     Text(jit.status ?? "Turning on JIT…").font(.subheadline).foregroundColor(.secondary)
                 }
             } else {
@@ -151,7 +151,7 @@ struct JITCard: View {
                 } label: {
                     HStack {
                         Spacer()
-                        Label(buttonTitle, systemImage: "bolt.fill")
+                        huskLabel(buttonTitle, systemImage: "bolt.fill")
                             .font(.headline)
                         Spacer()
                     }

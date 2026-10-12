@@ -8,7 +8,7 @@ struct ContentView: View {
     @ObservedObject private var jit = JITCoordinator.shared
     @State private var showOnboarding = Onboarding.needed
     @Environment(\.scenePhase) private var scenePhase
-    @AppStorage(Theme.Appearance.key) private var appearance = Theme.Appearance.system
+    @huskAppStorage(Theme.Appearance.key) private var appearance = Theme.Appearance.system
     @ObservedObject private var theme = AppTheme.shared
     @ObservedObject private var incoming = IncomingFiles.shared
     @ObservedObject private var showcase = ShowcaseStore.shared
@@ -17,7 +17,7 @@ struct ContentView: View {
     @ObservedObject private var massTest = MassTest.shared
     @ObservedObject private var updates = AppUpdates.shared
     @State private var showWhatsNew = false
-    @AppStorage(Holiday.key) private var holiday = true
+    @huskAppStorage(Holiday.key) private var holiday = true
 
     /// Which of the two dialogs this view can show, if any.
     ///
@@ -55,23 +55,23 @@ struct ContentView: View {
         ZStack {
             TabView(selection: $router.tab) {
                 HomeView()
-                    .tabItem { Label("Home", systemImage: "house.fill") }
+                    .tabItem { huskLabel("Home", systemImage: "house.fill") }
                     .tag(HuskTab.home)
 
                 LibraryScreen()
-                    .tabItem { Label("Library", systemImage: "square.grid.2x2.fill") }
+                    .tabItem { huskLabel("Library", systemImage: "square.grid.2x2.fill") }
                     .tag(HuskTab.library)
 
                 StoreView()
-                    .tabItem { Label("Store", systemImage: "cart.fill") }
+                    .tabItem { huskLabel("Store", systemImage: "cart.fill") }
                     .tag(HuskTab.store)
 
                 FAQTab()
-                    .tabItem { Label("FAQ", systemImage: "questionmark.circle.fill") }
+                    .tabItem { huskLabel("FAQ", systemImage: "questionmark.circle.fill") }
                     .tag(HuskTab.help)
 
                 SettingsTab()
-                    .tabItem { Label("Settings", systemImage: "gearshape.fill") }
+                    .tabItem { huskLabel("Settings", systemImage: "gearshape.fill") }
                     .tag(HuskTab.settings)
             }
 
@@ -79,7 +79,7 @@ struct ContentView: View {
             // comes after it.
             if holiday {
                 Snowfall()
-                    .ignoresSafeArea()
+                    .huskIgnoresSafeArea()
                     // Belt and braces with the isUserInteractionEnabled = false in
                     // SnowView.makeUIView. Upstream relied on Canvas being inert,
                     // which was a property of that primitive; the UIView this became
@@ -100,14 +100,14 @@ struct ContentView: View {
             // where `windows.app != nil` is the honest condition and where it
             // cannot be lost again by editing this file. See AppWindows.swift.
             AppWindowLayer()
-                .ignoresSafeArea(.keyboard)
+                .huskIgnoresSafeArea(.keyboard)
 
         }
         .accentColor(theme.accentColor)
         // The user's appearance: the system's, unless they pinned one. Set on the
         // window rather than with .preferredColorScheme — see Theme.apply.
         .onAppear { Theme.apply(appearance) }
-        .onChange(of: appearance) { Theme.apply($0) }
+        .huskOnChange(of: appearance) { Theme.apply($0) }
         .fullScreenCover(isPresented: $showOnboarding) {
             OnboardingView {
                 showOnboarding = false
@@ -143,7 +143,7 @@ struct ContentView: View {
         // set of apps changes. .task(id:) is iOS 15, so the two halves are
         // spelled out.
         .onAppear { showcase.refresh(for: showcasePackages) }
-        .onChange(of: showcasePackages) { _ in showcase.refresh(for: showcasePackages) }
+        .huskOnChange(of: showcasePackages) { _ in showcase.refresh(for: showcasePackages) }
         // An APK shared to Husk: where does it go?
         .sheet(isPresented: Binding(get: { !incoming.waiting.isEmpty },
                                     set: { if !$0 { incoming.discard() } })) {
@@ -154,7 +154,7 @@ struct ContentView: View {
         .sheet(isPresented: $jit.showSetup) { JITSetupFlow() }
         // The built-in helper attaches while Husk stays in the foreground, so
         // there is no relaunch to trigger the region claim below; this is it.
-        .onChange(of: jit.attachGeneration) { _ in evaluate() }
+        .huskOnChange(of: jit.attachGeneration) { _ in evaluate() }
         // Asking rather than downloading. Two gigabytes over someone's cellular
         // connection is not a decision to make on their behalf.
         //
@@ -199,7 +199,7 @@ struct ContentView: View {
         // The two-parameter onChange is iOS 17; this single-parameter form is
         // deprecated there but still works, and is the only one that compiles
         // against the 16.0 deployment target.
-        .onChange(of: scenePhase) { phase in
+        .huskOnChange(of: scenePhase) { phase in
             // StikDebug relaunches Husk after attaching, so returning to the
             // foreground is the moment worth re-checking, not first launch.
             if phase == .active { evaluate() }
@@ -243,7 +243,7 @@ struct LogView: View {
         NavigationView {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 1) {
+                    huskLazyVStack(alignment: .leading, spacing: 1) {
                         ForEach(Array(lines.enumerated()), id: \.offset) { i, line in
                             Text(line)
                                 .font(.system(size: 9, design: .monospaced))

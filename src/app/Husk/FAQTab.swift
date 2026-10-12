@@ -22,7 +22,7 @@ struct FAQTab: View {
                     Section {
                         ForEach(s.items) { item in FAQRow(item: item, expanded: !query.isEmpty) }
                     } header: {
-                        Label(s.title, systemImage: s.symbol)
+                        huskLabel(s.title, systemImage: s.symbol)
                     }
                 }
                 if sections.isEmpty {

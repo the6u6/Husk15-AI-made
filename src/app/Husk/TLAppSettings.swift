@@ -265,7 +265,7 @@ struct TLAppSettingsView: View {
 
             Section {
                 Button { AppClip.generate(for: app) } label: {
-                    Label("Generate App Clip", systemImage: "apps.iphone.badge.plus")
+                    huskLabel("Generate App Clip", systemImage: "apps.iphone.badge.plus")
                 }
             } header: {
                 Text("Home Screen")
@@ -277,7 +277,7 @@ struct TLAppSettingsView: View {
             Section {
                 DetailRow(label: "Saved by the game", value: dataSize, mono: false)
 Button(action: { confirmReset = true }) {
-                    Label("Reset Game Data", systemImage: "arrow.counterclockwise")
+                    huskLabel("Reset Game Data", systemImage: "arrow.counterclockwise")
                 }
                     .foregroundColor(Color.red)
                 .disabled(inUse || dataDirs.isEmpty)
@@ -291,8 +291,8 @@ Button(action: { confirmReset = true }) {
         .huskForm()
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.inline)
-        .onChange(of: settings) { $0.save(app.id) }
-        .onChange(of: settings.geode) { on in
+        .huskOnChange(of: settings) { $0.save(app.id) }
+        .huskOnChange(of: settings.geode) { on in
             if on { Task { await geode.prepare(app) } } else { geode.remove(app) }
         }
         // Leaving the page commits, same as pressing the checkmark.
@@ -316,7 +316,7 @@ Button(action: { confirmReset = true }) {
         case .idle:
             Button("Download Geode") { Task { await geode.prepare(app) } }
         case .working(let what):
-            HStack(spacing: 10) { ProgressView(); Text(what).foregroundColor(.secondary) }
+            HStack(spacing: 10) { huskProgress(); Text(what).foregroundColor(.secondary) }
         case .ready(let version):
             HuskLabeledContent("Geode", value: "v\(version), ready")
         case .failed(let why):
