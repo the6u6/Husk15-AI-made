@@ -51,29 +51,41 @@ struct ContentView: View {
         }
     }
 
-    var body: some View {
+    /// The five tabs.
+    ///
+    /// Pulled out of `body` for the type checker, not for style: five
+    /// `.tabItem` closures over `huskLabel` are more than it will infer inside
+    /// an expression this size, and at this floor `huskLabel` returns a
+    /// `_HuskLabel` rather than the system's `Text`, so there is less for it to
+    /// narrow on.
+    private var tabs: some View {
+        TabView(selection: $router.tab) {
+            HomeView()
+                .tabItem { huskLabel("Home", systemImage: "house.fill") }
+                .tag(HuskTab.home)
+
+            LibraryScreen()
+                .tabItem { huskLabel("Library", systemImage: "square.grid.2x2.fill") }
+                .tag(HuskTab.library)
+
+            StoreView()
+                .tabItem { huskLabel("Store", systemImage: "cart.fill") }
+                .tag(HuskTab.store)
+
+            FAQTab()
+                .tabItem { huskLabel("FAQ", systemImage: "questionmark.circle.fill") }
+                .tag(HuskTab.help)
+
+            SettingsTab()
+                .tabItem { huskLabel("Settings", systemImage: "gearshape.fill") }
+                .tag(HuskTab.settings)
+        }
+    }
+
+    /// The tabs, plus the layers that draw over them.
+    private var root: some View {
         ZStack {
-            TabView(selection: $router.tab) {
-                HomeView()
-                    .tabItem { huskLabel("Home", systemImage: "house.fill") }
-                    .tag(HuskTab.home)
-
-                LibraryScreen()
-                    .tabItem { huskLabel("Library", systemImage: "square.grid.2x2.fill") }
-                    .tag(HuskTab.library)
-
-                StoreView()
-                    .tabItem { huskLabel("Store", systemImage: "cart.fill") }
-                    .tag(HuskTab.store)
-
-                FAQTab()
-                    .tabItem { huskLabel("FAQ", systemImage: "questionmark.circle.fill") }
-                    .tag(HuskTab.help)
-
-                SettingsTab()
-                    .tabItem { huskLabel("Settings", systemImage: "gearshape.fill") }
-                    .tag(HuskTab.settings)
-            }
+            tabs
 
             // Christmas: snow over the tabs. Never over an app's window, which
             // comes after it.
@@ -88,7 +100,8 @@ struct ContentView: View {
                     .allowsHitTesting(false)
             }
 
-            // Multitasking: an app in a window over everything else in Husk (AppWindows.swift).
+            // Multitasking: an app in a window over everything else in Husk
+            // (AppWindows.swift).
             //
             // No .allowsHitTesting here any more, and that is deliberate: upstream
             // had `.allowsHitTesting(showGuestScreen)` on this layer, because a
@@ -112,113 +125,116 @@ struct ContentView: View {
                 // it. `edgesIgnoringSafeArea(_:)` is the iOS 11 spelling and takes
                 // an Edge.Set, so the original instruction is expressible here.
                 .edgesIgnoringSafeArea(.keyboard)
+        }
+    }
 
-        }
-        .accentColor(theme.accentColor)
-        // The user's appearance: the system's, unless they pinned one. Set on the
-        // window rather than with .preferredColorScheme — see Theme.apply.
-        .onAppear { Theme.apply(appearance) }
-        .huskOnChange(of: appearance) { Theme.apply($0) }
-        .fullScreenCover(isPresented: $showOnboarding) {
-            OnboardingView {
-                showOnboarding = false
+    var body: some View {
+        root
+            .accentColor(theme.accentColor)
+            // The user's appearance: the system's, unless they pinned one. Set on the
+            // window rather than with .preferredColorScheme — see Theme.apply.
+            .onAppear { Theme.apply(appearance) }
+            .huskOnChange(of: appearance) { Theme.apply($0) }
+            .fullScreenCover(isPresented: $showOnboarding) {
+                OnboardingView {
+                    showOnboarding = false
+                }
             }
-        }
-        // A game that ended Husk last time: say so, with its report.
-        .sheet(item: Binding(get: { showOnboarding ? nil : crash.pending }, set: { crash.pending = $0 }),
-               onDismiss: { if WhatsNew.due { showWhatsNew = true } }) { r in
-            CrashReportSheet(report: r)
-        }
-        // After an update: what it brought, once.
-        .fullScreenCover(isPresented: $showWhatsNew) {
-            WhatsNewSheet { WhatsNew.markSeen(); showWhatsNew = false }
-        }
-        // The alerts are further down the chain: one per view on iOS 13/14, and
-        // this view has three. See huskOneAlert.
-        //
-        // Upstream adds a fourth here -- the "Husk X Is Available" prompt, which
-        // is the same dialog the .huskUpdate case of activeDialog already
-        // renders with the same title, message and buttons. It is written as a
-        // plain second .alert because several can be chained from iOS 15; on
-        // this floor only the last one is ever presented, so adding it would put
-        // "Husk is available" and "Metadata Updated" back out of reach.
-        //
-        // .task is iOS 15. onAppear + Task is the same thing with the
-        // cancellation thrown away; there is nothing to cancel here.
-        .onAppear {
-            Task { await updates.check() }
-            Task { await CompatibilityStore.shared.refresh() }
-        }
-        .sheet(isPresented: $router.showDownloads) { DownloadsTab() }
-        // Pictures for the apps here: read the index on launch and whenever the
-        // set of apps changes. .task(id:) is iOS 15, so the two halves are
-        // spelled out.
-        .onAppear { showcase.refresh(for: showcasePackages) }
-        .huskOnChange(of: showcasePackages) { _ in showcase.refresh(for: showcasePackages) }
-        // An APK shared to Husk: where does it go?
-        .sheet(isPresented: Binding(get: { !incoming.waiting.isEmpty },
-                                    set: { if !$0 { incoming.discard() } })) {
-            IncomingChooser()
-                .huskDetent(.medium)
-                .huskDragIndicator()
-        }
-        .sheet(isPresented: $jit.showSetup) { JITSetupFlow() }
-        // The built-in helper attaches while Husk stays in the foreground, so
-        // there is no relaunch to trigger the region claim below; this is it.
-        .huskOnChange(of: jit.attachGeneration) { _ in evaluate() }
-        // Asking rather than downloading. Two gigabytes over someone's cellular
-        // connection is not a decision to make on their behalf.
-        //
-        // All three of this view's dialogs are here, in one modifier, because
-        // iOS 13/14 presents only the last .alert(isPresented:) on a view. Only
-        // this one -- the last of the three -- could appear before; "Husk is
-        // available" and "Metadata Updated" have never been reachable.
-        .huskOneAlert(isPresented: Binding(get: { activeDialog != nil },
-                                          set: { if !$0 { dismissActiveDialog() } })) {
-            switch activeDialog {
-            case .huskUpdate:
-                return Alert(
-                    title: Text("Husk \(updates.available?.version ?? "") Is Available"),
-                    message: Text("You have \(AppUpdates.current). The new version's IPA is "
-                                  + "on its release page."),
-                    primaryButton: .default(Text("View Release")) {
-                        if let page = updates.available?.page { UIApplication.shared.open(page) }
-                        updates.dismiss()
-                    },
-                    secondaryButton: .cancel(Text("Not Now")))
-            case .metadata:
-                return Alert(
-                    title: Text("Metadata Updated"),
-                    message: Text("Metadata for \(showcase.updates.count) of your app"
-                                  + "\(showcase.updates.count == 1 ? "" : "s") has been "
-                                  + "updated. Would you like to download the updates?"),
-                    primaryButton: .default(Text("Download")) { showcase.downloadUpdates() },
-                    secondaryButton: .cancel(Text("Not Now")) { showcase.asked() })
-            case .none:
-                return Alert(title: Text(""), dismissButton: .cancel(Text("")))
+            // A game that ended Husk last time: say so, with its report.
+            .sheet(item: Binding(get: { showOnboarding ? nil : crash.pending }, set: { crash.pending = $0 }),
+                   onDismiss: { if WhatsNew.due { showWhatsNew = true } }) { r in
+                CrashReportSheet(report: r)
             }
-        }
-        .sheet(isPresented: $massTest.shareResults) { ShareSheet(items: [MassTest.resultsURL]) }
-        .onAppear {
-            crash.checkPreviousRun()
-            // the developer mass test: the last app's fate, then the next app (it clears a crash report it has written down)
-            massTest.resume(crash: crash)
-            if crash.pending == nil, !massTest.active { router.resumeSwitch() }
-            if crash.pending == nil, WhatsNew.due { showWhatsNew = true }
-            evaluate()
-        }
-        // The two-parameter onChange is iOS 17; this single-parameter form is
-        // deprecated there but still works, and is the only one that compiles
-        // against the 16.0 deployment target.
-        .huskOnChange(of: scenePhase) { phase in
-            // StikDebug relaunches Husk after attaching, so returning to the
-            // foreground is the moment worth re-checking, not first launch.
-            if phase == .active { evaluate() }
-        }
-        // scenePhase is iOS 14 and is a property of a scene; on 13 the app has
-        // one window and no scene, so this bridges the four UIApplication
-        // notifications into the environment value the reader above expects.
-        .huskScenePhaseTracking()
+            // After an update: what it brought, once.
+            .fullScreenCover(isPresented: $showWhatsNew) {
+                WhatsNewSheet { WhatsNew.markSeen(); showWhatsNew = false }
+            }
+            // The alerts are further down the chain: one per view on iOS 13/14, and
+            // this view has three. See huskOneAlert.
+            //
+            // Upstream adds a fourth here -- the "Husk X Is Available" prompt, which
+            // is the same dialog the .huskUpdate case of activeDialog already
+            // renders with the same title, message and buttons. It is written as a
+            // plain second .alert because several can be chained from iOS 15; on
+            // this floor only the last one is ever presented, so adding it would put
+            // "Husk is available" and "Metadata Updated" back out of reach.
+            //
+            // .task is iOS 15. onAppear + Task is the same thing with the
+            // cancellation thrown away; there is nothing to cancel here.
+            .onAppear {
+                Task { await updates.check() }
+                Task { await CompatibilityStore.shared.refresh() }
+            }
+            .sheet(isPresented: $router.showDownloads) { DownloadsTab() }
+            // Pictures for the apps here: read the index on launch and whenever the
+            // set of apps changes. .task(id:) is iOS 15, so the two halves are
+            // spelled out.
+            .onAppear { showcase.refresh(for: showcasePackages) }
+            .huskOnChange(of: showcasePackages) { _ in showcase.refresh(for: showcasePackages) }
+            // An APK shared to Husk: where does it go?
+            .sheet(isPresented: Binding(get: { !incoming.waiting.isEmpty },
+                                        set: { if !$0 { incoming.discard() } })) {
+                IncomingChooser()
+                    .huskDetent(.medium)
+                    .huskDragIndicator()
+            }
+            .sheet(isPresented: $jit.showSetup) { JITSetupFlow() }
+            // The built-in helper attaches while Husk stays in the foreground, so
+            // there is no relaunch to trigger the region claim below; this is it.
+            .huskOnChange(of: jit.attachGeneration) { _ in evaluate() }
+            // Asking rather than downloading. Two gigabytes over someone's cellular
+            // connection is not a decision to make on their behalf.
+            //
+            // All three of this view's dialogs are here, in one modifier, because
+            // iOS 13/14 presents only the last .alert(isPresented:) on a view. Only
+            // this one -- the last of the three -- could appear before; "Husk is
+            // available" and "Metadata Updated" have never been reachable.
+            .huskOneAlert(isPresented: Binding(get: { activeDialog != nil },
+                                              set: { if !$0 { dismissActiveDialog() } })) {
+                switch activeDialog {
+                case .huskUpdate:
+                    return Alert(
+                        title: Text("Husk \(updates.available?.version ?? "") Is Available"),
+                        message: Text("You have \(AppUpdates.current). The new version's IPA is "
+                                      + "on its release page."),
+                        primaryButton: .default(Text("View Release")) {
+                            if let page = updates.available?.page { UIApplication.shared.open(page) }
+                            updates.dismiss()
+                        },
+                        secondaryButton: .cancel(Text("Not Now")))
+                case .metadata:
+                    return Alert(
+                        title: Text("Metadata Updated"),
+                        message: Text("Metadata for \(showcase.updates.count) of your app"
+                                      + "\(showcase.updates.count == 1 ? "" : "s") has been "
+                                      + "updated. Would you like to download the updates?"),
+                        primaryButton: .default(Text("Download")) { showcase.downloadUpdates() },
+                        secondaryButton: .cancel(Text("Not Now")) { showcase.asked() })
+                case .none:
+                    return Alert(title: Text(""), dismissButton: .cancel(Text("")))
+                }
+            }
+            .sheet(isPresented: $massTest.shareResults) { ShareSheet(items: [MassTest.resultsURL]) }
+            .onAppear {
+                crash.checkPreviousRun()
+                // the developer mass test: the last app's fate, then the next app (it clears a crash report it has written down)
+                massTest.resume(crash: crash)
+                if crash.pending == nil, !massTest.active { router.resumeSwitch() }
+                if crash.pending == nil, WhatsNew.due { showWhatsNew = true }
+                evaluate()
+            }
+            // The two-parameter onChange is iOS 17; this single-parameter form is
+            // deprecated there but still works, and is the only one that compiles
+            // against the 16.0 deployment target.
+            .huskOnChange(of: scenePhase) { phase in
+                // StikDebug relaunches Husk after attaching, so returning to the
+                // foreground is the moment worth re-checking, not first launch.
+                if phase == .active { evaluate() }
+            }
+            // scenePhase is iOS 14 and is a property of a scene; on 13 the app has
+            // one window and no scene, so this bridges the four UIApplication
+            // notifications into the environment value the reader above expects.
+            .huskScenePhaseTracking()
     }
 
     /// Every package Husk holds: what the picture index is read for. It was the
