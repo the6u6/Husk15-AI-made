@@ -382,6 +382,21 @@ jobs:
           set -euo pipefail
           python3 tests/test_brackets_balance.py
 
+      - name: assert every plist and storyboard parses
+        # A double hyphen inside an XML comment is not legal, and writing one the
+        # way a commit message is written breaks two files in a row with
+        # "not well-formed (invalid token): line 103, column 19" and nothing in it
+        # resembling the cause. Balanced brackets do not help: a comment with a
+        # double hyphen in it has balanced brackets.
+        #
+        # Also asserts the iOS 13 full-screen contract, which is what the launch
+        # storyboard is for: UILaunchScreen is 14+, iOS 13 reads only
+        # UILaunchStoryboardName, and without it the app is not eligible for the
+        # full screen on iPad.
+        run: |
+          set -euo pipefail
+          python3 tests/test_plist_and_storyboard_parse.py
+
       - name: prove that check still catches what it exists for
         # A gate that has only ever run against a correct tree has not been
         # shown to fail on an incorrect one. This removes JitAbsent.c, watches
