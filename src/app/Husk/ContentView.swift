@@ -113,18 +113,22 @@ struct ContentView: View {
             // where `windows.app != nil` is the honest condition and where it
             // cannot be lost again by editing this file. See AppWindows.swift.
             AppWindowLayer()
-                // `.ignoresSafeArea(.keyboard)` is iOS 14 -- `Edge.Set.keyboard`
-                // alongside it is too -- and this is what it meant: ignore the
-                // keyboard edge and nothing else.
+                // Upstream: `.ignoresSafeArea(.keyboard)`.
                 //
-                // `huskIgnoresSafeArea()` with no argument ignores `.all`, and
-                // `.all` includes `.container`. The GeometryReader in
-                // AppWindowLayer measures the screen it is given and AppWindow
-                // computes its frame from that, so ignoring the container there
-                // changes the size it is handed and everything positioned inside
-                // it. `edgesIgnoringSafeArea(_:)` is the iOS 11 spelling and takes
-                // an Edge.Set, so the original instruction is expressible here.
-                .edgesIgnoringSafeArea(.keyboard)
+                // There is no iOS 13 spelling of that. The `Edge.Set` type is
+                // iOS 11, but `keyboard` is a member added in iOS 14 alongside
+                // `ignoresSafeArea` -- so `edgesIgnoringSafeArea(.keyboard)` is
+                // 14 too, not the 11 rewrite it looked like. An earlier round
+                // of this port asserted otherwise, on the strength of the type
+                // being 11 and not the member, and the build said otherwise.
+                //
+                // A commit tried to correct this by spelling out the four screen
+                // edges instead. That was reasoning from a symptom that had not
+                // been confirmed, and AppWindowLayer cannot cause that symptom:
+                // it draws nothing at all unless an app is open, and nothing
+                // opens one at launch. Back to the form the port has always
+                // built with.
+                .huskIgnoresSafeArea()
         }
     }
 
