@@ -100,11 +100,18 @@ struct ContentView: View {
             // where `windows.app != nil` is the honest condition and where it
             // cannot be lost again by editing this file. See AppWindows.swift.
             AppWindowLayer()
-                // `Edge.Set.keyboard` is iOS 14, and so is the part of
-                // ignoresSafeArea it selected. At 13 the window layer is placed
-                // above the tab UI and the keyboard area is handled by the
-                // system; there is nothing to express here.
-                .huskIgnoresSafeArea()
+                // `.ignoresSafeArea(.keyboard)` is iOS 14 -- `Edge.Set.keyboard`
+                // alongside it is too -- and this is what it meant: ignore the
+                // keyboard edge and nothing else.
+                //
+                // `huskIgnoresSafeArea()` with no argument ignores `.all`, and
+                // `.all` includes `.container`. The GeometryReader in
+                // AppWindowLayer measures the screen it is given and AppWindow
+                // computes its frame from that, so ignoring the container there
+                // changes the size it is handed and everything positioned inside
+                // it. `edgesIgnoringSafeArea(_:)` is the iOS 11 spelling and takes
+                // an Edge.Set, so the original instruction is expressible here.
+                .edgesIgnoringSafeArea(.keyboard)
 
         }
         .accentColor(theme.accentColor)
