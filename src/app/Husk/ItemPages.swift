@@ -464,15 +464,22 @@ struct PS4GamePage: View {
         .navigationTitle(game.title)
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(isPresented: $playing) { PS4PlayView(game: game) }
-        .huskConfirmMessage("Close Husk?", isPresented: $confirmQuit) {
-            Button("Close Husk") {
-                Router.shared.switchTo(game.libraryID)
-                CrashReport.gameEnded()
-                HuskLog.flushNow()
-                exit(0)
-            }
-        } message: {
-            Text("\(blockedBy ?? "The other game") is still loaded and only one game can run per session. Husk closes; open it again and \(game.title) starts by itself.")
+        // A confirmationDialog at this floor, which is what upstream uses so the
+        // explanation renders above the buttons. iOS 14 has no usable one (see
+        // Compat14.swift), so this is an Alert: one destructive action and a real
+        // Cancel, which upstream's dialog did not have. That is a small
+        // behaviour change and a better one -- a dialog whose only button closes
+        // the app, with the reason rendered as an un-actionable row, had no way
+        // out of.
+        .huskDialog(title: "Close Husk?",
+                    message: "\(blockedBy ?? "The other game") is still loaded and only one game can run per session. Husk closes; open it again and \(game.title) starts by itself.",
+                    isPresented: $confirmQuit,
+                    primary: "Close Husk", primaryDestructive: true,
+                    secondary: "Not Now") {
+            Router.shared.switchTo(game.libraryID)
+            CrashReport.gameEnded()
+            HuskLog.flushNow()
+            exit(0)
         }
         .id(jit.attachGeneration)
         .onAppear {

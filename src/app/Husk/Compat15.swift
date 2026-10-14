@@ -288,60 +288,30 @@ struct HuskShareButton<Label: View>: View {
 extension View {
     /// `.persistentSystemOverlays(.hidden)`, which is iOS 16.
     ///
-    /// Not a spelling change: there is no SwiftUI modifier before iOS 16 that
-    /// does this. What it asks for is the home indicator hidden, and that has
-    /// always been reachable -- on `UIViewController`, as
-    /// `prefersHomeIndicatorAutoHidden` (iOS 11) plus
-    /// `setNeedsUpdateOfHomeIndicatorAutoHidden()`.
+    /// A no-op, and it cannot be anything else below iOS 16. The home
+    /// indicator's auto-hide is `UIViewController.prefersHomeIndicatorAutoHidden`,
+    /// which is **get-only**: a controller overrides it, and nothing can assign
+    /// it on another controller. `setNeedsUpdateOfHomeIndicatorAutoHidden()` only
+    /// makes the system re-ask the controller that already answers the question.
+    /// So the view that wants this has to *be* the view controller, which a view
+    /// modifier has no way to arrange.
     ///
-    /// The first version of this drove `UIApplication.isHomeIndicatorAutoHidden`,
-    /// which does not exist. The home indicator's auto-hide is a property of a
-    /// view controller, not of the application, and there is no application-level
-    /// counterpart to set.
+    /// Two attempts, both of which failed to compile, and both worth recording
+    /// because they are the two things this looks like it should be:
     ///
-    /// So it goes through a representable whose controller carries the flag and,
-    /// once it is on screen, walks up to the controller that is actually
-    /// presenting. The walk is the part that matters: a representable in a
-    /// `.background()` is a child of whatever presented the sheet or cover, and
-    /// the home indicator follows the *topmost* controller, not this one. Setting
-    /// only the representable's own controller would hide nothing.
+    ///   `UIApplication.isHomeIndicatorAutoHidden = true`
+    ///       That property does not exist. Home indicator auto-hide is a view
+    ///       controller property and has no application-level counterpart.
     ///
-    /// This is a best effort and not the same mechanism iOS 16 uses -- SwiftUI
-    /// can ask for this before anything is presented, and a background view
-    /// cannot. It works for a fullScreenCover, which is the only thing that uses
-    /// it here.
-    func huskPersistentOverlaysHidden() -> some View {
-        background(HuskHomeIndicatorHider().frame(width: 0, height: 0))
-    }
-}
-
-/// Carries `prefersHomeIndicatorAutoHidden` up to whatever is presenting.
-private final class HuskHomeIndicatorController: UIViewController {
-    override var prefersHomeIndicatorAutoHidden: Bool { true }
-
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        applyToPresenter()
-    }
-
-    fileprivate func applyToPresenter() {
-        var vc: UIViewController = self
-        while let next = vc.presentedViewController { vc = next }
-        guard vc !== self else { return }
-        vc.prefersHomeIndicatorAutoHidden = true
-        vc.setNeedsUpdateOfHomeIndicatorAutoHidden()
-    }
-}
-
-private struct HuskHomeIndicatorHider: UIViewControllerRepresentable {
-    func makeUIViewController(context: Context) -> HuskHomeIndicatorController {
-        HuskHomeIndicatorController()
-    }
-
-    func updateUIViewController(_ controller: HuskHomeIndicatorController, context: Context) {
-        // Re-applied on every update: the presenter can change under us if the
-        // view is still around when something new is presented over it, and the
-        // flag does not survive that on its own.
-        controller.applyToPresenter()
-    }
+    ///   walk to the presenting controller and set `prefersHomeIndicatorAutoHidden`
+    ///       Get-only, so "set" is not available on it. The representable could
+    ///       override it for itself and that would achieve nothing: a
+    ///       representable in a .background() is a child of the presenting
+    ///       controller, and the system consults the topmost one.
+    ///
+    /// Kept as a shim so the call site stays honest about wanting this, and so
+    /// a build at iOS 16 can restore it by replacing one body. What is lost on
+    /// 14 and 15: the home indicator stays visible over a running PS4 game. The
+    /// status bar is `.statusBarHidden(true)`'s job and is unaffected.
+    func huskPersistentOverlaysHidden() -> some View { self }
 }

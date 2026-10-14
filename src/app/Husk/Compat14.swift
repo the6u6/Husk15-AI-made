@@ -352,49 +352,19 @@ private final class TaskBox: @unchecked Sendable {
     var task: URLSessionDownloadTask?
 }
 
-// MARK: - confirmationDialog with a message (iOS 15.0)
+// There is no confirmationDialog-with-a-message here, and there was one for a
+// commit. `confirmationDialog(_:isPresented:actions:)` is not usable at 14.0 the
+// way it looks like it should be: at that floor the only overload that takes a
+// title, a binding and a trailing closure resolves to the iOS 15
+// `_isPresented:titleVisibility:actions:`, which is unavailable. Dropping
+// titleVisibility and making the title String -- both of which were tried --
+// did not change which overload was selected; the compiler still picked the 15
+// one. There is nothing to delegate to.
+//
+// The call site uses the one-action huskDialog above instead, which is built on
+// Alert and so is iOS 13. See ItemPages.swift.
 
-extension View {
-    /// `confirmationDialog(_:isPresented:titleVisibility:actions:message:)`, iOS 15.
-    ///
-    /// The `message:` closure is the whole of it. iOS 14's confirmationDialog
-    /// takes actions and nothing else, so there is no overload to delegate to
-    /// and the message has to be rendered as one.
-    ///
-    /// `titleVisibility` is gone from the signature too, because `Visibility`
-    /// itself is iOS 15 and the parameter arrived with it: iOS 14's overload is
-    /// `confirmationDialog(_:isPresented:actions:)` and there is nowhere to put
-    /// `.visible`. The call site had `titleVisibility: .visible` and lost it.
-    /// What that did on iOS 15 was force the dialog's title to stay on screen
-    /// while it was presented; at 14 the dialog decides for itself, which for
-    /// a two-button alert is the same thing in practice.
-    ///
-    /// The title is taken as `String` rather than `StringProtocol` for the same
-    /// reason: the iOS 15 spelling is generic over S, and the iOS 13 one is not.
-    /// Passing a generic S to a non-generic overload does not compile.
-    ///
-    /// Putting the message in the action list is the standard workaround and it
-    /// is visibly not the same: the message appears as a row in the dialog
-    /// rather than in the smaller type above the buttons. It is not tappable
-    /// here -- it carries no action -- but iOS 14 has no way to say "this row
-    /// is not a choice", so a row that looks like one and does nothing is the
-    /// closest available. Dropping it instead would have lost the sentence
-    /// entirely, and at this call site that sentence is the explanation for a
-    /// dialog that closes the app.
-    ///
-    /// `.disabled(true)` is not applied: it would grey the text as well, which
-    /// is a second visible difference for no gain.
-    func huskConfirmMessage<A: View, M: View>(
-        _ title: String, isPresented: Binding<Bool>,
-        @ViewBuilder actions: () -> A,
-        @ViewBuilder message: () -> M) -> some View {
-        confirmationDialog(title, isPresented: isPresented) {
-            actions()
-            message()
-        }
-    }
-}
-
+//
 // MARK: - Button styles (iOS 15.0)
 
 extension View {
