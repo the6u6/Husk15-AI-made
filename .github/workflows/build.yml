@@ -260,7 +260,22 @@ jobs:
           pat+='|persistentSystemOverlays|\.snappy\b|\.animation\(.+, value:'
           pat+='|\.toolbar\(\.(hidden|visible), for:|\bLabeledContent\b'
           pat+='|\.gradient\b|\.scrollIndicators|\.scrollDismissesKeyboard'
-          pat+='|\.defersSystemGestures|Locale\.current\.region|\.region\?'
+          # .defersSystemGestures(on:) was banned for the 13.0 floor and stayed
+          # banned when the floor moved to 14.0, where it is available --
+          # View.defersSystemGestures(on: Edge.Set) is iOS 14.0. Upstream's PS4
+          # play screen chains it, so leaving the ban in place left only two
+          # ways forward: fail the build, or delete a modifier that works.
+          pat+='|Locale\.current\.region|\.region\?'
+          # Added for the PS4 merge (build 113). Each of these is something that
+          # merge used, and the list above let every one of them through:
+          # @Environment(\.dismiss) is iOS 15, the message: overload of
+          # confirmationDialog is iOS 15, Date.formatted(date:time:) is iOS 15,
+          # Section("...") is iOS 15, and loadUnaligned(fromByteOffset:) is
+          # SwiftStdlib 5.7 -- an iOS 16 API, and not a SwiftUI one, so it would
+          # never have been looked for in a list of SwiftUI spellings.
+          pat+='|@Environment\(\\\.dismiss|\.confirmationDialog\('
+          pat+='|\.formatted\(\s*(date|time):|\bSection\(\s*"'
+          pat+='|loadUnaligned\(fromByteOffset:'
           pat+='|setNeedsUpdateOfSupportedInterfaceOrientations|requestGeometryUpdate'
           # iOS 14 floor (IOS14-EXPERIMENT.md): the shims stand in for these too
           pat+='|\.foregroundStyle\(|Color\(uiColor:|\.background\([^)]*, *in:'
@@ -598,6 +613,36 @@ jobs:
             echo "removing build/stamps/qemu: its build directory is not cached, so QEMU must rebuild"
             rm -f build/stamps/qemu
           fi
+
+      - name: build the PS4 layer, when its sources are available
+        # Optional, and skipped by default. scripts/build_ps4_ios.sh needs
+        # Bachata-S4 on branch `husk` and husk-fex on branch `husk-fex` -- two
+        # private trees, not in this repository and not fetchable. Set
+        # BACHATA_DIR and HUSK_FEX_DIR (from secrets, or by running this job on
+        # a self-hosted runner that already has them) and it builds and embeds.
+        #
+        # Without them the PS4 layer is absent on purpose rather than by
+        # breakage: project.yml's framework entry is commented out and
+        # PS4Store.available is false, so the library hides the PS4 games and
+        # the game page says this build has no PS4 layer. Nothing downstream
+        # treats that as a failure.
+        #
+        # Set BUILD_PS4=1 to make a missing tree an error rather than a skip --
+        # worth doing on the runner that owns the trees, so a tree that moved
+        # or was re-cloned cannot quietly turn the feature off.
+        run: |
+          set -euo pipefail
+          if [ -z "${BACHATA_DIR:-}" ] || [ -z "${HUSK_FEX_DIR:-}" ]; then
+            if [ "${BUILD_PS4:-}" = "1" ]; then
+              echo "::error::BUILD_PS4=1 but BACHATA_DIR/HUSK_FEX_DIR are not set"
+              exit 1
+            fi
+            echo "no PS4 sources configured; building without the PS4 layer"
+            exit 0
+          fi
+          ./scripts/build_ps4_ios.sh
+          test -f build/ios-arm64/lib/libhuskps4.dylib
+          echo "::notice::PS4 layer built; re-enable the framework entry in project.yml"
 
       - name: build
         # One entry point for the whole thing, in order: sources, the six QEMU
