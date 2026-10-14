@@ -352,6 +352,38 @@ private final class TaskBox: @unchecked Sendable {
     var task: URLSessionDownloadTask?
 }
 
+// MARK: - confirmationDialog with a message (iOS 15.0)
+
+extension View {
+    /// `confirmationDialog(_:isPresented:titleVisibility:actions:message:)`, iOS 15.
+    ///
+    /// The `message:` closure is the whole of it. iOS 14's confirmationDialog
+    /// takes actions and nothing else, so there is no overload to delegate to
+    /// and the message has to be rendered as one.
+    ///
+    /// Putting it in the action list is the standard workaround and it is
+    /// visibly not the same: the message appears as a row in the dialog rather
+    /// than in the smaller type above the buttons. It is not tappable here --
+    /// it carries no action -- but iOS 14 has no way to say "this row is not a
+    /// choice", so a row that looks like one and does nothing is the closest
+    /// available. Dropping it instead would have lost the sentence entirely,
+    /// and at this call site that sentence is the explanation for a dialog that
+    /// closes the app.
+    ///
+    /// `.disabled(true)` is not applied: it would grey the text as well, which
+    /// is a second visible difference for no gain.
+    func huskConfirmMessage<S: StringProtocol, A: View, M: View>(
+        _ title: S, isPresented: Binding<Bool>,
+        titleVisibility: Visibility = .automatic,
+        @ViewBuilder actions: () -> A,
+        @ViewBuilder message: () -> M) -> some View {
+        confirmationDialog(title, isPresented: isPresented, titleVisibility: titleVisibility) {
+            actions()
+            message()
+        }
+    }
+}
+
 // MARK: - Button styles (iOS 15.0)
 
 extension View {

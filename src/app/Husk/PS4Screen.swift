@@ -138,7 +138,9 @@ private struct PS4Surface: UIViewRepresentable {
 /// Full screen, landscape: the game, the on-screen pad when no controller is paired, and a way out.
 struct PS4PlayView: View {
     let game: PS4Game
-    @Environment(\.dismiss) private var dismiss
+    // `@Environment(\.dismiss)` is iOS 15. This fork spells it the 14 way
+    // everywhere else; see huskPM in Compatibility.swift.
+    @Environment(\.presentationMode) private var huskPM
     @StateObject private var model = PS4Model()
     @StateObject private var virtualPad = VirtualPad()
     @ObservedObject private var pads = HuskGamepads.shared
@@ -152,7 +154,7 @@ struct PS4PlayView: View {
                 VStack(spacing: 12) {
                     if model.error == nil, model.state <= Int32(HUSK_CONSOLE_BOOTING.rawValue) { ProgressView().tint(.white) }
                     Text(model.statusText)
-                        .font(.system(size: 15, weight: .medium)).foregroundStyle(.white.opacity(0.85))
+                        .font(.system(size: 15, weight: .medium)).foregroundColor(.white.opacity(0.85))
                         .multilineTextAlignment(.center).frame(maxWidth: 460)
                 }
             }
@@ -163,13 +165,13 @@ struct PS4PlayView: View {
                 VStack {
                     HStack(spacing: 10) {
                         Button { leave() } label: {
-                            Image(systemName: "xmark").font(.system(size: 15, weight: .bold)).foregroundStyle(.white)
-                                .frame(width: 36, height: 36).background(.black.opacity(0.55), in: Circle())
+                            Image(systemName: "xmark").font(.system(size: 15, weight: .bold)).foregroundColor(.white)
+                                .frame(width: 36, height: 36).huskBackground(.black.opacity(0.55), in: Circle())
                         }
                         if model.running {
                             Text("\(model.fps) fps").font(.system(size: 12, weight: .semibold).monospacedDigit())
-                                .foregroundStyle(.white.opacity(0.8))
-                                .padding(.horizontal, 8).padding(.vertical, 4).background(.black.opacity(0.45), in: Capsule())
+                                .foregroundColor(.white.opacity(0.8))
+                                .padding(.horizontal, 8).padding(.vertical, 4).huskBackground(.black.opacity(0.45), in: Capsule())
                         }
                         Spacer()
                     }
@@ -179,7 +181,7 @@ struct PS4PlayView: View {
             }
         }
         .statusBarHidden(true)
-        .persistentSystemOverlays(.hidden)
+        .huskPersistentOverlaysHidden()
         .defersSystemGestures(on: .all)
         .onTapGesture(count: 3) { withAnimation { showBar.toggle() } }
         .onAppear {
@@ -200,6 +202,6 @@ struct PS4PlayView: View {
 
     private func leave() {
         husk_console_set_paused(true)
-        dismiss()
+        huskPM.wrappedValue.dismiss()
     }
 }

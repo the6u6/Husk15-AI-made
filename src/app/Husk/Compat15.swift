@@ -282,3 +282,29 @@ struct HuskShareButton<Label: View>: View {
             .sheet(isPresented: $showing) { ShareSheet(items: items) }
     }
 }
+
+// MARK: - Persistent system overlays (iOS 16.0)
+
+extension View {
+    /// `.persistentSystemOverlays(.hidden)`, which is iOS 16.
+    ///
+    /// Not a spelling change: there is no SwiftUI modifier before iOS 16 that
+    /// does this. What it asks for is the home indicator hidden, and that has
+    /// always been reachable through UIKit --
+    /// `UIApplication.isHomeIndicatorAutoHidden` is iOS 11 -- so this drives
+    /// that instead of pretending the modifier was older than it is.
+    ///
+    /// Driven from onAppear/onDisappear rather than held as state, because the
+    /// property is process-wide: a view that sets it on appear and clears it on
+    /// disappear leaves it correct however this view is left, including a
+    /// swipe-to-dismiss that does not run the disappear handler's counterpart
+    /// in every case. It is the same property the system would have set, so a
+    /// second Husk screen asking to hide it stays hidden.
+    ///
+    /// The status bar is not this modifier's job -- `.statusBarHidden(true)`
+    /// covers it, and PS4PlayView chains both.
+    func huskPersistentOverlaysHidden() -> some View {
+        onAppear { UIApplication.shared.isHomeIndicatorAutoHidden = true }
+            .onDisappear { UIApplication.shared.isHomeIndicatorAutoHidden = false }
+    }
+}

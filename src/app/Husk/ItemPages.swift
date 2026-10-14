@@ -441,22 +441,23 @@ struct PS4GamePage: View {
                     Text(PS4Store.moduleURL == nil
                          ? "This build of Husk does not include the PS4 layer."
                          : "PS4 games need iOS 17.4 or later.")
-                        .foregroundStyle(.secondary)
+                        .foregroundColor(.secondary)
                 }
             }
-            Section("About") {
-                LabeledContent("Runs With", value: "Husk's PS4 layer")
-                LabeledContent("Title ID", value: game.titleID)
-                if let v = game.version { LabeledContent("Version", value: v) }
-                LabeledContent("Last Played", value: game.lastPlayed.map { $0.formatted(date: .abbreviated, time: .shortened) } ?? "Never")
-                LabeledContent("Folder", value: "PS4 Games/" + game.folder.lastPathComponent)
+            // `Section("About")` is iOS 15; iOS 14's takes a header view.
+            Section(header: Text("About")) {
+                HuskLabeledContent("Runs With", value: "Husk's PS4 layer")
+                HuskLabeledContent("Title ID", value: game.titleID)
+                if let v = game.version { HuskLabeledContent("Version", value: v) }
+                HuskLabeledContent("Last Played", value: game.lastPlayed.map { huskFormatDateTime($0) } ?? "Never")
+                HuskLabeledContent("Folder", value: "PS4 Games/" + game.folder.lastPathComponent)
             }
         }
         .listStyle(.insetGrouped)
         .navigationTitle(game.title)
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(isPresented: $playing) { PS4PlayView(game: game) }
-        .confirmationDialog("Close Husk?", isPresented: $confirmQuit, titleVisibility: .visible) {
+        .huskConfirmMessage("Close Husk?", isPresented: $confirmQuit, titleVisibility: .visible) {
             Button("Close Husk") {
                 Router.shared.switchTo(game.libraryID)
                 CrashReport.gameEnded()
@@ -482,7 +483,7 @@ struct PS4GamePage: View {
             BigButton(title: "Close Husk to Play", systemImage: "xmark.circle", prominent: false) { confirmQuit = true }
         } else if !Launcher.jitOn {
             if jit.busy {
-                HStack(spacing: 10) { ProgressView(); Text(jit.status ?? "Turning on JIT…").foregroundStyle(.secondary) }
+                HStack(spacing: 10) { ProgressView(); Text(jit.status ?? "Turning on JIT…").foregroundColor(.secondary) }
                     .frame(maxWidth: .infinity).frame(height: 50)
             } else {
                 BigButton(title: "Turn On JIT to Play", systemImage: "bolt.fill", action: turnOnJIT)

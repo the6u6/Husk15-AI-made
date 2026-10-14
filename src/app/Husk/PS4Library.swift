@@ -98,8 +98,19 @@ struct ParamSfo {
 
     static func parse(from url: URL) -> ParamSfo? {
         guard let data = try? Data(contentsOf: url), data.count >= 0x14 else { return nil }
-        func u32(_ o: Int) -> Int { o + 4 <= data.count ? Int(data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: o, as: UInt32.self) }) : 0 }
-        func u16(_ o: Int) -> Int { o + 2 <= data.count ? Int(data.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: o, as: UInt16.self) }) : 0 }
+        // Byte-at-a-time rather than `loadUnaligned(fromByteOffset:as:)`, which
+        // is a SwiftStdlib 5.7 API and so an iOS 16 one -- this file has to
+        // compile at the app's 14.0 floor. It is also not slower in any way
+        // that matters here: param.sfo is a few hundred bytes and this runs
+        // once per game folder on launch.
+        //
+        // The index guards matter twice over: an out-of-range subscript on Data
+        // traps, and a param.sfo is a file a user can put anything in.
+        func byte(_ o: Int) -> Int { o >= 0 && o < data.count ? Int(data[o]) : 0 }
+        func u16(_ o: Int) -> Int { byte(o) | byte(o + 1) << 8 }
+        func u32(_ o: Int) -> Int {
+            u16(o) | u16(o + 2) << 16
+        }
         guard u32(0) == 0x4653_5000 else { return nil }   // "\0PSF"
         let keys = u32(0x08), values = u32(0x0C), count = u32(0x10)
         var sfo = ParamSfo()
