@@ -131,8 +131,9 @@ fi
 # @rpath/libANGLE-shared.dylib". Everything else in this validation passed. A
 # check that covers one of two required libraries is a check that reports
 # success on a bundle that cannot launch.
-# libqemu-aarch64-softmmu.dylib removed: no longer embedded.
-for lib in libANGLE-shared.dylib; do
+# libqemu-aarch64-softmmu.dylib removed: no longer embedded. libhuskps4.dylib
+# added upstream and is embedded unconditionally, so it is checked like ANGLE.
+for lib in libANGLE-shared.dylib libhuskps4.dylib; do
     if [ ! -f "$APP/Frameworks/$lib" ]; then
         echo "  MISSING  Frameworks/$lib" >&2
         rc=1

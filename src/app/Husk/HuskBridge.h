@@ -39,5 +39,6 @@ size_t husk_ios_available_memory(void);
 /* Compiled into the app itself: see docs/04-translation-layer.md for why. */
 #include "../../translation-layer/husk-tl.h"
 #include "../../translation-layer-next/husk-tl-unity-app.h"
+#include "../../translation-layer-next/husk-console-host.h"
 
 #endif /* HUSK_BRIDGE_H */

@@ -9,10 +9,16 @@ import SwiftUI
 /// an app), not by how it is run.
 enum LibraryItem: Identifiable, Hashable {
     case game(TLApp)
+    // Upstream adds `app(AndroidHost.Package)`, `android` and `ps4(PS4Game)`.
+    // The first two are the guest's own packages and the entry for the Android
+    // system image -- both went with the VM. `ps4` is new console work and
+    // stays; the artwork line below already reads it.
+    case ps4(PS4Game)
 
     var id: String {
         switch self {
         case .game(let g): return "tl:" + g.id
+        case .ps4(let g): return g.libraryID
         }
     }
 
@@ -22,12 +28,14 @@ enum LibraryItem: Identifiable, Hashable {
     var title: String {
         switch self {
         case .game(let g): return g.label
+        case .ps4(let g): return g.title
         }
     }
 
     var iconPath: String? {
         switch self {
         case .game(let g): return g.iconPath
+        case .ps4(let g): return g.iconPath
         }
     }
 
@@ -35,17 +43,22 @@ enum LibraryItem: Identifiable, Hashable {
     var isGame: Bool {
         switch self {
         case .game(let g): return (g.report?.nativeEngine != .flutter && g.report?.engine != "Flutter" && g.report?.webKind == nil) || g.isGameCategory
+        case .ps4: return true
         }
     }
 
     var packageName: String? {
         switch self {
         case .game(let g): return g.packageName
+        case .ps4: return nil
         }
     }
 
     /// A gameplay picture, for apps that have been run on an iPhone (fetched from GitHub; see ShowcaseStore).
-    @MainActor var artworkPath: String? { ShowcaseStore.shared.pictures(for: packageName).first }
+    @MainActor var artworkPath: String? {
+        if case .ps4(let g) = self { return g.artPath }   // the game's own hero picture (pic1)
+        return ShowcaseStore.shared.pictures(for: packageName).first
+    }
 
     var runsInAndroid: Bool {
         return false
@@ -54,12 +67,14 @@ enum LibraryItem: Identifiable, Hashable {
     var lastUsed: Date? {
         switch self {
         case .game(let g): return g.lastPlayed
+        case .ps4(let g): return g.lastPlayed
         }
     }
 
     var route: LibraryRoute {
         switch self {
         case .game(let g): return .game(g.id)
+        case .ps4(let g): return .ps4(g.titleID)
         }
     }
 
@@ -89,10 +104,14 @@ enum LibraryFilter: String, CaseIterable, Identifiable {
 /// Everything, from both stores, in one list.
 @MainActor
 enum Launcher {
-    /// Every game Husk can run: the translation layer's apps. It was the union
-    /// of these and the guest's packages, and the guest is gone.
+/// Every game Husk can run: the translation layer's apps, and PS4 games.
+    ///
+    /// It was the union of these and the guest's packages, and the guest is
+    /// gone -- so upstream's `host:` parameter does not come with it. The PS4
+    /// half is new upstream work and is kept, which is why the signature
+    /// changes without the parameter appearing.
     static func items(store: TranslationLayerStore) -> [LibraryItem] {
-        store.apps.map(LibraryItem.game)
+        store.apps.map(LibraryItem.game) + PS4Store.shared.games.map(LibraryItem.ps4)
     }
 
     /// Most recently used first; never-used ones after, by name.
@@ -593,6 +612,7 @@ struct LibraryScreen: View {
         case .game(let g):
             if g.packageName == GeodeSupport.launcherPackage { return "Geode" }
             return g.report?.canRun == true ? nil : "May not run"
+case .ps4: return PS4Store.available ? nil : "Needs iOS 17.4"
         }
     }
 }
@@ -751,6 +771,8 @@ private struct LibraryRouteView: View {
             if let app = store.apps.first(where: { $0.id == id }) { TLAppSettingsView(app: app) } else { GoneView() }
         case .gameReport(let id):
             if let app = store.apps.first(where: { $0.id == id }) { TLTechnicalView(app: app) } else { GoneView() }
+case .ps4(let id):
+            if let game = PS4Store.shared.game(id) { PS4GamePage(game: game) } else { GoneView() }
         }
     }
 }

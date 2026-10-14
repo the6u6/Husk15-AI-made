@@ -7,6 +7,11 @@ enum LibraryRoute: Hashable {
     case game(String)
     case gameSettings(String)
     case gameReport(String)
+// Upstream adds `androidSystem` here and `ps4(String)`. One is ours to drop
+    // and one is ours to take: androidSystem was the route to the Android system
+    // image, which went with the VM, and nothing in this tree refers to it any
+    // more. ps4 is new upstream work and is kept.
+    case ps4(String)              // a PS4 game, by title ID
 }
 
 /// Where the tabs and their stacks are steered from.
@@ -39,7 +44,7 @@ enum LibraryRoute: Hashable {
         UserDefaults.standard.removeObject(forKey: Self.switchKey)
         HuskLog.log("ui", "opening \(id), which Husk was closed to switch to")
         tab = .library
-        library = [.game(id)]
+        library = id.hasPrefix("ps4:") ? [.ps4(String(id.dropFirst(4)))] : [.game(id)]
         autoPlay = id
     }
 
