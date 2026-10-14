@@ -131,9 +131,8 @@ fi
 # @rpath/libANGLE-shared.dylib". Everything else in this validation passed. A
 # check that covers one of two required libraries is a check that reports
 # success on a bundle that cannot launch.
-# libqemu-aarch64-softmmu.dylib removed: no longer embedded. libhuskps4.dylib
-# added upstream and is embedded unconditionally, so it is checked like ANGLE.
-for lib in libANGLE-shared.dylib libhuskps4.dylib; do
+# libqemu-aarch64-softmmu.dylib removed: no longer embedded.
+for lib in libANGLE-shared.dylib; do
     if [ ! -f "$APP/Frameworks/$lib" ]; then
         echo "  MISSING  Frameworks/$lib" >&2
         rc=1
@@ -142,6 +141,30 @@ for lib in libANGLE-shared.dylib libhuskps4.dylib; do
             "$(du -h "$APP/Frameworks/$lib" | cut -f1)"
     fi
 done
+
+# libhuskps4.dylib: checked only when it was built.
+#
+# Upstream lists it beside ANGLE as unconditionally required. It cannot be: it
+# is produced by scripts/build_ps4_ios.sh from two private trees, so a build
+# that has not been given them legitimately has no PS4 layer, and PS4Store.
+# available is false without it. Treating its absence as a failure would fail
+# every build that cannot have produced it -- which is all of CI, and any
+# contributor's clone.
+#
+# So the check is conditional on the dylib having been built, and it is strict
+# when it has: having built it and then failed to embed it is a real bug and
+# still fails. Checking a file that was never built tells you nothing either way.
+if [ -f "$HUSK_ROOT/build/ios-arm64/lib/libhuskps4.dylib" ]; then
+    if [ ! -f "$APP/Frameworks/libhuskps4.dylib" ]; then
+        echo "  MISSING  Frameworks/libhuskps4.dylib (it was built, so it should have been embedded)" >&2
+        rc=1
+    else
+        printf "  ok       %-28s %s\n" "ps4 dylib embedded" \
+            "$(du -h "$APP/Frameworks/libhuskps4.dylib" | cut -f1)"
+    fi
+else
+    echo "  --       ps4 layer not built (PS4Store.available will be false)"
+fi
 
 # REMOVED (VM removal): the guest image / firmware / disk-seed check. Those five
 # files were staged by the "Stage guest image" preBuildScript, which is gone.

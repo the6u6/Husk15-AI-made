@@ -186,13 +186,34 @@ targets:
     # exactly those apps. outputFiles went with the dropped half -- every entry
     # named a VM artefact.
 
-      # The PS4 layer: Bachata-S4's core (branch husk) on husk-fex's FEXCore, as one dylib exporting husk_console_module_v1.
-      # Built by scripts/build_ps4_ios.sh. Embedded, not linked: it needs iOS 17.4 and is opened by path only there
-      # (PS4Store.moduleURL), by the console host (src/translation-layer-next/husk-console-host.c).
-      - framework: ../../build/ios-arm64/lib/libhuskps4.dylib
-        embed: true
-        codeSign: true
-        link: false
+      # The PS4 layer -- OPTIONAL, and off here.
+    #
+    # Upstream embeds it unconditionally:
+    #
+    #   - framework: ../../build/ios-arm64/lib/libhuskps4.dylib
+    #     embed: true
+    #     codeSign: true
+    #     link: false
+    #
+    # and that is the right shape, but it is a hard dependency on a file this
+    # repository cannot produce. scripts/build_ps4_ios.sh needs Bachata-S4 on
+    # branch `husk` and husk-fex on branch `husk-fex`, at BACHATA_DIR and
+    # HUSK_FEX_DIR -- private trees that are not in the repo and not fetchable.
+    # Upstream has no CI workflow at all, so nothing has ever built it
+    # automatically; their own builds of this are done by hand on the machine
+    # that has the trees.
+    #
+    # Embedding it when it is absent fails the build outright, and package_ipa.sh
+    # then fails again for the same reason. So it is commented out, and PS4 is
+    # dormant instead of broken: PS4Store.available is false without the dylib,
+    # the library hides the PS4 games, and the game page says in as many words
+    # that this build does not include the PS4 layer. That is a truthful state
+    # to be in, and it is what CI can actually verify.
+    #
+    # To build with PS4: run scripts/build_ps4_ios.sh, then uncomment the five
+    # lines above. build.yml does this automatically when BACHATA_DIR and
+    # HUSK_FEX_DIR are set (from secrets or a self-hosted runner), and does
+    # nothing when they are not.
     preBuildScripts:
       - name: Stage translation-layer resources
         script: |
