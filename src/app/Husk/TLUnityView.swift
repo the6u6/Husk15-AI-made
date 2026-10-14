@@ -369,7 +369,7 @@ final class TLUnityUIView: UIView, UIKeyInput {
         done.titleLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
         done.frame = CGRect(x: 100, y: 0, width: 80, height: 44)
         done.autoresizingMask = [.flexibleLeftMargin]
-        done.addTarget(self, action: #selector(doneTapped), for: .touchUpInside)
+        done.addAction(UIAction { [weak self] _ in self?.finishTyping() }, for: .touchUpInside)
         bar.addSubview(done)
         return bar
     }()
@@ -411,14 +411,6 @@ final class TLUnityUIView: UIView, UIKeyInput {
         else { husk_cocos_insert_text("\n") }
         resignFirstResponder()
     }
-
-    /// The Done button's target/action pair.
-    ///
-    /// UIControl.addAction(_:for:) is iOS 14. Below it a control takes a target
-    /// and a selector, so the button carries one instead of a closure. The
-    /// selector is on the same object that owns the bar, which is why the bar is
-    /// that object's `lazy var` rather than a free-standing closure.
-    @objc fileprivate func doneTapped() { finishTyping() }
 
     /// A Flutter app's text fields ask for the keyboard (on its platform thread), and the app may close itself from its first screen.
     static func installFlutterHandlers() {
@@ -687,14 +679,14 @@ final class TLUnityModel: ObservableObject {
 struct TLCocosAttemptView: View {
     let app: TLApp
     @Environment(\.presentationMode) private var huskPM
-    @ObservedObject private var model = TLUnityModel()
+    @StateObject private var model = TLUnityModel()
     /// Why the app stopped, when its log says: shown over the screen
     @State private var stoppedWhy: AppDiagnosis?
-    @huskAppStorage("husk.tl.unity.showLog") private var showLogSetting = false
-    @huskAppStorage(TranslationLayer.devInfoKey) private var devInfo = false
+    @AppStorage("husk.tl.unity.showLog") private var showLogSetting = false
+    @AppStorage(TranslationLayer.devInfoKey) private var devInfo = false
     @State private var stats = "starting"
     @ObservedObject private var pads = HuskGamepads.shared
-    @ObservedObject private var virtualPad = VirtualPad()
+    @StateObject private var virtualPad = VirtualPad()
     /// Where the player has put the pad's controls in this game, and whether they are moving them now.
     @State private var padLayout = PadLayout()
     @State private var editingPad = false
@@ -746,7 +738,7 @@ struct TLCocosAttemptView: View {
 
     var body: some View {
         ZStack {
-            Color.black.huskIgnoresSafeArea()
+            Color.black.ignoresSafeArea()
             Group {
                 if let other = blockedBy {
                     VStack(spacing: 8) {
@@ -774,7 +766,7 @@ struct TLCocosAttemptView: View {
                                 .huskOverlay { if editingPad { padEditor } }
                         }
                     }
-                    .huskIgnoresSafeArea()
+                    .ignoresSafeArea()
                 }
             }
             if !uiHidden {
@@ -816,10 +808,10 @@ struct TLCocosAttemptView: View {
             model.start()
         }
         // What happened, for the library: ten seconds of frames is a game that plays; a refusal is one that did not start.
-        .huskOnChange(of: model.frames) { f in
+        .onChange(of: model.frames) { f in
             if f > 600, model.state == Int32(HUSK_UNITY_RUNNING) { GameStatusStore.shared.record(app.id, .plays) }
         }
-        .huskOnChange(of: model.state) { st in
+        .onChange(of: model.state) { st in
             if st == Int32(HUSK_UNITY_FAILED) || st == Int32(HUSK_UNITY_ENDED), stoppedWhy == nil, let d = AppDiagnosis.ofCurrentRun() {
                 stoppedWhy = d
                 GameStatusStore.shared.record(app.id, st == Int32(HUSK_UNITY_FAILED) ? .failed : .crashed, diagnosis: d)
@@ -873,12 +865,12 @@ Button("Reset All") { padLayout = PadLayout(); padSelected = nil; padLayout.save
     private var bar: some View {
         HStack(spacing: 12) {
             Button { huskPM.wrappedValue.dismiss() } label: {
-                huskLabel("Close", systemImage: "xmark").font(.system(size: 13, weight: .semibold))
+                Label("Close", systemImage: "xmark").font(.system(size: 13, weight: .semibold))
             }
             .accentColor(.white)
             if engine == .flutter {
                 Button { husk_flutter_back() } label: {
-                    huskLabel("Back", systemImage: "chevron.backward").font(.system(size: 13, weight: .semibold))
+                    Label("Back", systemImage: "chevron.backward").font(.system(size: 13, weight: .semibold))
                 }
                 .accentColor(.white)
             }
@@ -887,17 +879,17 @@ Button("Reset All") { padLayout = PadLayout(); padSelected = nil; padLayout.save
                 .font(.system(size: 12, weight: .medium)).foregroundColor(.white.opacity(0.85)).lineLimit(1)
             Spacer()
             if !pads.names.isEmpty {
-                huskLabel(pads.names.count == 1 ? pads.names[0] : "\(pads.names.count) controllers", systemImage: "gamecontroller.fill")
+                Label(pads.names.count == 1 ? pads.names[0] : "\(pads.names.count) controllers", systemImage: "gamecontroller.fill")
                     .font(.system(size: 11, weight: .medium)).foregroundColor(.white.opacity(0.7)).lineLimit(1)
             }
             if padOffered {
                 Button { settings.padShown.toggle(); settings.save(app.id); if !settings.padShown { editingPad = false } } label: {
-                    huskLabel(settings.padShown ? "Hide pad" : "Pad", systemImage: "gamecontroller").font(.system(size: 12, weight: .semibold))
+                    Label(settings.padShown ? "Hide pad" : "Pad", systemImage: "gamecontroller").font(.system(size: 12, weight: .semibold))
                 }
                 .accentColor(.white)
                 if settings.padShown {
                     Button { padSelected = nil; editingPad.toggle() } label: {
-                        huskLabel(editingPad ? "Done" : "Edit pad", systemImage: "slider.horizontal.below.square.and.square.filled")
+                        Label(editingPad ? "Done" : "Edit pad", systemImage: "slider.horizontal.below.square.and.square.filled")
                             .font(.system(size: 12, weight: .semibold))
                     }
                     .accentColor(editingPad ? .yellow : .white)
@@ -913,7 +905,7 @@ Button("Reset All") { padLayout = PadLayout(); padSelected = nil; padLayout.save
                 .accentColor(.white)
             }
             Button { toggleInterface() } label: {
-                huskLabel("Hide", systemImage: "eye.slash").font(.system(size: 12, weight: .semibold))
+                Label("Hide", systemImage: "eye.slash").font(.system(size: 12, weight: .semibold))
             }
             .accentColor(.white)
         }
@@ -928,21 +920,21 @@ Button("Reset All") { padLayout = PadLayout(); padSelected = nil; padLayout.save
                 Text("ATTEMPT LOG").font(.technical(10, weight: .bold)).foregroundColor(Theme.textDim)
                 Spacer()
                 Button { UIPasteboard.general.string = model.logText } label: {
-                    huskLabel("Copy", systemImage: "doc.on.doc").font(.system(size: 11))
+                    Label("Copy", systemImage: "doc.on.doc").font(.system(size: 11))
                 }
             }
             .padding(.horizontal, 10).padding(.vertical, 6)
-            ScrollView {
-                Text(model.logText.isEmpty ? "Starting…" : model.logText)
-                    .font(.technical(10))
-                    .foregroundColor(Theme.text)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    Text(model.logText.isEmpty ? "Starting…" : model.logText)
+                        .font(.technical(10))
+                        .foregroundColor(Theme.text)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(8)
+                        .id("bottom")
+                }
+                .onChange(of: model.logText) { _ in proxy.scrollTo("bottom") }
             }
-            // ScrollViewReader is iOS 14; this keeps the log at its last line by
-            // moving the enclosing scroll view's offset. The token is the log
-            // itself, so it re-fires whenever the log grows.
-            .huskScrollToBottom(model.logText)
         }
         .background(Theme.bg.opacity(0.85))
     }

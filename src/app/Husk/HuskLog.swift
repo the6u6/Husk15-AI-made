@@ -20,12 +20,7 @@ import os
 /// translating" is preserved, which is exactly the ordering that matters when
 /// something goes wrong.
 enum HuskLog {
-    // os.Logger and OSLogMessage's `\(x, privacy: .public)` are both iOS 14.
-    // os_log(3) is not version-gated and takes a plain format string, so the
-    // mirror into the unified log stays and only the Swift wrapper goes.
-    private static func osLog(_ line: String) {
-        os_log("%{public}@", line)
-    }
+    private static let osLog = Logger(subsystem: "com.husk.app", category: "husk")
 
     /// Exposed because a C signal handler closure cannot capture context.
     fileprivate static var rawLogFD: Int32 { logFD }
@@ -294,7 +289,7 @@ enum HuskLog {
         // crash. Mirroring them again here would double every one of them in
         // Console.app.
         if !fromStream || (!line.contains("[husk-jit]") && !line.contains("[husk-dpy]")) {
-            osLog(line)
+            osLog.log("\(line, privacy: .public)")
         }
 
         // Written synchronously with write(2) rather than queued. An async write

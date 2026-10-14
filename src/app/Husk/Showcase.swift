@@ -162,9 +162,9 @@ struct ShowcaseGallery: View {
             }
                 .fullScreenCover(item: Binding(get: { shown.map(ShownPicture.init) }, set: { shown = $0?.path })) { picture in
                 ZStack(alignment: .topTrailing) {
-                    Color.black.huskIgnoresSafeArea()
+                    Color.black.ignoresSafeArea()
                     PictureView(path: picture.path, pixels: 2400, fill: false)
-                        .huskIgnoresSafeArea()
+                        .ignoresSafeArea()
                     Button { shown = nil } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 15, weight: .bold))
@@ -197,7 +197,7 @@ struct PictureView: View {
         }
         // .task(id:) is iOS 15; onAppear plus onChange is the same triggers.
         .onAppear { loadImage() }
-        .huskOnChange(of: path) { _ in loadImage() }
+        .onChange(of: path) { _ in loadImage() }
     }
 
     private func loadImage() {

@@ -17,7 +17,7 @@ struct DiscoverView: View {
     var body: some View {
         Group {
             if manager.isLoading && manager.sources.isEmpty {
-                huskProgress("Fetching Repositories…")
+                ProgressView("Fetching Repositories…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if manager.sources.isEmpty {
                 EmptyState(title: "No Repositories",
@@ -37,28 +37,21 @@ struct DiscoverView: View {
         .background(Theme.backdrop)
         .navigationTitle("Discover")
         .navigationBarTitleDisplayMode(.large)
-        .navigationBarItems(
-            leading: AnyView(EmptyView()),
-            trailing: AnyView(
-                HStack(spacing: 12) {
-                    Button { Task { await manager.fetchSources() } } label: {
-                        huskLabel("Refresh", systemImage: "arrow.clockwise")
-                    }
-                    // Menu is iOS 14; this is Compat13's own type, which presents
-                    // its content in a sheet rather than a popup. Two views side
-                    // by side rather than nested, because a navigation bar item
-                    // cannot hold a Menu that presents a sheet of its own.
-                    Menu {
-                        Button { showingAddSource = true } label: {
-                            huskLabel("Add Source", systemImage: "plus")
-                        }
-                        Button { showingSources = true } label: {
-                            huskLabel("Manage Repositories", systemImage: "list.bullet")
-                        }
-                    } label: { huskLabel("Repositories", systemImage: "ellipsis.circle") }
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button { Task { await manager.fetchSources() } } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
                 }
-            )
-        )
+                Menu {
+                    Button { showingAddSource = true } label: {
+                        Label("Add Source", systemImage: "plus")
+                    }
+                    Button { showingSources = true } label: {
+                        Label("Manage Repositories", systemImage: "list.bullet")
+                    }
+                } label: { Label("Repositories", systemImage: "ellipsis.circle") }
+            }
+        }
         .sheet(isPresented: $showingSources) { sourcesSheet }
         .sheet(isPresented: $showingAddSource) { addSourceSheet }
         .onAppear {
@@ -70,7 +63,7 @@ struct DiscoverView: View {
         // longer cancelled between keystrokes, so the box updates a fixed
         // 200ms after the last one rather than as soon as typing stops.
         .onAppear { debounceSearch() }
-        .huskOnChange(of: searchText) { _ in debounceSearch() }
+        .onChange(of: searchText) { _ in debounceSearch() }
     }
 
     private func debounceSearch() {
@@ -83,7 +76,7 @@ struct DiscoverView: View {
     }
 
     private var list: some View {
-        huskList {
+        List {
             ForEach(manager.sources) { source in
                 let filtered = filteredApps(for: source)
                 if !filtered.isEmpty {
@@ -91,9 +84,9 @@ struct DiscoverView: View {
                 }
             }
             if !manager.fetchErrors.isEmpty {
-                huskSection {
+                Section {
                     ForEach(manager.fetchErrors.keys.sorted(), id: \.self) { url in
-                        huskLabel {
+                        Label {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(url).font(.footnote).lineLimit(1)
                                 Text(manager.fetchErrors[url] ?? "").font(.caption).foregroundColor(.secondary)
@@ -103,11 +96,7 @@ struct DiscoverView: View {
                 } header: { Text("Could Not Load") }
             }
         }
-
-// .listStyle(.insetGrouped) is iOS 14 and has no counterpart at
-// this floor: huskList is a ScrollView of rows, so the rounded
-// card the style drew is simply not there. See Compat13.swift.
-
+        .listStyle(.insetGrouped)
     }
 
     private var totalAppCount: Int {
@@ -146,7 +135,7 @@ struct DiscoverView: View {
                 } else if phase.error != nil {
                     Image(systemName: "app.dashed").font(.title).foregroundColor(.secondary)
                 } else {
-                    huskProgress()
+                    ProgressView()
                 }
             }
             .frame(width: 48, height: 48)
@@ -216,7 +205,7 @@ struct DiscoverView: View {
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(name).foregroundColor(.primary)
-                                    Text(url).font(.caption).foregroundColor(.secondary).lineLimit(1)
+                                    Text(url).font(.caption2).foregroundColor(.secondary).lineLimit(1)
                                 }
                                 Spacer()
                                 if newSourceURL == url {
@@ -229,11 +218,11 @@ struct DiscoverView: View {
             }
             .navigationTitle("Add Source")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(
-                leading: AnyView(
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { newSourceURL = ""; showingAddSource = false }
-                ),
-                trailing: AnyView(
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Add") {
                         let url = newSourceURL
                         newSourceURL = ""
@@ -247,8 +236,8 @@ struct DiscoverView: View {
                     // bold is a font with a bold weight; 17pt is what a toolbar
                     // button uses by default, so only the weight changes.
                     .font(.system(size: 17, weight: .semibold))
-                )
-            )
+                }
+            }
         }
     }
 
@@ -256,51 +245,33 @@ struct DiscoverView: View {
 
     private var sourcesSheet: some View {
         NavigationView {
-            huskList {
-                huskSection {
+            List {
+                Section {
                     ForEach(manager.sourceURLs, id: \.self) { url in
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                if let source = manager.sources.first(where: { $0.identifier == url }) {
-                                    Text(source.name).font(.body.weight(.medium))
-                                    Text("\(source.apps.count) apps").font(.caption).foregroundColor(.secondary)
-                                }
-                                Text(url).font(.caption).foregroundColor(.secondary).lineLimit(1)
+                        VStack(alignment: .leading, spacing: 2) {
+                            if let source = manager.sources.first(where: { $0.identifier == url }) {
+                                Text(source.name).font(.body.weight(.medium))
+                                Text("\(source.apps.count) apps").font(.caption).foregroundColor(.secondary)
                             }
-                            // Swipe-to-delete belongs to List and has no
-                            // counterpart on 13, so the row carries its own
-                            // button. Deleting by value rather than by offset:
-                            // remove(atOffsets:) is an extension List provides,
-                            // and the index it would want is not knowable from
-                            // inside a ForEach body.
-                            Button {
-                                manager.sourceURLs.removeAll { $0 == url }
-                            } label: {
-                                Image(systemName: "trash")
-                                    .font(.system(size: 15))
-                                    .foregroundColor(.red)
-                                    .frame(width: 34, height: 34)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibility(label: "Remove \(url)")
+                            Text(url).font(.caption2).foregroundColor(.secondary).lineLimit(1)
                         }
                         .padding(.vertical, 2)
                     }
+                    .onDelete { manager.sourceURLs.remove(atOffsets: $0) }
                 } header: { Text("Active Repositories") }
             }
             .navigationTitle("Repositories")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(
-                leading: AnyView(
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
                     Button("Done") { showingSources = false }
-                ),
-                trailing: AnyView(
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button { showingSources = false; showingAddSource = true } label: {
                         Image(systemName: "plus")
                     }
-                )
-            )
+                }
+            }
         }
     }
 }

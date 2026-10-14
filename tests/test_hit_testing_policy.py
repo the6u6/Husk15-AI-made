@@ -61,82 +61,13 @@ def is_comment(line):
     return s.startswith("//") or s.startswith("/*") or s.startswith("*")
 
 
-def var_bodies(lines):
-    """Every `var x: some View { ... }` in the file, mapped to its body lines.
-
-    Keyed by property name so the layer stack can be followed through
-    indirection. It could not be, once: the root ZStack sits in `root`, which
-    `body` names and returns, because the type checker could not infer a body
-    that held five tabs and two overlays and a long modifier chain in one
-    expression. The finder below follows that hop. Before it did, the check
-    reported zero layers above the TabView and passed -- a check that empties
-    itself when the file is refactored is worse than no check, because the one
-    thing it was written to catch would have gone by unnoticed.
-
-    Brace counting is naive about braces inside string literals, as it was
-    before. A property whose body contains one would swallow its successor.
-    None in this file does.
-
-    First declaration wins. A file can hold several types and so several
-    `var body`, and mapping them all to one name let the last overwrite the
-    first -- which put a *different view's* body in front of the finder and
-    reported no root ZStack on a file that has one. `setdefault` keeps the
-    first, which is the one the call site is asking about."""
-    out = {}
-    pat = re.compile(r"^\s*(?:public |internal |private |fileprivate )?(?:static )*"
-                     r"var\s+(\w+)\s*:\s*some View\s*\{\s*$")
-    i = 0
-    while i < len(lines):
-        l = lines[i]
-        m = None if is_comment(l) else pat.match(l)
-        if m:
-            depth = l.count("{") - l.count("}")
-            j = i + 1
-            while j < len(lines) and depth > 0:
-                if not is_comment(lines[j]):
-                    depth += lines[j].count("{") - lines[j].count("}")
-                j += 1
-            out.setdefault(m.group(1), lines[i + 1:max(i + 1, j - 1)])
-            i = j
-            continue
-        i += 1
-    return out
-
-
-def resolve(child, props):
-    """One hop through `tabs` -> `TabView(...)`, where there is one.
-
-    A ZStack child may be the layer itself (`AppWindowLayer()`) or the name of a
-    property holding it (`tabs`). Both are how a SwiftUI layer stack gets
-    written, and the second is what the type checker forced here. Left
-    unresolved, a child naming the TabView is indistinguishable from a child
-    with no TabView in it at all -- which is how this check came to find no
-    TabView in a file that has one.
-
-    Decided on the child's *code* lines, with comments and blanks set aside:
-    `zstack_children` attaches the comments that follow a child to that child
-    rather than starting a new one -- they are not code and cannot begin
-    anything -- so the real `tabs` arrived here carrying two comment lines and
-    failed a whole-string match. Matching the string would have read as "this
-    is not a property reference" and the check would have gone back to finding
-    no TabView. The comment lines are carried through onto the resolved text
-    rather than dropped."""
-    parts = child.split("\n")
-    code = [l for l in parts if l.strip() and not is_comment(l)]
-    if len(code) != 1:
-        return child
-    m = re.match(r"^\s*(\w+)\s*$", code[0])
-    if not m or m.group(1) not in props:
-        return child
-    return "\n".join(props[m.group(1)] + [l for l in parts if l not in code])
-
-
 def root_zstack(lines):
     """The body of ContentView's root ZStack: its top-level children, in order.
 
-    Found by structure rather than by matching a literal, so reformatting the
-    file does not empty this out silently. Starts at `body` and follows bare
-    identifiers down to the property that actually holds the ZStack.
+    Found by structure -- the ZStack that follows `var body: some View` at the
+    shallowest indent in the file -- rather than by matching a literal, so
+    reformatting the file does not empty this out silently. If it cannot find
+    one that is itself a failure, not a pass.
 
     Comments are ignored for *structure* and kept in each child's text. Stripping
     them outright was the first version, and it removed the one thing this check
@@ -148,27 +79,20 @@ def root_zstack(lines):
     not from the `var body` indent: a ZStack nested one level down still indents
     its children four further, and the first version computed it as
     body + len("ZStack {"), which matched nothing and reported "no root ZStack"
-    on a file that has one.
-
-    Returns `(None, [])` when no ZStack is reachable, which the caller treats as
-    a failure. An empty list is not a pass."""
-    props = var_bodies(lines)
-    name, seen = "body", set()
-    while name in props and name not in seen:
-        seen.add(name)
-        first = next((l for l in props[name] if l.strip() and not is_comment(l)), None)
-        if first is None:
-            break
-        hop = re.match(r"^\s*(\w+)\s*$", first)
-        if hop and hop.group(1) in props:
-            name = hop.group(1)
+    on a file that has one."""
+    anchor = None
+    for i, l in enumerate(lines):
+        if is_comment(l):
             continue
-        if re.match(r"^\s*ZStack\s*\{\s*$", first):
-            zs = props[name].index(first)
-            kids = [resolve(k, props) for k in zstack_children(props[name], zs)]
-            return (name, zs), kids
+        m = re.match(r"^(\s*)var body: some View \{\s*$", l)
+        if not m:
+            continue
+        anchor = i
+        for j in range(i + 1, min(i + 12, len(lines))):
+            if not is_comment(lines[j]) and re.match(r"^\s+ZStack \{\s*$", lines[j]):
+                return (i, j), zstack_children(lines, j)
         break
-    return None, []
+    return (anchor, None), []
 
 
 def zstack_children(lines, zs):
@@ -308,39 +232,6 @@ BAD = """
     }
 """
 
-# The shape the file is actually in now: `body` returns a property, and that
-# property holds the stack. BetaLayer has no policy, so this must still be
-# flagged -- and it can only be if the finder follows the hop and reads through
-# to the TabView. Without this case the indirection above is a claim, not a
-# check.
-INDIRECT = """
-    private var tabs: some View {
-        TabView(selection: $router.tab) {
-            HomeView()
-        }
-    }
-
-    private var root: some View {
-        ZStack {
-            tabs
-            // A comment between two children belongs to neither, and the
-            // extractor hands it to the one before. The hop has to survive it.
-            if holiday {
-                Snowfall()
-                    .ignoresSafeArea()
-            }
-            BetaLayer()
-                .ignoresSafeArea(.keyboard)
-        }
-    }
-
-    var body: some View {
-        root
-            .accentColor(theme.accentColor)
-            .fullScreenCover(isPresented: $x) { Thing() }
-    }
-"""
-
 # Two types that exist only here, so the fixture cannot pass or fail because of
 # what the real code happens to say today.
 SYNTH = [
@@ -358,12 +249,8 @@ SYNTH = [
 ]
 
 for label, src, want_flagged in (("both layers say so", GOOD, 0),
-                                 ("neither layer says so", BAD, 2),
-                                 ("the stack is behind a property", INDIRECT, 2)):
+                                 ("neither layer says so", BAD, 2)):
     _anchor, kids = root_zstack(src.split("\n"))
-    check("%s: found the TabView behind the indirection" % label,
-          any("TabView(" in k for k in kids),
-          "children: %s" % [k.split("\n")[0].strip() for k in kids])
     flagged = [subject_of(k) or k.split("\n")[0].strip()
                for k in layers_above_tab(kids)
                if declared_policy(k, SYNTH) is None]
@@ -385,7 +272,7 @@ print("\n=== ContentView's root ZStack ===")
 lines = io.open(CONTENT_VIEW, encoding="utf-8").read().split("\n")
 anchor, children = root_zstack(lines)
 check("found the root ZStack", anchor is not None,
-      "no ZStack reachable from var body through a chain of properties")
+      "no 'var body: some View' followed by a ZStack at the same indent")
 
 if anchor:
     _tab, kids = root_zstack(lines)

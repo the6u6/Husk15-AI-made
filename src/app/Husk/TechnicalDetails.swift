@@ -52,8 +52,8 @@ struct TLTechnicalView: View {
     private var arm64: [TLLibrary] { (report?.libraries ?? []).filter { $0.abi == "arm64-v8a" } }
 
     var body: some View {
-        huskList {
-            huskSection(header: Text("Runtime")) {
+        List {
+            Section(header: Text("Runtime")) {
                 row("Runs With", report?.runnerName ?? "Not scanned")
                 row("Package", app.packageName ?? "—", mono: true)
                 row("Architectures", report.map { $0.abis.isEmpty ? "None (Java only)" : $0.abis.joined(separator: ", ") } ?? "—")
@@ -62,7 +62,7 @@ struct TLTechnicalView: View {
                 }
             }
 
-            huskSection(header: Text("Package")) {
+            Section(header: Text("Package")) {
                 ForEach(app.apks, id: \.self) { apk in
                     row((apk as NSString).lastPathComponent, size(of: apk), mono: true)
                 }
@@ -74,7 +74,7 @@ struct TLTechnicalView: View {
             }
 
             if !arm64.isEmpty {
-                huskSection {
+                Section {
                     ForEach(arm64) { lib in
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
@@ -93,7 +93,7 @@ struct TLTechnicalView: View {
                 }
             }
 
-            huskSection {
+            Section {
                 if let log, !log.isEmpty {
                     ScrollView(.horizontal) {
                         Text(log)
@@ -102,7 +102,7 @@ struct TLTechnicalView: View {
                             .padding(.vertical, 4)
                     }
                     .frame(maxHeight: 320)
-                    Button { sharing = true } label: { huskLabel("Share Log", systemImage: "square.and.arrow.up") }
+                    Button { sharing = true } label: { Label("Share Log", systemImage: "square.and.arrow.up") }
                 } else {
                     Text(log == nil ? "Reading…" : "No log yet. It is written the first time the game runs.")
                         .font(.footnote).foregroundColor(.secondary)
@@ -113,11 +113,7 @@ struct TLTechnicalView: View {
                 Text("The end of the log from the last time the game started. Share it when reporting a problem.")
             }
         }
-
-// .listStyle(.insetGrouped) is iOS 14 and has no counterpart at
-// this floor: huskList is a ScrollView of rows, so the rounded
-// card the style drew is simply not there. See Compat13.swift.
-
+        .listStyle(.insetGrouped)
         .navigationTitle("Technical Details")
         .navigationBarTitleDisplayMode(.inline)
         // .task is iOS 15; onAppear + Task is the same thing minus

@@ -10,9 +10,9 @@ struct DownloadsTab: View {
 
     var body: some View {
         NavigationView {
-            huskList {
+            List {
                 updatesSection
-                huskSection {
+                Section {
                     if downloads.jobs.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("No downloads").font(.headline)
@@ -28,7 +28,7 @@ struct DownloadsTab: View {
                             // row; the trade is long-press for swipe.
                             .contextMenu {
                                 Button(action: { downloads.remove(job.id) }) {
-                                    huskLabel("Remove", systemImage: "trash")
+                                    Label("Remove", systemImage: "trash")
                                 }
                                 .foregroundColor(Color.red)
                             }
@@ -38,10 +38,7 @@ struct DownloadsTab: View {
                         Text("Downloads")
                         Spacer()
                         if downloads.jobs.contains(where: \.complete) {
-                            // .textCase(nil) is iOS 14. A button's label in a bar is not uppercased at 13
-                              // the way it is in a list row, so the modifier is
-                              // gone rather than replaced.
-                              Button("Clear Finished") { downloads.clearFinished() }.font(.caption)
+                            Button("Clear Finished") { downloads.clearFinished() }.font(.caption).textCase(nil)
                         }
                     }
                 } footer: {
@@ -55,12 +52,12 @@ struct DownloadsTab: View {
                 }
             }
             .navigationTitle("Downloads")
-            .navigationBarItems(
-                leading: AnyView(EmptyView()),
-                trailing: AnyView(
-                    Button { adding = true } label: { huskLabel("Add", systemImage: "plus") }
-                )
-            )
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Done") { huskPM.wrappedValue.dismiss() } }
+                ToolbarItem(placement: .primaryAction) {
+                    Button { adding = true } label: { Label("Add", systemImage: "plus") }
+                }
+            }
             .sheet(isPresented: $adding) { AddDownloadSheet() }
         }
     }
@@ -69,13 +66,13 @@ struct DownloadsTab: View {
         Section(header: Text("Updates")) {
             if let release = updates.available {
                 HStack {
-                    huskLabel("Husk \(release.version)", systemImage: "arrow.down.app.fill")
+                    Label("Husk \(release.version)", systemImage: "arrow.down.app.fill")
                     Spacer()
                     Button("View") { UIApplication.shared.open(release.page) }.huskBordered()
                 }
             }
             if updates.available == nil {
-                huskLabel("Everything is up to date", systemImage: "checkmark.circle").foregroundColor(.secondary)
+                Label("Everything is up to date", systemImage: "checkmark.circle").foregroundColor(.secondary)
             }
         }
     }
@@ -115,12 +112,12 @@ private struct DownloadRow: View {
                     Button {
                         if job.paused || job.failed { Downloads.shared.resume(job.id) } else { Downloads.shared.pause(job.id) }
                     } label: {
-                        Image(systemName: job.paused || job.failed ? "arrow.clockwise.circle.fill" : "pause.circle.fill").font(.title)
+                        Image(systemName: job.paused || job.failed ? "arrow.clockwise.circle.fill" : "pause.circle.fill").font(.title2)
                     }
                     .huskBorderless()
                 }
             }
-            if !job.complete { huskProgress(value: fraction) }
+            if !job.complete { ProgressView(value: fraction) }
             Text(status).font(.caption).foregroundColor(job.failed ? Color.orange : Color.secondary).lineLimit(2)
         }
         .padding(.vertical, 4)
@@ -158,39 +155,22 @@ private struct AddDownloadSheet: View {
             }
             .navigationTitle("Add Download")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(
-                leading: AnyView(EmptyView()),
-                trailing: AnyView(
-                    Group {
-                        // AnyView on both branches. huskProgress() is a
-                        // UIViewRepresentable and the button is not, and inside
-                        // an AnyView there is no single opaque type to agree on --
-                        // so the compiler says "no exact matches in reference to
-                        // static method 'buildExpression'". Erasing each side
-                        // gives it one.
-                        if working {
-                            AnyView(huskProgress())
-                        } else {
-                            AnyView(
-                                Button("Download") {
-                                    working = true
-                                    Task {
-                                        await downloads.add(link: link)
-                                        working = false
-                                        if downloads.problem == nil { huskPM.wrappedValue.dismiss() }
-                                    }
-                                }
-                                // On the Button, not on the Task inside its
-                                // action. A pass that re-indented this block
-                                // left the modifier inside the closure, where it
-                                // is applied to a Task -- not a View -- and the
-                                // compiler said "no exact matches in reference
-                                // to static method 'buildExpression'".
-                                .disabled(link.trimmingCharacters(in: .whitespaces).isEmpty))
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { huskPM.wrappedValue.dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    if working { ProgressView() } else {
+                        Button("Download") {
+                            working = true
+                            Task {
+                                await downloads.add(link: link)
+                                working = false
+                                if downloads.problem == nil { huskPM.wrappedValue.dismiss() }
+                            }
                         }
+                        .disabled(link.trimmingCharacters(in: .whitespaces).isEmpty)
                     }
-                )
-            )
+                }
+            }
             .onAppear { downloads.problem = nil }
         }
     }

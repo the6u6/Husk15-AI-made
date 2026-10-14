@@ -186,7 +186,7 @@ struct CrashReportSheet: View {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 30)).foregroundColor(.orange)
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(report.cause.title).font(.headline.weight(.semibold))
+                            Text(report.cause.title).font(.title3.weight(.semibold))
                             Text(report.game).foregroundColor(.secondary)
                         }
                     }
@@ -205,14 +205,14 @@ struct CrashReportSheet: View {
 
                     if let file {
                         HuskShareButton(items: [file]) {
-                            huskLabel("Share Report", systemImage: "square.and.arrow.up")
+                            Label("Share Report", systemImage: "square.and.arrow.up")
                                 .frame(maxWidth: .infinity).padding(.vertical, 6)
                         }
                         .huskBorderedProminent()
                     }
                     if let subject {
                         Button { reporting = subject } label: {
-                            huskLabel("Report to the Compatibility List", systemImage: "list.bullet.clipboard")
+                            Label("Report to the Compatibility List", systemImage: "list.bullet.clipboard")
                                 .frame(maxWidth: .infinity).padding(.vertical, 6)
                         }
                         .huskBordered()
@@ -224,10 +224,7 @@ struct CrashReportSheet: View {
             }
             .navigationTitle("Crash Report")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(
-                leading: AnyView(EmptyView()),
-                trailing: AnyView(Button("Done") { huskPM.wrappedValue.dismiss() })
-            )
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { huskPM.wrappedValue.dismiss() } } }
         }
         // .task is iOS 15; nothing here is asynchronous.
         .onAppear { file = CrashReport.writeReport(report) }

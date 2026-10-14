@@ -236,7 +236,7 @@ struct AppStoppedOverlay: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.55).huskIgnoresSafeArea()
+            Color.black.opacity(0.55).ignoresSafeArea()
             VStack(alignment: .leading, spacing: 14) {
                 Text(app.label).font(.footnote.weight(.semibold)).foregroundColor(.secondary)
                 AppDiagnosisCard(diagnosis: diagnosis, showsEvidence: true)
@@ -245,7 +245,7 @@ struct AppStoppedOverlay: View {
                         // `.huskBordered()` and `.huskBorderedProminent()` are
                         // functions, not static style properties -- see below.
                         Button(action: { sharingReport = true }) {
-                            huskLabel("Share Report", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity)
+                            Label("Share Report", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity)
                         }
                             .huskBordered()
                     }

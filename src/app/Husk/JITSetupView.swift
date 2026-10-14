@@ -32,12 +32,12 @@ struct JITSetupFlow: View {
             }
         }
         .accentColor(Theme.accent)
-        // .fileImporter is iOS 14. HuskFilePicker presents the same picker from
-        // the topmost view controller instead -- see HuskFilePicker.swift for why
-        // that is the more reliable route -- so this is huskFilePicker with the
-        // two content types as UTI strings: `.propertyList` and `.data`.
-        .huskFilePicker(isPresented: $importing, types: ["com.apple.property-list", "public.data"]) { urls in
-            if let url = urls.first { jit.importPairingFile(url) }
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.propertyList, .data]) { result in
+            switch result {
+            case .success(let url): jit.importPairingFile(url)
+            case .failure(let failure):
+                HuskLog.log("jit", "pairing import failed: \(failure.localizedDescription)")
+            }
         }
         .onAppear {
             jit.refreshPairingStatus()
@@ -105,7 +105,7 @@ struct JITSetupFlow: View {
             }
             if jit.hasPairing && HuskBuiltInJIT.isAvailable {
                 Button { step = .connect } label: {
-                    huskLabel("Continue with the current pairing", systemImage: "arrow.right")
+                    Label("Continue with the current pairing", systemImage: "arrow.right")
                         .font(.system(size: 14, weight: .semibold))
                 }
                 .padding(.top, 4)
@@ -174,7 +174,7 @@ struct JITSetupFlow: View {
             switch pairing.phase {
             case .idle, .failed:
                 Button { pairing.start() } label: {
-                    huskLabel("Start pairing", systemImage: "dot.radiowaves.left.and.right")
+                    Label("Start pairing", systemImage: "dot.radiowaves.left.and.right")
                 }
                 .buttonStyle(PrimaryButtonStyle())
             case .waiting, .pin:
@@ -195,7 +195,7 @@ Button("Cancel pairing") { pairing.cancel() }
         case .waiting:
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 10) {
-                    huskProgress().accentColor(Theme.accent)
+                    ProgressView().accentColor(Theme.accent)
                     Text("Waiting for your \(device)…").font(.system(size: 15, weight: .semibold))
                         .foregroundColor(Theme.text)
                 }
@@ -218,7 +218,7 @@ Button("Cancel pairing") { pairing.cancel() }
                     .foregroundColor(Theme.textDim)
                 Text(pin).font(.system(size: 40, weight: .bold, design: .monospaced)).tracking(6)
                     .foregroundColor(Theme.text)
-                    .accessibility(label: "Pairing code \(pin.map(String.init).joined(separator: " "))")
+                    .accessibilityLabel("Pairing code \(pin.map(String.init).joined(separator: " "))")
             }
             .frame(maxWidth: .infinity)
             .padding(18).huskCard(high: true)
@@ -243,7 +243,7 @@ Button("Cancel pairing") { pairing.cancel() }
                 point(3, "Tap **Choose pairing file** and pick it.", done: jit.pairingSource == .imported)
             }
             .padding(16).huskCard()
-            huskLabel("The pairing file stays in Husk's Documents folder and is only sent to Husk's own helper.",
+            Label("The pairing file stays in Husk's Documents folder and is only sent to Husk's own helper.",
                   systemImage: "lock.fill")
                 .font(.system(size: 13)).foregroundColor(Theme.textDim)
             if let error = jit.error { outcome(error, ok: false) }
@@ -253,7 +253,7 @@ Button("Cancel pairing") { pairing.cancel() }
                 Button("Choose another file") { importing = true }
                     .font(.system(size: 15, weight: .medium))
             } else {
-                Button { importing = true } label: { huskLabel("Choose pairing file", systemImage: "folder") }
+                Button { importing = true } label: { Label("Choose pairing file", systemImage: "folder") }
                     .buttonStyle(PrimaryButtonStyle())
             }
         }
@@ -297,7 +297,7 @@ Button("Cancel pairing") { pairing.cancel() }
 
             if jit.busy {
                 HStack(spacing: 11) {
-                    huskProgress().accentColor(Theme.accent)
+                    ProgressView().accentColor(Theme.accent)
                     Text(jit.status ?? "Working…").font(.system(size: 14)).foregroundColor(Theme.text)
                     Spacer(minLength: 0)
                 }
@@ -333,7 +333,7 @@ Button("Reset Developer Disk Image") { jit.resetDDI() }
             if attached {
                 Button("Done") { close() }.buttonStyle(PrimaryButtonStyle())
             } else if jit.prepared {
-                Button { jit.enableBuiltIn() } label: { huskLabel("Enable JIT", systemImage: "bolt.fill") }
+                Button { jit.enableBuiltIn() } label: { Label("Enable JIT", systemImage: "bolt.fill") }
                     .buttonStyle(PrimaryButtonStyle(enabled: !jit.busy))
                     .disabled(jit.busy)
             } else {
@@ -385,7 +385,7 @@ Button("Reset Developer Disk Image") { jit.resetDDI() }
             }
             .padding(16).huskCard()
             if !JITBootstrap.isTrollStoreInstalled {
-                huskLabel("TrollStore was not found on this \(device). Husk can only use it once it is installed "
+                Label("TrollStore was not found on this \(device). Husk can only use it once it is installed "
                     + "and Husk was installed through it.", systemImage: "info.circle")
                     .font(.system(size: 13)).foregroundColor(Theme.textDim)
                     .fixedSize(horizontal: false, vertical: true)
@@ -414,10 +414,10 @@ Button("Reset Developer Disk Image") { jit.resetDDI() }
             }
             .padding(16).huskCard()
             if JITBootstrap.debuggedAtLaunch {
-                huskLabel("Husk was marked as debugged when it opened, so JIT is on.", systemImage: "checkmark.circle.fill")
+                Label("Husk was marked as debugged when it opened, so JIT is on.", systemImage: "checkmark.circle.fill")
                     .font(.system(size: 13)).foregroundColor(.green)
             } else if !JITBootstrap.isJailbroken {
-                huskLabel("No jailbreak was found on this \(device).", systemImage: "info.circle")
+                Label("No jailbreak was found on this \(device).", systemImage: "info.circle")
                     .font(.system(size: 13)).foregroundColor(Theme.textDim)
             }
         } actions: {
@@ -462,18 +462,18 @@ Button("Reset Developer Disk Image") { jit.resetDDI() }
                 .background(Theme.backdrop)
         }
         .navigationBarTitleDisplayMode(.inline)
-        .navigationBarItems(
-            leading: AnyView(
-                Group {
+        .toolbar {
+            // `choose` is the root of the stack and has nothing to go back to;
+            // `step != nil` is exactly the case that used to be a push.
+            ToolbarItem(placement: .cancellationAction) {
                 if step != nil {
-                Button("Back") { step = nil }
+                    Button("Back") { step = nil }
                 }
-                }
-            ),
-            trailing: AnyView(
+            }
+            ToolbarItem(placement: .confirmationAction) {
                 Button("Close") { close() }
-            )
-        )
+            }
+        }
     }
 
     private func point(_ number: Int, _ text: String, done: Bool = false) -> some View {
@@ -496,7 +496,7 @@ Button("Reset Developer Disk Image") { jit.resetDDI() }
     }
 
     private func outcome(_ text: String, ok: Bool) -> some View {
-        huskLabel(text, systemImage: ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+        Label(text, systemImage: ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
             .font(.system(size: 14, weight: .medium))
             .foregroundColor(ok ? .green : .red)
             .fixedSize(horizontal: false, vertical: true)

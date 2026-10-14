@@ -65,11 +65,11 @@ struct HuskNavStack<T: Hashable, Root: View, Page: View>: View {
                 if let head = path.first {
                     makePage(head)
                         .navigationBarHidden(false)
-                              // ToolbarItem and .toolbar are iOS 14; see Compat13.swift
-                      // for why the other navigation sites are the same shape.
-                      .navigationBarItems(
-                          leading: AnyView(Button(backTitle) { path.removeAll() })
-                      )
+                        .toolbar {
+                            ToolbarItem(placement: .navigationBarLeading) {
+                                Button(backTitle) { path.removeAll() }
+                            }
+                        }
                 } else {
                     makeRoot()
                 }

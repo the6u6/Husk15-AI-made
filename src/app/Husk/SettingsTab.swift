@@ -4,17 +4,17 @@ import SwiftUI
 /// Settings, as the iOS Settings app lays them out: a card for the app up top, then groups of rows that each
 /// push a page of their own. What belongs to the app, what belongs to the emulator, and what the thing is.
 struct SettingsTab: View {
-    @huskAppStorage(AppWindows.defaultKey) private var multitask = false
-    @huskAppStorage(CompatibilityStore.askKey) private var askCompat = true
+    @AppStorage(AppWindows.defaultKey) private var multitask = false
+    @AppStorage(CompatibilityStore.askKey) private var askCompat = true
 
     var body: some View {
         NavigationView {
-            huskList {
-                huskSection {
+            List {
+                Section {
                     NavigationLink { AboutSettings() } label: { appCard }
                 }
 
-                huskSection {
+                Section {
                     row(JITSettings(), "bolt.fill", .yellow, "JIT & Sideload", "StikJIT is built in — the recommended way")
                 } header: {
                     Text("JIT")
@@ -22,14 +22,14 @@ struct SettingsTab: View {
                     Text("Android and Translation Layer games need JIT. StikJIT, built into Husk, turns it on without a computer.")
                 }
 
-                huskSection(header: Text("General")) {
+                Section(header: Text("General")) {
                     row(DiscoverView(), "sparkle.magnifyingglass",Color(.systemMintFallback), "Discover", "Find apps in F-Droid and other repositories")
                     row(AppearanceSettings(), "paintbrush.fill", .pink, "Appearance", "Light or dark, accent colour, app icon")
                 }
 
-                huskSection {
+                Section {
                     Toggle(isOn: $multitask) {
-                        huskLabel {
+                        Label {
                             VStack(alignment: .leading, spacing: 1) {
                                 Text("Open Apps in Windows")
                                 Text("Use Husk while an app runs").font(.caption).foregroundColor(.secondary).lineLimit(1)
@@ -55,9 +55,9 @@ struct SettingsTab: View {
                        + "Each app can override this in its own settings.")
                 }
 
-                huskSection {
+                Section {
                     Toggle(isOn: $askCompat) {
-                        huskLabel {
+                        Label {
                             VStack(alignment: .leading, spacing: 1) {
                                 Text("Ask How Games Ran")
                                 // .foregroundStyle is iOS 15, and cannot be shimmed:
@@ -77,7 +77,7 @@ struct SettingsTab: View {
                         }
                     }
                     Link(destination: CompatibilityStore.site) {
-                        huskLabel("Compatibility List", systemImage: "safari")
+                        Label("Compatibility List", systemImage: "safari")
                     }
                 } header: {
                     Text("Compatibility")
@@ -88,14 +88,10 @@ struct SettingsTab: View {
 
                 // .indigo is iOS 15 as a Color; Color(.systemIndigo) is the
                 // equivalent, and is what this row had before.
-                huskSection(header: Text("Emulator")) {
+                Section(header: Text("Emulator")) {
                     }
             }
-
-// .listStyle(.insetGrouped) is iOS 14 and has no counterpart at
-// this floor: huskList is a ScrollView of rows, so the rounded
-// card the style drew is simply not there. See Compat13.swift.
-
+            .listStyle(.insetGrouped)
             .navigationTitle("Settings")
         }
     }
@@ -104,7 +100,7 @@ struct SettingsTab: View {
         HStack(spacing: 14) {
             HuskMark(size: 56)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Husk").font(.headline.weight(.semibold))
+                Text("Husk").font(.title3.weight(.semibold))
                 Text("Version \(Bundle.main.version) · \(Bundle.main.commit)")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -116,7 +112,7 @@ struct SettingsTab: View {
     private func row<D: View>(_ destination: D, _ icon: String, _ tint: Color,
                               _ title: String, _ subtitle: String) -> some View {
         NavigationLink { destination } label: {
-            huskLabel {
+            Label {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)
                     Text(subtitle).font(.caption).foregroundColor(.secondary).lineLimit(1)
@@ -151,7 +147,7 @@ extension View {
 
 struct JITSettings: View {
     @ObservedObject private var jit = JITCoordinator.shared
-    @huskAppStorage(JITCoordinator.autoEnableKey) private var autoJIT = false
+    @AppStorage(JITCoordinator.autoEnableKey) private var autoJIT = false
     @State private var keepAttached = JITBootstrap.keepDebuggerAttached
 
     private var pairingLabel: String {
@@ -179,8 +175,8 @@ struct JITSettings: View {
         Section {
             JITCard()
         }
-        .listRowInsetsCompat(EdgeInsets())
-        .listRowBackgroundCompat(Color.clear)
+        .listRowInsets(EdgeInsets())
+        .listRowBackground(Color.clear)
     }
 
     private var methodSection: some View {
@@ -201,7 +197,7 @@ struct JITSettings: View {
             Button {
                 jit.showSetup = true
             } label: {
-                huskLabel("Set up JIT", systemImage: "wand.and.stars")
+                Label("Set up JIT", systemImage: "wand.and.stars")
             }
         } header: {
             Text("Other Ways to Turn On JIT")
@@ -249,13 +245,13 @@ struct JITSettings: View {
                 Button {
                     jit.enable()
                 } label: {
-                    huskLabel("Enable JIT with \(jit.resolvedMethod.title)", systemImage: "bolt.fill")
+                    Label("Enable JIT with \(jit.resolvedMethod.title)", systemImage: "bolt.fill")
                 }
                 .disabled(jit.busy)
                 Button {
                     _ = JITBootstrap.requestTrollStoreAttach()
                 } label: {
-                    huskLabel("Enable JIT with TrollStore", systemImage: "sparkles")
+                    Label("Enable JIT with TrollStore", systemImage: "sparkles")
                 }
             }
         } header: {
@@ -286,7 +282,7 @@ struct JITSettings: View {
     private var keepAttachedSection: some View {
         Section {
             Toggle("Keep debugger attached", isOn: $keepAttached)
-                .huskOnChange(of: keepAttached) { v in JITBootstrap.keepDebuggerAttached = v }
+                .onChange(of: keepAttached) { v in JITBootstrap.keepDebuggerAttached = v }
         } footer: {
             Text("Off by default. Husk detaches StikDebug as soon as the "
                + "JIT region is held, because a debugger that iOS has suspended "
@@ -313,12 +309,13 @@ struct JITSettings: View {
 
 struct AppearanceSettings: View {
     @State private var appIcon = HuskAppIcon.current
-    @huskAppStorage(Theme.Appearance.key) private var appearance = Theme.Appearance.system
-    @huskAppStorage(Holiday.key) private var holiday = true
+    @AppStorage(Theme.Appearance.key) private var appearance = Theme.Appearance.system
+    @AppStorage(Holiday.key) private var holiday = true
     @ObservedObject private var theme = AppTheme.shared
     @Environment(\.colorScheme) private var scheme
     @State private var custom: Color = AppTheme.shared.accentColor
 
+    private let iconColumns = [GridItem(.adaptive(minimum: 92), spacing: 14)]
 
     var body: some View {
         Form {
@@ -327,7 +324,7 @@ struct AppearanceSettings: View {
                     ForEach(Theme.Appearance.allCases) { Text($0.title).tag($0) }
                 }
                 .pickerStyle(.segmented)
-                .huskOnChange(of: appearance) { v in
+                .onChange(of: appearance) { v in
                     HuskLog.log("ui", "appearance: \(v.rawValue)")
                 }
                 Toggle("Holiday Decorations", isOn: $holiday)
@@ -339,7 +336,7 @@ struct AppearanceSettings: View {
             }
 
             Section {
-                huskLazyVGrid(count: 5, spacing: 14) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 5), spacing: 14) {
                     ForEach(AppTheme.presets) { preset in
                         Button {
                             theme.accentColor = preset.color
@@ -348,15 +345,13 @@ struct AppearanceSettings: View {
                             swatch(preset.color, selected: preset.color.themeHex == theme.accentColor.themeHex)
                         }
                         .buttonStyle(.plain)
-                        .accessibility(label: preset.name)
+                        .accessibilityLabel(preset.name)
                     }
                 }
                 .padding(.vertical, 6)
 
-                // There is no ColorPicker on 13 and nothing to wrap: UIColor-
-                // PickerViewController is iOS 14 as well. The preset grid above is
-                // the palette, so rather than a second and worse way to choose
-                // from the same set, the custom row is gone. The footer says so.
+                ColorPicker("Custom Colour", selection: $custom, supportsOpacity: false)
+                    .onChange(of: custom) { theme.accentColor = $0 }
             } header: {
                 Text("Accent Colour")
             } footer: {
@@ -364,7 +359,7 @@ struct AppearanceSettings: View {
             }
 
             Section {
-                huskLazyVGrid(count: 3, spacing: 14) {
+                LazyVGrid(columns: iconColumns, spacing: 14) {
                     ForEach(HuskAppIcon.allCases) { icon in
                         Button {
                             appIcon = icon
@@ -421,27 +416,27 @@ struct AppearanceSettings: View {
 
 struct AboutSettings: View {
     @State private var showLogs = false
-    @huskAppStorage(TranslationLayer.devInfoKey) private var devInfo = false
+    @AppStorage(TranslationLayer.devInfoKey) private var devInfo = false
 
     var body: some View {
-        huskList {
-            huskSection {
+        List {
+            Section {
                 VStack(spacing: 8) {
                     HuskMark(size: 84)
-                    Text("Husk").font(.title.weight(.semibold))
+                    Text("Husk").font(.title2.weight(.semibold))
                     Text("Version \(Bundle.main.version)")
                         .font(.subheadline).foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
-                .listRowBackgroundCompat(Color.clear)
+                .listRowBackground(Color.clear)
             }
 
-            huskSection {
+            Section {
                 HuskLabeledContent("Build", value: Bundle.main.commit)
             }
 
-            huskSection {
+            Section {
                 Toggle(isOn: $devInfo) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Developer Info")
@@ -452,14 +447,14 @@ struct AboutSettings: View {
                 }
                 if devInfo {
                     NavigationLink { TLChecksView() } label: {
-                        huskLabel("Device Checks", systemImage: "stethoscope")
+                        Label("Device Checks", systemImage: "stethoscope")
                     }
                     NavigationLink { MassTestView() } label: {
-                        huskLabel("Mass Test", systemImage: "square.stack.3d.down.forward")
+                        Label("Mass Test", systemImage: "square.stack.3d.down.forward")
                     }
                 }
                 Button { showLogs = true } label: {
-                    huskLabel("Open Console", systemImage: "terminal")
+                    Label("Open Console", systemImage: "terminal")
                 }
             } footer: {
                 Text("Husk runs unmodified Android APKs in a real Android system on your iPhone. "

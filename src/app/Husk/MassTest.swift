@@ -300,8 +300,8 @@ struct MassTestView: View {
 
     var body: some View {
         let files = MassTest.apks()
-        huskList {
-            huskSection {
+        List {
+            Section {
                 if let files {
                     Text(files.isEmpty ? "The DeveloperTesting folder is empty." : "\(files.count) apps in DeveloperTesting.")
                 } else {
@@ -315,7 +315,7 @@ struct MassTestView: View {
             } footer: {
                 Text("Each app is played once JIT is on, watched for 15 seconds, and written down; then Husk closes. Open Husk again for the next one. At the end the results file is offered to share.")
             }
-            huskSection {
+            Section {
                 if test.active {
                     Button("Stop") { test.stop() }
                     .foregroundColor(Color.red)

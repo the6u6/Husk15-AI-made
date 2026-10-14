@@ -98,7 +98,7 @@ struct AppIcon: View {
         // "'async' call in a function that does not support concurrency"
         // otherwise.
         .onAppear { Task { await load() } }
-        .huskOnChange(of: cacheKey) { _ in Task { await load() } }
+        .onChange(of: cacheKey) { _ in Task { await load() } }
     }
 
     /// Quiet, so a grid still arriving does not read as broken: the surface an icon sits on, and a faint glyph.

@@ -20,7 +20,7 @@ private struct PageHero<Action: View>: View {
                         .shadow(color: .black.opacity(0.35), radius: 12, y: 5)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(item.title)
-                            .font(.system(.title, design: .rounded).weight(.heavy))
+                            .font(.system(.title2, design: .rounded).weight(.heavy))
                             .lineLimit(2)
                             .minimumScaleFactor(0.8)
                         Text(subtitle)
@@ -51,7 +51,7 @@ private struct BigButton: View {
 
     var body: some View {
         Button(action: action) {
-            huskLabel(title, systemImage: systemImage)
+            Label(title, systemImage: systemImage)
                 .font(.system(.headline, design: .rounded))
                 .frame(maxWidth: .infinity)
                 .frame(height: 50)
@@ -66,7 +66,7 @@ private struct BigButton: View {
 /// A hero that sits in a List as its first row, edge to edge within the list's margins.
 private extension View {
     func heroRow() -> some View {
-        listRowInsetsCompat(EdgeInsets()).listRowBackgroundCompat(Color.clear)
+        listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
     }
 }
 
@@ -165,8 +165,8 @@ struct GamePage: View {
     }
 
     var body: some View {
-        huskList {
-            huskSection {
+        List {
+            Section {
                 PageHero(item: .game(app), subtitle: subtitle) { primary }
             } footer: {
                 if isGeodeLauncher {
@@ -181,16 +181,16 @@ struct GamePage: View {
 
             // what the files say before it starts: a damaged APK, the wrong CPU, a missing piece, protection that refuses Husk
             if let d = preflight {
-                huskSection {
+                Section {
                     AppDiagnosisCard(diagnosis: d)
-                        .listRowInsetsCompat(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+                        .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
                 }
             }
             // why it stopped last time, until it plays again
             if let d = GameStatusStore.shared.diagnosis(app.id), d != preflight {
-                huskSection(header: Text("Last Run")) {
+                Section(header: Text("Last Run")) {
                     AppDiagnosisCard(diagnosis: d, showsEvidence: true)
-                        .listRowInsetsCompat(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+                        .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
                 }
             }
 
@@ -199,26 +199,26 @@ struct GamePage: View {
             }
 
             if !ShowcaseStore.shared.pictures(for: app.packageName).isEmpty {
-                huskSection(header: Text("Screenshots")) {
+                Section(header: Text("Screenshots")) {
                     ShowcaseGallery(package: app.packageName)
-                        .listRowInsetsCompat(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
+                        .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
                 }
             }
 
-            huskSection {
+            Section {
                 NavigationLink(destination: libraryDestination(LibraryRoute.gameSettings(app.id))) {
-                    huskLabel("Game Settings", systemImage: "slider.horizontal.3")
+                    Label("Game Settings", systemImage: "slider.horizontal.3")
                 }
                 NavigationLink(destination: libraryDestination(LibraryRoute.gameReport(app.id))) {
-                    huskLabel("Technical Details", systemImage: "cpu")
+                    Label("Technical Details", systemImage: "cpu")
                 }
             }
 
             if !isGeodeLauncher {
-                huskSection {
-                    Button { backUp() } label: { huskLabel("Back Up Saves", systemImage: "square.and.arrow.up") }
+                Section {
+                    Button { backUp() } label: { Label("Back Up Saves", systemImage: "square.and.arrow.up") }
                         .disabled(savesBusy || !SaveBackup.hasData(app))
-                    Button { pickRestore() } label: { huskLabel("Restore Saves", systemImage: "clock.arrow.circlepath") }
+                    Button { pickRestore() } label: { Label("Restore Saves", systemImage: "clock.arrow.circlepath") }
                         .disabled(savesBusy || loadedNow)
                 } header: {
                     Text("Saves")
@@ -227,29 +227,25 @@ struct GamePage: View {
                 }
             }
 
-            huskSection(header: Text("About")) {
+            Section(header: Text("About")) {
                 HuskLabeledContent("Runs With", value: app.report?.runnerName ?? "Unknown")
                 if let st = GameStatusStore.shared.status(app.id) {
                     HuskLabeledContent("Last Result") {
-                        huskLabel(st.result.label, systemImage: st.result.symbol).foregroundColor(st.result.color)
+                        Label(st.result.label, systemImage: st.result.symbol).foregroundColor(st.result.color)
                     }
                 }
                 HuskLabeledContent("Last Played", value: app.lastPlayed.map { huskFormatDateTime($0) } ?? "Never")
                 HuskLabeledContent("Size", value: fileBytes(app.apks))
             }
 
-            huskSection {
+            Section {
 Button(action: { dialog = .remove }) {
-                    huskLabel("Remove Game", systemImage: "trash")
+                    Label("Remove Game", systemImage: "trash")
                 }
                     .foregroundColor(Color.red)
             }
         }
-
-// .listStyle(.insetGrouped) is iOS 14 and has no counterpart at
-// this floor: huskList is a ScrollView of rows, so the rounded
-// card the style drew is simply not there. See Compat13.swift.
-
+        .listStyle(.insetGrouped)
         .navigationTitle(app.label)
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(isPresented: $playing, onDismiss: askHowItRan) { TLAttemptView(app: app) }
@@ -358,7 +354,7 @@ Button(action: { dialog = .remove }) {
     }
 
     private func pickRestore() {
-        HuskFilePicker.present(types: ["public.zip-archive"], multiple: false) { urls in
+        HuskFilePicker.present(types: [.zip], multiple: false) { urls in
             if let url = urls.first { dialog = .restore(url) }
         } onFail: { savesMessage = $0 }
     }
@@ -401,7 +397,7 @@ Button(action: { dialog = .remove }) {
             BigButton(title: "Close Husk to Play", systemImage: "xmark.circle", prominent: false) { dialog = .quit }
         } else if !Launcher.jitOn {
             if jit.busy {
-                HStack(spacing: 10) { huskProgress(); Text(jit.status ?? "Turning on JIT…").foregroundColor(.secondary) }
+                HStack(spacing: 10) { ProgressView(); Text(jit.status ?? "Turning on JIT…").foregroundColor(.secondary) }
                     .frame(maxWidth: .infinity).frame(height: 50)
             } else {
                 BigButton(title: "Turn On JIT to Play", systemImage: "bolt.fill", action: turnOnJIT)

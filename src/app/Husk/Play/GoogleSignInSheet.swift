@@ -15,7 +15,7 @@ struct GoogleSignInSheet: View {
     var body: some View {
         NavigationView {
             ZStack {
-                Theme.backdrop.huskIgnoresSafeArea()
+                Theme.backdrop.ignoresSafeArea()
 
                 GoogleLoginWebView(
                     isLoading: $webLoading,
@@ -33,7 +33,7 @@ struct GoogleSignInSheet: View {
 
                 if manager.isLoading {
                     VStack(spacing: 16) {
-                        huskProgress()
+                        ProgressView()
                             .scaleEffect(1.2)
                         Text(manager.statusMessage ?? "Signing in to Google…")
                             .font(.subheadline.weight(.medium))
@@ -43,20 +43,20 @@ struct GoogleSignInSheet: View {
                     .huskBackground(Theme.surfaceHigh, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .shadow(radius: 20)
                 } else if webLoading {
-                    huskProgress("Loading Google Sign-In…")
+                    ProgressView("Loading Google Sign-In…")
                         .font(.footnote)
                 }
             }
             .navigationTitle("Sign in with Google")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(
-                leading: AnyView(
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         huskPM.wrappedValue.dismiss()
                     }
                     .disabled(manager.isLoading)
-                )
-            )
+                }
+            }
         }
     }
 }

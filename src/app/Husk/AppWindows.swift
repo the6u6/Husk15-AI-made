@@ -95,7 +95,7 @@ private struct AppWindow: View {
     let app: TLApp
     let container: CGSize
     @ObservedObject private var windows = AppWindows.shared
-    @ObservedObject private var model = TLUnityModel()
+    @StateObject private var model = TLUnityModel()
     @State private var stoppedWhy: AppDiagnosis?
     /// The frame as a drag or a resize began.
     @State private var startFrame: CGRect?
@@ -164,10 +164,10 @@ private struct AppWindow: View {
             model.stop()
             UIApplication.shared.isIdleTimerDisabled = false
         }
-        .huskOnChange(of: model.frames) { n in
+        .onChange(of: model.frames) { n in
             if n > 600, model.state == Int32(HUSK_UNITY_RUNNING) { GameStatusStore.shared.record(app.id, .plays) }
         }
-        .huskOnChange(of: model.state) { st in
+        .onChange(of: model.state) { st in
             if st == Int32(HUSK_UNITY_FAILED) || st == Int32(HUSK_UNITY_ENDED), stoppedWhy == nil, let d = AppDiagnosis.ofCurrentRun() {
                 stoppedWhy = d
                 GameStatusStore.shared.record(app.id, st == Int32(HUSK_UNITY_FAILED) ? .failed : .crashed, diagnosis: d)
@@ -201,7 +201,7 @@ private struct AppWindow: View {
                             if model.state == Int32(HUSK_UNITY_FAILED) || model.state == Int32(HUSK_UNITY_ENDED) {
                                 Text(model.statusText).font(.subheadline.weight(.semibold)).foregroundColor(.white)
                             } else {
-                                huskProgress().accentColor(.white)
+                                ProgressView().accentColor(.white)
                                 Text("Starting \(app.label)…").font(.caption).foregroundColor(.white.opacity(0.7))
                             }
                         }
@@ -223,7 +223,7 @@ private struct AppWindow: View {
                     Image(systemName: "chevron.backward").font(.system(size: 13, weight: .semibold)).frame(width: 28, height: 28)
                 }
                 .buttonStyle(.plain)
-                .accessibility(label: "Back")
+                .accessibilityLabel("Back")
             }
             ItemIcon(item: .game(app), size: 18)
             Text(app.label).font(.footnote.weight(.semibold)).lineLimit(1)
@@ -251,7 +251,7 @@ private struct AppWindow: View {
         }
         .buttonStyle(.plain)
         .frame(width: 22)
-        .accessibility(label: label)
+        .accessibilityLabel(label)
     }
 
     private var moveGesture: some Gesture {
@@ -284,7 +284,7 @@ private struct AppWindow: View {
                     }
                     .onEnded { _ in startFrame = nil }
             )
-            .accessibility(label: "Resize")
+            .accessibilityLabel("Resize")
     }
 }
 
@@ -323,14 +323,14 @@ private struct WindowDock: View {
                     }
             )
             .contextMenu {
-                Button { windows.restore() } label: { huskLabel("Show", systemImage: "macwindow") }
+                Button { windows.restore() } label: { Label("Show", systemImage: "macwindow") }
                 // Button(role:) is iOS 15; .foregroundColor(.red) is the 14
                 // equivalent and is what the role was styling anyway.
-                Button { windows.close() } label: { huskLabel("Close", systemImage: "xmark") }
+                Button { windows.close() } label: { Label("Close", systemImage: "xmark") }
                     .foregroundColor(Color.red)
             }
-            .accessibility(label: "\(app.label), minimised")
-            
+            .accessibilityLabel("\(app.label), minimised")
+            .accessibilityHint("Shows the window again")
     }
 }
 

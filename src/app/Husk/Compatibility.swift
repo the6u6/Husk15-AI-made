@@ -220,7 +220,7 @@ struct CompatibilitySection: View {
         Section {
             if let entry, let status = entry.status {
                 HStack(spacing: 12) {
-                    Image(systemName: status.symbol).font(.headline).foregroundColor(status.color)
+                    Image(systemName: status.symbol).font(.title3).foregroundColor(status.color)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(status.label).font(.body.weight(.semibold))
                         Text(entry.official?.note.isEmpty == false ? entry.official!.note : status.explanation)
@@ -235,8 +235,8 @@ struct CompatibilitySection: View {
                 Text("Not on the list yet. Be the first to say how it runs.")
                     .font(.footnote).foregroundColor(.secondary)
             }
-            Button { reporting = subject } label: { huskLabel("Report How It Ran", systemImage: "square.and.pencil") }
-            Link(destination: compat.pageURL(subject.package)) { huskLabel("Open on antiweb.lol", systemImage: "safari") }
+            Button { reporting = subject } label: { Label("Report How It Ran", systemImage: "square.and.pencil") }
+            Link(destination: compat.pageURL(subject.package)) { Label("Open on antiweb.lol", systemImage: "safari") }
         } header: {
             Text("Compatibility")
         } footer: {
@@ -250,7 +250,7 @@ struct CompatReportSheet: View {
     let subject: CompatSubject
     // DismissAction is iOS 15.
     @Environment(\.presentationMode) private var huskPM
-    @huskAppStorage("husk.compatAuthor") private var author = ""
+    @AppStorage("husk.compatAuthor") private var author = ""
     @State private var status: CompatibilityStore.Status?
     @State private var notes = ""
     @State private var sending = false
@@ -264,7 +264,7 @@ struct CompatReportSheet: View {
                     ForEach([CompatibilityStore.Status.works, .opens, .broken], id: \.self) { s in
                         Button { status = s } label: {
                             HStack {
-                                huskLabel(s == .opens ? "Opens, but Has Problems" : s.label, systemImage: s.symbol)
+                                Label(s == .opens ? "Opens, but Has Problems" : s.label, systemImage: s.symbol)
                                     .foregroundColor(.primary)
                                 Spacer()
                                 if status == s { Image(systemName: "checkmark").foregroundColor(.accentColor) }
@@ -277,12 +277,12 @@ struct CompatReportSheet: View {
                 // Section("Notes") is iOS 15; Section(header:content:) is 13.
                 // TextField(_:text:axis:) and .lineLimit(3...8) are iOS 16
                 // together -- a TextField is one line until then, and there is no
+                // older spelling of either half. TextEditor is iOS 14 and is the
+                // multi-line control they wanted; the height stands in for the
+                // range, and it scrolls if it overruns.
                 Section(header: Text("Notes")) {
-                    // TextEditor is iOS 14. Below that a TextField is one line and
-                    // there is nothing in SwiftUI that is not -- so this is
-                    // UITextView, which has been available since iOS 2. The height
-                    // stands in for the 3...8 range, and it scrolls if it overruns.
-                    huskTextEditor(text: $notes, height: 88)
+                    TextEditor(text: $notes)
+                        .frame(height: 88)
                 }
                 Section {
                     TextField("Anonymous", text: $author)
@@ -299,23 +299,19 @@ struct CompatReportSheet: View {
             }
             .navigationTitle(sent ? "Thanks!" : "Report")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(
-                leading: AnyView(
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
                     Button(subject.afterPlaying ? "Not Now" : "Cancel") {
                         if subject.afterPlaying { CompatibilityStore.shared.markAsked(subject.package) }
                         huskPM.wrappedValue.dismiss()
                     }
-                ),
-                trailing: AnyView(
-                    Group {
-                        if sending {
-                            huskProgress()
-                        } else {
-                            Button("Send") { send() }.disabled(status == nil)
-                        }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    if sending { ProgressView() } else {
+                        Button("Send") { send() }.disabled(status == nil)
                     }
-                )
-            )
+                }
+            }
         }
         .onAppear {
             if let crash = subject.crash {

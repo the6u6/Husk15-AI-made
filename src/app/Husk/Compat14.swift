@@ -221,7 +221,7 @@ struct HuskAsyncImage<Content: View>: View {
     var body: some View {
         content(phase)
             .onAppear { load() }
-            .huskOnChange(of: url) { _ in load() }
+            .onChange(of: url) { _ in load() }
     }
 
     private func load() {

@@ -18,7 +18,7 @@ struct StoreView: View {
                 if !manager.isSignedIn {
                     signedOutState
                 } else if manager.isLoading && manager.featuredApps.isEmpty && !manager.isSearching {
-                    huskProgress("Connecting to Google Play…")
+                    ProgressView("Connecting to Google Play…")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     storeContent
@@ -30,51 +30,47 @@ struct StoreView: View {
             .background(Theme.backdrop)
             .navigationTitle("Store")
             .navigationBarTitleDisplayMode(.large)
-            .navigationBarItems(
-                leading: AnyView(EmptyView()),
-                trailing: AnyView(
-                    Group {
-                        if manager.isSignedIn {
-                            Menu {
-                                if let s = manager.session {
-                                    Text(s.isAnonymous ? "Guest Account (Aurora)" : s.email)
-                                        .font(.caption)
-                                    if s.isAnonymous {
-                                        Text(s.email).font(.caption).foregroundColor(.secondary)
-                                    }
-                                    Divider()
+            .toolbar {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    if manager.isSignedIn {
+                        Menu {
+                            if let s = manager.session {
+                                Text(s.isAnonymous ? "Guest Account (Aurora)" : s.email)
+                                    .font(.caption)
+                                if s.isAnonymous {
+                                    Text(s.email).font(.caption2).foregroundColor(.secondary)
                                 }
-                                Button(action: {
-                                    manager.signOut()
-                                }) {
-                                    huskLabel("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
-                                }
+                                Divider()
+                            }
+Button(action: {
+                                manager.signOut()
+                            }) {
+                                Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                            }
                                 .foregroundColor(Color.red)
+                        } label: {
+                            Image(systemName: manager.session?.isAnonymous == true ? "person.badge.shield.checkmark" : "person.crop.circle")
+                                .font(.system(size: 18))
+                        }
+                    } else {
+                        Menu {
+                            Button {
+                                Task { await manager.signInAsGuest() }
                             } label: {
-                                Image(systemName: manager.session?.isAnonymous == true
-                                      ? "person.badge.shield.checkmark" : "person.crop.circle")
-                                    .font(.system(size: 18))
+                                Label("Use Guest Account (Aurora)", systemImage: "person.crop.circle.badge.checkmark")
                             }
-                        } else {
-                            Menu {
-                                Button {
-                                    Task { await manager.signInAsGuest() }
-                                } label: {
-                                    huskLabel("Use Guest Account (Aurora)", systemImage: "person.crop.circle.badge.checkmark")
-                                }
-                                Button {
-                                    showSignIn = true
-                                } label: {
-                                    huskLabel("Sign In with Google", systemImage: "person.badge.key")
-                                }
+                            Button {
+                                showSignIn = true
                             } label: {
-                                Text("Sign In")
-                                    .font(.subheadline.weight(.semibold))
+                                Label("Sign In with Google", systemImage: "person.badge.key")
                             }
+                        } label: {
+                            Text("Sign In")
+                                .font(.subheadline.weight(.semibold))
                         }
                     }
-                )
-            )
+                }
+            }
             .sheet(isPresented: $showSignIn) {
                 GoogleSignInSheet()
             }
@@ -85,7 +81,7 @@ struct StoreView: View {
             // cancellation no longer discards the trailing keystrokes -- the
             // sleep has to finish first, so a fast typist waits it out.
             .onAppear { runSearch() }
-            .huskOnChange(of: searchText) { _ in runSearch() }
+            .onChange(of: searchText) { _ in runSearch() }
             .huskDialog(title: "Error", message: manager.errorMessage ?? "",
                         isPresented: Binding(
                             get: { manager.errorMessage != nil },
@@ -120,7 +116,7 @@ struct StoreView: View {
 
             VStack(spacing: 8) {
                 Text("Google Play Store")
-                    .font(.title.weight(.bold))
+                    .font(.title2.weight(.bold))
                     .foregroundColor(Theme.text)
 
                 Text("Browse and download apps using an anonymous Aurora guest account, or sign in with your Google account.")
@@ -132,7 +128,7 @@ struct StoreView: View {
 
             if manager.isLoading {
                 VStack(spacing: 12) {
-                    huskProgress()
+                    ProgressView()
                     Text(manager.statusMessage ?? "Signing in…")
                         .font(.footnote)
                         .foregroundColor(Theme.textDim)
@@ -181,13 +177,13 @@ struct StoreView: View {
     // MARK: - Store Content
 
     private var storeContent: some View {
-        huskList {
+        List {
             if !debouncedSearchText.isEmpty {
-                huskSection {
+                Section {
                     if manager.isSearching {
                         HStack {
                             Spacer()
-                            huskProgress("Searching…")
+                            ProgressView("Searching…")
                             Spacer()
                         }
                         .padding(.vertical, 12)
@@ -206,7 +202,7 @@ struct StoreView: View {
                 }
             } else {
                 if !manager.featuredApps.isEmpty {
-                    huskSection {
+                    Section {
                         ForEach(manager.featuredApps) { app in
                             appRow(app)
                         }
@@ -214,7 +210,7 @@ struct StoreView: View {
                         Text("Featured Apps")
                     }
                 } else {
-                    huskSection {
+                    Section {
                         Text("No featured apps available. Try searching above.")
                             .font(.subheadline)
                             .foregroundColor(Theme.textDim)
@@ -222,11 +218,7 @@ struct StoreView: View {
                 }
             }
         }
-
-// .listStyle(.insetGrouped) is iOS 14 and has no counterpart at
-// this floor: huskList is a ScrollView of rows, so the rounded
-// card the style drew is simply not there. See Compat13.swift.
-
+        .listStyle(.insetGrouped)
         // .refreshable is iOS 15 and there is nothing to replace it with; the
         // list loads through runSearch() above instead.
     }
@@ -273,7 +265,7 @@ struct StoreView: View {
                                     .font(.system(size: 10))
                                     .foregroundColor(.yellow)
                                 Text(String(format: "%.1f", app.rating))
-                                    .font(.caption.weight(.medium))
+                                    .font(.caption2.weight(.medium))
                                     .foregroundColor(Theme.textDim)
                             }
                         }
@@ -303,7 +295,7 @@ struct StoreView: View {
                         .trim(from: 0, to: progress ?? 0.05)
                         .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 3, lineCap: .round))
                         .rotationEffect(.degrees(-90))
-                    huskProgress()
+                    ProgressView()
                         .scaleEffect(0.6)
                 }
                 .frame(width: 32, height: 32)
@@ -351,7 +343,7 @@ struct PlayAppDetailSheet: View {
 
                         VStack(alignment: .leading, spacing: 4) {
                             Text(app.title)
-                                .font(.headline.weight(.bold))
+                                .font(.title3.weight(.bold))
                                 .foregroundColor(Theme.text)
                                 .lineLimit(2)
 
@@ -429,11 +421,11 @@ struct PlayAppDetailSheet: View {
             .background(Theme.backdrop)
             .navigationTitle(app.title)
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(
-                leading: AnyView(
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { huskPM.wrappedValue.dismiss() }
-                )
-            )
+                }
+            }
         }
     }
 
@@ -444,7 +436,7 @@ struct PlayAppDetailSheet: View {
         return Group {
             if isDownloading || progress != nil {
                 HStack(spacing: 8) {
-                    huskProgress()
+                    ProgressView()
                     Text("Downloading…")
                         .font(.caption.weight(.medium))
                         .foregroundColor(Theme.textDim)
@@ -470,7 +462,7 @@ struct PlayAppDetailSheet: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundColor(Theme.text)
             Text(title)
-                .font(.caption)
+                .font(.caption2)
                 .foregroundColor(Theme.textDim)
         }
     }

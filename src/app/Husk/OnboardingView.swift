@@ -44,10 +44,7 @@ struct OnboardingView: View {
                     jitPage.tag(1)
                     ready.tag(2)
                 }
-                // .tabViewStyle(.page(indexDisplayMode:)) is iOS 14. The
-                // TabView still selects by tag, so the dots and the Continue
-                // button drive it; what is lost is the swipe gesture, which on
-                // 13 would have needed a UIPageViewController underneath.
+                .tabViewStyle(.page(indexDisplayMode: .never))
                 .sheet(isPresented: $settingUpJIT) { JITSetupFlow() }
 
                 // One control, always in the same place. A flow that moves its
@@ -100,7 +97,7 @@ struct OnboardingView: View {
             }
             Text("Husk").font(.system(size: 40, weight: .semibold, design: .rounded))
             Text("Android apps, on your iPhone.")
-                .font(.headline).foregroundColor(.secondary)
+                .font(.title3).foregroundColor(.secondary)
             // This said "runs a real Android system and opens APKs inside it",
             // which is exactly what the VM removal makes false -- and it was the
             // first thing a new user read.
@@ -137,7 +134,7 @@ struct OnboardingView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 34)
             if let state = jitState {
-                huskLabel(state, systemImage: "checkmark.circle.fill")
+                Label(state, systemImage: "checkmark.circle.fill")
                     .font(.callout.weight(.medium)).foregroundColor(.green)
             }
             Button(jitState == nil ? "Set Up StikJIT Now" : "Change JIT Setup") { settingUpJIT = true }

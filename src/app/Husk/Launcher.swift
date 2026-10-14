@@ -120,7 +120,7 @@ struct HomeView: View {
     @ObservedObject private var jit = JITCoordinator.shared
     @ObservedObject private var incoming = IncomingFiles.shared
     @Environment(\.colorScheme) private var scheme
-    @huskAppStorage(Holiday.key) private var holiday = true
+    @AppStorage(Holiday.key) private var holiday = true
 
     /// Everything, most recent first.
     private var all: [LibraryItem] { Launcher.byRecent(Launcher.items(store: store)) }
@@ -151,7 +151,7 @@ struct HomeView: View {
                     if holiday { ChristmasTree(size: 30).padding(.leading, 2) }
                     Spacer()
                     HeaderButton(systemImage: "plus") { router.addSomething() }
-                        .accessibility(label: "Add a Game or App")
+                        .accessibilityLabel("Add a Game or App")
                 }
                 .padding(.horizontal, 4)
                 .padding(.bottom, 6)
@@ -178,11 +178,11 @@ struct HomeView: View {
                     ShelfHeader(title: "Library") { router.showLibrary(.all) }
                         .padding(.horizontal, 4)
                         .padding(.top, 6)
-                    huskLazyVGrid(count: 4, spacing: 10) {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4), spacing: 10) {
                         ForEach(rest.prefix(UIDevice.current.userInterfaceIdiom == .pad ? 16 : 8)) { item in
                             NavigationLink(destination: libraryDestination(item.route)) { LibrarySquare(item: item) }
                                 .buttonStyle(CardButtonStyle())
-                                .accessibility(label: item.title)
+                                .accessibilityLabel(item.title)
                         }
                     }
                 }
@@ -192,7 +192,7 @@ struct HomeView: View {
             .padding(.bottom, 32)
             .id(jit.attachGeneration)
         }
-        .background(Color(.systemBackground).huskIgnoresSafeArea())
+        .background(Color(.systemBackground).ignoresSafeArea())
         .navigationBarHidden(true)
     }
 }
@@ -266,7 +266,7 @@ private struct LeadTile: View {
                         .huskBackground(Color.accentColor, in: Circle())
                 }
                 .buttonStyle(CardButtonStyle())
-                .accessibility(label: (item.isGame ? "Play " : "Open ") + item.title)
+                .accessibilityLabel((item.isGame ? "Play " : "Open ") + item.title)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
@@ -299,7 +299,7 @@ private struct JITTile: View {
                     HStack {
                         TileGlyph(systemImage: "bolt.fill", color: isOn ? .green : .orange)
                         Spacer()
-                        if jit.busy { huskProgress() }
+                        if jit.busy { ProgressView() }
                     }
                     VStack(alignment: .leading, spacing: 2) {
                         Text(isOn ? "JIT on" : "JIT off").font(.headline).foregroundColor(.primary)
@@ -383,7 +383,7 @@ private struct WelcomeCard: View {
                 .huskBackground(Color.accentColor.opacity(0.15), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             VStack(alignment: .leading, spacing: 6) {
                 Text("Add your first game")
-                    .font(.system(.title, design: .rounded).weight(.bold))
+                    .font(.system(.title2, design: .rounded).weight(.bold))
                 Text("Pick an APK or a bundle (.xapk, .apkm, .apks), or share one to Husk from Files or Safari. Games run "
                    + "straight on your iPhone. Other apps run inside Android.")
                     .font(.subheadline)
@@ -406,7 +406,7 @@ private struct ShelfHeader: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(title).font(.system(.headline, design: .rounded).weight(.bold))
+            Text(title).font(.system(.title3, design: .rounded).weight(.bold))
             Spacer()
             Button("See All", action: seeAll).font(.subheadline.weight(.semibold))
         }
@@ -527,7 +527,7 @@ struct LibraryScreen: View {
                         .font(.system(size: 28, weight: .heavy, design: .rounded))
                     Spacer()
                     HeaderButton(systemImage: "plus") { router.addSomething() }
-                        .accessibility(label: "Add a Game or App")
+                        .accessibilityLabel("Add a Game or App")
                 }
                 .padding(.horizontal, 4)
                 .padding(.bottom, 6)
@@ -556,7 +556,7 @@ struct LibraryScreen: View {
             .padding(.top, 8)
             .padding(.bottom, 32)
         }
-        .background(Color(.systemBackground).huskIgnoresSafeArea())
+        .background(Color(.systemBackground).ignoresSafeArea())
         .navigationBarHidden(true)
     }
 
@@ -572,7 +572,9 @@ struct LibraryScreen: View {
                     if items.isEmpty, let empty {
                         Text(empty).font(.subheadline).foregroundColor(.secondary)
                     } else {
-                        huskLazyVGrid(count: UIDevice.current.userInterfaceIdiom == .pad ? 8 : 4, spacing: 18) {
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10, alignment: .top),
+                                                 count: UIDevice.current.userInterfaceIdiom == .pad ? 8 : 4),
+                                  spacing: 18) {
                             ForEach(items) { item in
                                 NavigationLink(destination: libraryDestination(item.route)) {
                                     LauncherTile(title: item.title, iconPath: item.iconPath, item: item, caption: caption(item), size: 60)
@@ -631,7 +633,7 @@ struct LauncherTile: View {
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
                 if let caption {
-                    Text(caption).font(.caption).foregroundColor(.secondary).lineLimit(1)
+                    Text(caption).font(.caption2).foregroundColor(.secondary).lineLimit(1)
                 }
             }
             .padding(.top, item?.runsInAndroid == true ? 3 : 0)
@@ -665,7 +667,7 @@ struct BusyStrip: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            huskProgress()
+            ProgressView()
             Text(text).font(.subheadline).lineLimit(2)
             Spacer(minLength: 0)
         }
@@ -700,7 +702,7 @@ struct SearchField: View {
                         Image(systemName: "xmark.circle.fill").foregroundColor(Color(.tertiaryLabel))
                     }
                     .buttonStyle(.plain)
-                    .accessibility(label: "Clear")
+                    .accessibilityLabel("Clear")
                 }
             }
             .padding(.horizontal, 10)
