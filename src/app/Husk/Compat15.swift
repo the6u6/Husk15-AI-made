@@ -290,21 +290,58 @@ extension View {
     ///
     /// Not a spelling change: there is no SwiftUI modifier before iOS 16 that
     /// does this. What it asks for is the home indicator hidden, and that has
-    /// always been reachable through UIKit --
-    /// `UIApplication.isHomeIndicatorAutoHidden` is iOS 11 -- so this drives
-    /// that instead of pretending the modifier was older than it is.
+    /// always been reachable -- on `UIViewController`, as
+    /// `prefersHomeIndicatorAutoHidden` (iOS 11) plus
+    /// `setNeedsUpdateOfHomeIndicatorAutoHidden()`.
     ///
-    /// Driven from onAppear/onDisappear rather than held as state, because the
-    /// property is process-wide: a view that sets it on appear and clears it on
-    /// disappear leaves it correct however this view is left, including a
-    /// swipe-to-dismiss that does not run the disappear handler's counterpart
-    /// in every case. It is the same property the system would have set, so a
-    /// second Husk screen asking to hide it stays hidden.
+    /// The first version of this drove `UIApplication.isHomeIndicatorAutoHidden`,
+    /// which does not exist. The home indicator's auto-hide is a property of a
+    /// view controller, not of the application, and there is no application-level
+    /// counterpart to set.
     ///
-    /// The status bar is not this modifier's job -- `.statusBarHidden(true)`
-    /// covers it, and PS4PlayView chains both.
+    /// So it goes through a representable whose controller carries the flag and,
+    /// once it is on screen, walks up to the controller that is actually
+    /// presenting. The walk is the part that matters: a representable in a
+    /// `.background()` is a child of whatever presented the sheet or cover, and
+    /// the home indicator follows the *topmost* controller, not this one. Setting
+    /// only the representable's own controller would hide nothing.
+    ///
+    /// This is a best effort and not the same mechanism iOS 16 uses -- SwiftUI
+    /// can ask for this before anything is presented, and a background view
+    /// cannot. It works for a fullScreenCover, which is the only thing that uses
+    /// it here.
     func huskPersistentOverlaysHidden() -> some View {
-        onAppear { UIApplication.shared.isHomeIndicatorAutoHidden = true }
-            .onDisappear { UIApplication.shared.isHomeIndicatorAutoHidden = false }
+        background(HuskHomeIndicatorHider().frame(width: 0, height: 0))
+    }
+}
+
+/// Carries `prefersHomeIndicatorAutoHidden` up to whatever is presenting.
+private final class HuskHomeIndicatorController: UIViewController {
+    override var prefersHomeIndicatorAutoHidden: Bool { true }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        applyToPresenter()
+    }
+
+    fileprivate func applyToPresenter() {
+        var vc: UIViewController = self
+        while let next = vc.presentedViewController { vc = next }
+        guard vc !== self else { return }
+        vc.prefersHomeIndicatorAutoHidden = true
+        vc.setNeedsUpdateOfHomeIndicatorAutoHidden()
+    }
+}
+
+private struct HuskHomeIndicatorHider: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> HuskHomeIndicatorController {
+        HuskHomeIndicatorController()
+    }
+
+    func updateUIViewController(_ controller: HuskHomeIndicatorController, context: Context) {
+        // Re-applied on every update: the presenter can change under us if the
+        // view is still around when something new is presented over it, and the
+        // flag does not survive that on its own.
+        controller.applyToPresenter()
     }
 }

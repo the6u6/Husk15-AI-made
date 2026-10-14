@@ -419,9 +419,16 @@ struct PS4GamePage: View {
 
     private var item: LibraryItem { .ps4(game) }
 
-    /// Another game already loaded in this run of Husk (an Android game's engine, or another PS4 game).
+    /// Another game already loaded in this run of Husk, which owns the JIT
+    /// region the PS4 layer needs.
+    ///
+    /// Upstream also checks `Router.androidStarted` here, for QEMU holding that
+    /// same region. There is no guest in this fork and no such flag on Router --
+    /// it went with the VM -- so the check is gone rather than the guard it
+    /// wrapped. What remains still covers the case the flag existed to warn
+    /// about: husk_native_loaded_apk reports whatever engine or console module
+    /// is resident, and only one can be.
     private var blockedBy: String? {
-        if Router.shared.androidStarted { return "Android" }   // QEMU holds the JIT region the PS4 layer needs
         guard let loaded = husk_native_loaded_apk().map({ String(cString: $0) }), loaded != game.libraryID else { return nil }
         if loaded.hasPrefix("ps4:") { return PS4Store.shared.game(String(loaded.dropFirst(4)))?.title ?? "Another game" }
         return TranslationLayerStore.shared.apps.first { $0.apks.first == loaded }?.label ?? "Another game"
@@ -457,7 +464,7 @@ struct PS4GamePage: View {
         .navigationTitle(game.title)
         .navigationBarTitleDisplayMode(.inline)
         .fullScreenCover(isPresented: $playing) { PS4PlayView(game: game) }
-        .huskConfirmMessage("Close Husk?", isPresented: $confirmQuit, titleVisibility: .visible) {
+        .huskConfirmMessage("Close Husk?", isPresented: $confirmQuit) {
             Button("Close Husk") {
                 Router.shared.switchTo(game.libraryID)
                 CrashReport.gameEnded()

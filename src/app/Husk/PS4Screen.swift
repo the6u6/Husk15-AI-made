@@ -107,8 +107,14 @@ private struct PS4Surface: UIViewRepresentable {
 
     func start() {
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.poll() }
+        // Not `[weak self]`. The timer's closure is not main-actor isolated, so
+        // capturing self there and reaching for it inside `Task { @MainActor }`
+        // is a captured var in concurrently-executing code -- which is what the
+        // compiler said. Binding the weak reference outside the closure keeps
+        // `self` out of it entirely, and the poll still cannot outlive the model.
+        let me = WeakModel(self)
+        timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+            Task { @MainActor in me.value?.poll() }
         }
         poll()
     }
@@ -135,6 +141,13 @@ private struct PS4Surface: UIViewRepresentable {
     }
 }
 
+/// A weak reference to `PS4Model`, for the one place that cannot capture `self`
+/// directly. Declared outside the model so the capture is a let, not a var.
+private final class WeakModel {
+    weak var value: PS4Model?
+    init(_ model: PS4Model) { value = model }
+}
+
 /// Full screen, landscape: the game, the on-screen pad when no controller is paired, and a way out.
 struct PS4PlayView: View {
     let game: PS4Game
@@ -152,7 +165,7 @@ struct PS4PlayView: View {
             PS4Surface(game: game).ignoresSafeArea()
             if !model.running {
                 VStack(spacing: 12) {
-                    if model.error == nil, model.state <= Int32(HUSK_CONSOLE_BOOTING.rawValue) { ProgressView().tint(.white) }
+                    if model.error == nil, model.state <= Int32(HUSK_CONSOLE_BOOTING.rawValue) { ProgressView().accentColor(.white) }
                     Text(model.statusText)
                         .font(.system(size: 15, weight: .medium)).foregroundColor(.white.opacity(0.85))
                         .multilineTextAlignment(.center).frame(maxWidth: 460)
@@ -182,7 +195,16 @@ struct PS4PlayView: View {
         }
         .statusBarHidden(true)
         .huskPersistentOverlaysHidden()
-        .defersSystemGestures(on: .all)
+        // .defersSystemGestures(on:) is iOS 16, not 14. The shim's own comment
+        // asserted otherwise and the sweep's ban on it had been taken out to
+        // match, so both were wrong together and agreed. The ban is back and
+        // the modifier is gone.
+        //
+        // The loss is small and real: without it the system keeps its own edge
+        // gestures -- back from the left edge, app switcher from the bottom --
+        // over a running game, which is what the modifier existed to stop. The
+        // bar has its own close button, and the console host merges the pads,
+        // so a stray gesture is not fatal; it is just wrong.
         .onTapGesture(count: 3) { withAnimation { showBar.toggle() } }
         .onAppear {
             HuskOrientation.set(.landscape)

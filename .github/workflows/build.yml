@@ -260,22 +260,19 @@ jobs:
           pat+='|persistentSystemOverlays|\.snappy\b|\.animation\(.+, value:'
           pat+='|\.toolbar\(\.(hidden|visible), for:|\bLabeledContent\b'
           pat+='|\.gradient\b|\.scrollIndicators|\.scrollDismissesKeyboard'
-          # .defersSystemGestures(on:) was banned for the 13.0 floor and stayed
-          # banned when the floor moved to 14.0, where it is available --
-          # View.defersSystemGestures(on: Edge.Set) is iOS 14.0. Upstream's PS4
-          # play screen chains it, so leaving the ban in place left only two
-          # ways forward: fail the build, or delete a modifier that works.
-          pat+='|Locale\.current\.region|\.region\?'
-          # Added for the PS4 merge (build 113). Each of these is something that
-          # merge used, and the list above let every one of them through:
-          # @Environment(\.dismiss) is iOS 15, the message: overload of
-          # confirmationDialog is iOS 15, Date.formatted(date:time:) is iOS 15,
-          # Section("...") is iOS 15, and loadUnaligned(fromByteOffset:) is
+          pat+='|\.defersSystemGestures|Locale\.current\.region|\.region\?'
+          # Added for the PS4 merge (build 113), then grown by what compiling it
+          # found. Each is something that merge used, or that this floor's first
+          # real build of it complained about, and the lines above let through:
+          # @Environment(\.dismiss) is iOS 15, confirmationDialog's message: and
+          # titleVisibility: overloads are iOS 15 (and Visibility itself is 15),
+          # Date.formatted(date:time:) is iOS 15, Section("...") is iOS 15,
+          # View.tint(_:) is iOS 15, and loadUnaligned(fromByteOffset:) is
           # SwiftStdlib 5.7 -- an iOS 16 API, and not a SwiftUI one, so it would
           # never have been looked for in a list of SwiftUI spellings.
           pat+='|@Environment\(\\\.dismiss|\.confirmationDialog\('
-          pat+='|\.formatted\(\s*(date|time):|\bSection\(\s*"'
-          pat+='|loadUnaligned\(fromByteOffset:'
+          pat+='|\.formatted\(\s*(date|time):|\bSection\(\s*"|titleVisibility'
+          pat+='|loadUnaligned\(fromByteOffset:|\.tint\('
           pat+='|setNeedsUpdateOfSupportedInterfaceOrientations|requestGeometryUpdate'
           # iOS 14 floor (IOS14-EXPERIMENT.md): the shims stand in for these too
           pat+='|\.foregroundStyle\(|Color\(uiColor:|\.background\([^)]*, *in:'

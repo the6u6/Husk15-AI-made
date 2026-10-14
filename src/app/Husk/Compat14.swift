@@ -361,23 +361,34 @@ extension View {
     /// takes actions and nothing else, so there is no overload to delegate to
     /// and the message has to be rendered as one.
     ///
-    /// Putting it in the action list is the standard workaround and it is
-    /// visibly not the same: the message appears as a row in the dialog rather
-    /// than in the smaller type above the buttons. It is not tappable here --
-    /// it carries no action -- but iOS 14 has no way to say "this row is not a
-    /// choice", so a row that looks like one and does nothing is the closest
-    /// available. Dropping it instead would have lost the sentence entirely,
-    /// and at this call site that sentence is the explanation for a dialog that
-    /// closes the app.
+    /// `titleVisibility` is gone from the signature too, because `Visibility`
+    /// itself is iOS 15 and the parameter arrived with it: iOS 14's overload is
+    /// `confirmationDialog(_:isPresented:actions:)` and there is nowhere to put
+    /// `.visible`. The call site had `titleVisibility: .visible` and lost it.
+    /// What that did on iOS 15 was force the dialog's title to stay on screen
+    /// while it was presented; at 14 the dialog decides for itself, which for
+    /// a two-button alert is the same thing in practice.
+    ///
+    /// The title is taken as `String` rather than `StringProtocol` for the same
+    /// reason: the iOS 15 spelling is generic over S, and the iOS 13 one is not.
+    /// Passing a generic S to a non-generic overload does not compile.
+    ///
+    /// Putting the message in the action list is the standard workaround and it
+    /// is visibly not the same: the message appears as a row in the dialog
+    /// rather than in the smaller type above the buttons. It is not tappable
+    /// here -- it carries no action -- but iOS 14 has no way to say "this row
+    /// is not a choice", so a row that looks like one and does nothing is the
+    /// closest available. Dropping it instead would have lost the sentence
+    /// entirely, and at this call site that sentence is the explanation for a
+    /// dialog that closes the app.
     ///
     /// `.disabled(true)` is not applied: it would grey the text as well, which
     /// is a second visible difference for no gain.
-    func huskConfirmMessage<S: StringProtocol, A: View, M: View>(
-        _ title: S, isPresented: Binding<Bool>,
-        titleVisibility: Visibility = .automatic,
+    func huskConfirmMessage<A: View, M: View>(
+        _ title: String, isPresented: Binding<Bool>,
         @ViewBuilder actions: () -> A,
         @ViewBuilder message: () -> M) -> some View {
-        confirmationDialog(title, isPresented: isPresented, titleVisibility: titleVisibility) {
+        confirmationDialog(title, isPresented: isPresented) {
             actions()
             message()
         }
